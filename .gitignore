@@ -14,11 +14,12 @@ kich_ban/
 kichbantest.txt
 kich_ban_thu_coc.txt
 cam_chon.json
-voices/
+voices/_thu/
 remotion/node_modules/
 remotion/*.mp4
 remotion/*.png
 remotion/thu*.json
 *.wav
+!voices/*.wav
 *.mp4
 remotion/npm_install.log

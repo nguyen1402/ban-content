@@ -53,7 +53,7 @@ OUT = os.path.join(ROOT, "ra") if DU_AN in _CU else os.path.join(ROOT, "ra", DU_
 #: những thứ KHÔNG phụ thuộc kịch bản (theo id video/ảnh/truy vấn) -> dùng chung mọi dự án.
 CHUNG = {"xem_truoc", "chi_muc", "chi_muc_l14", "ocr.json", "shots.json", "logo.json", "tim.json", "tiles",
          "nen_lop", "anh", "kho", "doan_tho", "nhac_yt"}
-FFMPEG = r"C:\yt-dlp\ffmpeg.exe"
+FFMPEG = os.environ.get("BC_FFMPEG") or (r"C:\yt-dlp\ffmpeg.exe" if os.path.isfile(r"C:\yt-dlp\ffmpeg.exe") else "ffmpeg")
 YTDLP = os.path.join(ROOT, "tools", "yt-dlp.exe")
 #: YouTube bắt buộc chạy JS để giải chữ ký — không có cờ này thì tải bị 403.
 YT_JS = ["--js-runtimes", "node"]

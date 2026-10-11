@@ -1,0 +1,4 @@
+# CHỈ cần nếu chạy bản tự tìm + ghép video cũ (chay_ghep_tu_dong.py)
+torch
+transformers
+rapidocr

@@ -1,6 +1,8 @@
-opencv-python
-numpy
-pillow
-torch
-transformers
+# Python chính (3.13) — quy trình mới (chay.py) + giao diện web
+bottle
+curl_cffi
 pycapcut
+numpy
+opencv-python
+pillow
+pywin32

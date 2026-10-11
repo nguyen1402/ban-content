@@ -1,19 +1,81 @@
-# bán-content
+# Bản Content
 
-Kịch bản (tiếng Việt) -> tìm hình/video minh họa -> ghép khớp lời -> bản nháp CapCut.
+Kịch bản tiếng Việt → tách cảnh → giọng đọc OmniVoice + từ khoá tìm nguồn (ChatGPT) → bản nháp CapCut chỉ có giọng.
+Video, ảnh, bản đồ bạn tự tìm theo từ khoá rồi ghép trong CapCut.
 
-## Cài đặt
-- Python 3.13, `pip install -r requirements.txt`
-- Bước tách cảnh / đặt từ khóa dùng ChatGPT bằng COOKIE (không dùng key API): đọc kho cookie dùng chung
-  của máy ở thư mục `CapCutTTS` trong `%LOCALAPPDATA%` (nằm ngoài repo; cần `pip install curl_cffi`).
-- Giọng đọc: OmniVoice, env `D:\CapCutTTS\omnivoice-env`, clip mẫu `voices/Tự tin.wav`.
-- `common.py` trỏ tới `C:\yt-dlp\yt-dlp.exe` và `ffmpeg.exe`; đổi nếu để chỗ khác.
+Kết quả mỗi dự án nằm ở `ra/<dự án>/`:
 
-## Chạy
-    python chay.py kichbantest.txt --gioi-han 12 --ten "Test"
+| File | Nội dung |
+|---|---|
+| `tu_khoa.md`, `tu_khoa.json` | Từng cảnh: nên chiếu gì, từ khoá tìm video/ảnh/bản đồ (kèm link Google Maps) |
+| `giong_doc.wav` | Giọng đọc cả kịch bản, đúng mốc thời gian |
+| `kich_ban.srt` | Phụ đề theo cảnh |
+| `video_tai/` | Video tải từ link YouTube bạn dán |
+| Bản nháp CapCut | Ghi thẳng vào thư mục CapCut Drafts, chỉ có track giọng |
 
-Kết quả: `ra/bao_cao.md`, `ra/kich_ban.srt`, bản nháp trong thư mục CapCut Drafts.
+---
 
-## Trạng thái
-Tải video YouTube đang bị 403 (yt-dlp cũ); ô nào không có hình thì được lấp bằng ảnh
-Wikimedia Commons hoặc thẻ "THIEU HINH".
+## Dựng lại sau khi clone
+
+Máy cần: Windows, card NVIDIA (OmniVoice chạy GPU), Python 3.13 (Miniconda), Node.js, CapCut bản PC.
+
+### 1. Lấy code
+
+```bash
+git clone https://github.com/nguyen1402/ban-content.git D:\CapCutTTS\bán-content
+cd D:\CapCutTTS\bán-content
+```
+
+Thư mục `voices/` có sẵn trong repo (các file giọng mẫu `.wav`; file `.omni.pt` đi kèm là bộ nhớ đệm giọng, hỏng thì tự tạo lại).
+
+### 2. Python chính (giao diện + quy trình)
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Env riêng cho OmniVoice (đọc giọng)
+
+```bash
+python -m venv D:\CapCutTTS\omnivoice-env
+D:\CapCutTTS\omnivoice-env\Scripts\pip install torch==2.8.0 --index-url https://download.pytorch.org/whl/cu128
+D:\CapCutTTS\omnivoice-env\Scripts\pip install -r requirements-omnivoice.txt
+```
+
+Lần đọc đầu tiên OmniVoice tự tải model `k2-fsa/OmniVoice` từ Hugging Face (vài GB).
+Đặt env ở chỗ khác thì khai báo đường dẫn: `set BC_OMNI_PY=E:\duong\dan\python.exe`.
+
+### 4. ffmpeg và yt-dlp
+
+- **ffmpeg**: chép `ffmpeg.exe` vào `C:\yt-dlp\` (mặc định), hoặc để trong PATH, hoặc `set BC_FFMPEG=<đường dẫn>`.
+- **yt-dlp** (cho mục "Tải video từ link"): tải `yt-dlp.exe` bản mới nhất từ
+  https://github.com/yt-dlp/yt-dlp/releases vào `tools\yt-dlp.exe`. Cần Node.js trong PATH (yt-dlp dùng để giải
+  mã YouTube, thiếu thì bị lỗi 403).
+
+### 5. Cookie ChatGPT (để hỏi từ khoá)
+
+Công cụ hỏi ChatGPT bằng **cookie đăng nhập**, không dùng key API. Kho cookie dùng chung với CapCut TTS Studio,
+nằm NGOÀI repo ở `%LOCALAPPDATA%\CapCutTTS\chatgpt_cookies.json`. Thêm/làm mới cookie bằng CapCut TTS Studio.
+Nhiều tài khoản thì mỗi tài khoản một luồng, chạy song song.
+
+### 6. Chạy
+
+Bấm đúp `mo_giao_dien.bat` rồi mở http://127.0.0.1:8777 (cổng bận thì tự sang cổng kế tiếp, xem cửa sổ đen).
+
+Hoặc chạy dòng lệnh:
+
+```bash
+python chay.py kich_ban\ten_du_an.txt --du-an ten_du_an --ten "Tên bản nháp" --giong-clip "voices\Tự tin.wav" --num-step 32
+```
+
+---
+
+## Ghi chú
+
+- **Số dài**: OmniVoice tự nuốt "trăm/mươi/nghìn" khi đọc số dài. Trước khi đọc, `tts/tach_so.py` đổi chữ số ra chữ
+  và nối gạch cụm số ("hai-mươi-tám-nghìn-ba-trăm-bảy-mươi-sáu") — chỉ ở bản đưa vào máy đọc, kịch bản giữ nguyên.
+- **Không** sửa chính tả, **không** "nói giảm nói tránh" khi đọc giọng.
+- Giọng đã đọc lưu theo cảnh trong `cache/`; cảnh nào đổi chữ thì tự đọc lại khi chạy.
+- Thêm giọng mới: nút "+ Thêm giọng" (file 5–10 giây, một người nói, không nhạc nền).
+- Bản cũ tự tìm + chấm + ghép video vẫn ở `chay_ghep_tu_dong.py` (cần thêm `requirements-ghep-cu.txt`).
+- Không đưa lên git: `cache/`, `ra/`, `kich_ban/`, `tools/`, `ort_gpu/`, `remotion/node_modules/`, log.

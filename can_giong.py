@@ -13,7 +13,7 @@ import unicodedata
 
 from common import ROOT, duong_cache, doc_json, ghi_json, log
 
-OMNI_PY = r"D:\CapCutTTS\omnivoice-env\Scripts\python.exe"
+OMNI_PY = os.environ.get("BC_OMNI_PY", r"D:\CapCutTTS\omnivoice-env\Scripts\python.exe")   # env OmniVoice riêng
 SCRIPT = os.path.join(ROOT, "tts", "whisper_tu.py")
 
 

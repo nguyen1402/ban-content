@@ -10,7 +10,7 @@ from common import FFMPEG, chay, duong_cache, log
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "tts"))
 
-OMNI_PY = r"D:\CapCutTTS\omnivoice-env\Scripts\python.exe"
+OMNI_PY = os.environ.get("BC_OMNI_PY", r"D:\CapCutTTS\omnivoice-env\Scripts\python.exe")   # env OmniVoice riêng
 OMNI_REF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "voices", "Tự tin.wav")
 GIONG = "BV075_streaming"               # Thanh Niên Tự Tin (vi-VN)
 RESOURCE_ID = "7102355803792740865"
