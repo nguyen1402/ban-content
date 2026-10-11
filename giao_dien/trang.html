@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bản Content — Từ khoá và giọng đọc</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1c2230;--mut:#667085;--line:#e3e6ec;--ac:#2f6df6;--ac-ink:#fff;--ok:#1a9d5c;--wa:#c27803;--er:#d33a3a;--sai:#fdecec}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1218;--card:#171b24;--ink:#e8ecf3;--mut:#93a0b4;--line:#262c39;--ac:#5b8cff;--ac-ink:#0b0f18;--ok:#43c783;--wa:#e0a43a;--er:#ff7070;--sai:#2b1a1d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Segoe UI",system-ui,sans-serif}
+header{display:flex;gap:12px;align-items:center;padding:12px 20px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+header h1{font-size:17px;margin:0 8px 0 0}
+main{max-width:1180px;margin:0 auto;padding:18px 16px 80px;display:grid;gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+.card h2{margin:0 0 4px;font-size:16px;display:flex;gap:8px;align-items:center}
+.card h2 .n{background:var(--ac);color:var(--ac-ink);width:24px;height:24px;border-radius:50%;display:inline-grid;place-items:center;font-size:13px}
+.sub{color:var(--mut);margin:0 0 12px;font-size:13px}
+button,select,input,textarea{font:inherit;color:var(--ink)}
+button{background:var(--ac);color:var(--ac-ink);border:0;border-radius:8px;padding:8px 14px;cursor:pointer}
+button.p{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button.er{background:var(--er);color:#fff}
+button:disabled{opacity:.45;cursor:not-allowed}
+select,input[type=text],input[type=number],textarea{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+textarea{width:100%;min-height:150px;resize:vertical}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.grow{flex:1;min-width:160px}
+.cau{display:grid;grid-template-columns:34px 1fr;gap:8px;padding:6px 0;border-top:1px solid var(--line)}
+.cau b{color:var(--mut);font-weight:500;text-align:right}
+.chip{padding:4px 10px;border-radius:999px;border:1px solid var(--line);font-size:13px;color:var(--mut);display:inline-flex;gap:6px;align-items:center}
+.chip.dang{color:var(--ac);border-color:var(--ac)}.chip.xong{color:var(--ok);border-color:var(--ok)}.chip.loi{color:var(--er);border-color:var(--er)}.chip.dung{color:#b7791f;border-color:#b7791f}
+.chip i{width:8px;height:8px;border-radius:50%;background:currentColor;display:inline-block}
+.chip.dang i{animation:nhay 1s infinite}@keyframes nhay{50%{opacity:.25}}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;max-height:210px;overflow:auto;font-size:12.5px;margin:10px 0 0;white-space:pre-wrap}
+.luoi{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-top:12px}
+.o{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg)}
+.o.sai{background:var(--sai);border-color:var(--er)}
+.o img{width:100%;display:block;cursor:pointer;aspect-ratio:16/9;object-fit:cover;background:#000}
+.o .t{padding:8px 10px;font-size:13px}
+.o .t b{font-size:12px;color:var(--mut);font-weight:600}
+.o .md{color:var(--mut);font-size:12px;margin-top:2px}
+.tag{font-size:11px;padding:1px 7px;border-radius:6px;background:var(--line);color:var(--mut);margin-right:4px}
+.tag.w{background:var(--wa);color:#fff}
+dialog{border:0;border-radius:12px;padding:0;max-width:960px;width:94vw;background:var(--card)}
+dialog::backdrop{background:#000a}dialog video{width:100%;display:block;border-radius:12px 12px 0 0}
+.gy{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:4px 0}
+.gy label{display:inline-flex;gap:6px;align-items:center;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:4px 10px;font-size:13px}
+.thongbao{position:fixed;right:16px;bottom:16px;background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:10px;opacity:0;transition:.25s;pointer-events:none}
+.thongbao.hien{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎬 Bản Content</h1>
+  <select id="duan" class="grow" style="max-width:340px"></select>
+  <button class="p" id="moi">+ Dự án mới</button>
+  <button class="p" id="mothumuc">Mở thư mục kết quả</button>
+  <span class="sub" style="margin:0" id="trangthai_dau"></span>
+</header>
+<main>
+  <section class="card" id="b1">
+    <h2><span class="n">1</span> Kịch bản</h2>
+    <p class="sub">Dán kịch bản tiếng Việt. Công cụ tách thành từng câu độc lập (xem bên dưới) trước khi đọc giọng.</p>
+    <textarea id="kichban" placeholder="Dán kịch bản vào đây…"></textarea>
+    <div class="row" style="margin-top:8px"><button id="luu">Lưu &amp; tách câu</button><button class="p" id="chontep">📄 Chọn file (.txt, .docx, .doc)</button><input type="file" id="tepkb" accept=".txt,.docx,.doc,.rtf,.odt" hidden><span class="sub" id="demcau" style="margin:0"></span></div>
+    <div id="dscau" style="max-height:260px;overflow:auto;margin-top:8px"></div>
+  </section>
+
+  <section class="card" id="b2">
+    <h2><span class="n">2</span> Giọng đọc (OmniVoice)</h2>
+    <p class="sub">Chọn clip mẫu giọng; có thể thêm giọng mới từ file âm thanh 3–10 giây.</p>
+    <div class="row">
+      <select id="giong" class="grow" style="max-width:320px"></select>
+      <label>Tốc độ <input type="number" id="tocdo" value="1.0" min="0.7" max="1.4" step="0.05" style="width:80px"></label>
+      <label title="Số bước khuếch tán của OmniVoice: cao hơn thì giọng tự nhiên hơn nhưng đọc chậm hơn. Đổi step thì đọc lại giọng từ đầu (cache riêng cho từng step).">Step
+        <select id="numstep"><option value="16">16 (nhanh)</option><option value="24">24</option><option value="32" selected>32 (mặc định)</option><option value="48">48 (chậm)</option></select></label>
+      <button class="p" id="nghethu">▶ Nghe thử</button>
+      <button class="p" id="themgiong">+ Thêm giọng</button>
+      <input type="file" id="tepgiong" accept="audio/*" hidden>
+    </div>
+    <audio id="amthu" controls style="margin-top:10px;width:100%;display:none"></audio>
+    <div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+      <div class="row"><b style="font-size:14px">Nghe giọng đã đọc của dự án</b>
+        <select id="bogiong" class="grow" style="max-width:420px"></select><button class="p" id="tailaigiong">↻</button>
+        <span class="sub" id="ttgiong" style="margin:0"></span></div>
+      <audio id="amcanh" controls style="margin-top:8px;width:100%;display:none"></audio>
+      <div id="dsgiong" style="max-height:300px;overflow:auto;margin-top:6px"></div>
+    </div>
+  </section>
+
+  <section class="card" id="b3">
+    <h2><span class="n">3</span> Chạy: tách cảnh → giọng đọc ∥ từ khoá tìm nguồn (ChatGPT) → bản nháp giọng đọc</h2>
+    <p class="sub">Giọng đọc và việc hỏi từ khoá chạy song song. Bản nháp CapCut chỉ có giọng đọc đúng mốc từng cảnh. Video, ảnh và bản đồ bạn tự tìm theo từ khoá ở bước 4.</p>
+    <div class="row">
+      <label>Chạy thử N cảnh đầu <input type="number" id="gioihan" value="0" min="0" style="width:80px"> <span class="sub" style="margin:0">(0 = cả kịch bản)</span></label>
+      <label class="gy" style="margin:0"><input type="checkbox" id="taonhap" checked> Tạo bản nháp CapCut</label>
+      <input type="text" id="tennhap" class="grow" placeholder="Tên bản nháp CapCut" style="max-width:300px">
+      <button id="chay">▶ Chạy</button><button id="lamlai" title="Xoá dữ liệu riêng của dự án (giọng, từ khoá, bản đồ) rồi chạy lại TỪ ĐẦU.">↻ Làm lại từ đầu</button><button class="er" id="dung" style="display:none">■ Dừng</button>
+    </div>
+    <div class="row" id="buoc" style="margin-top:12px"></div>
+    <pre id="log" style="display:none"></pre>
+  </section>
+
+  <section class="card" id="b5">
+    <h2><span class="n">5</span> Tải video từ link</h2>
+    <p class="sub">Dán link YouTube (mỗi dòng một link) rồi bấm <b>Tải về</b>. Video tải bản tối đa 1080p, có tiếng, dạng mp4 vào thư mục <b>video_tai</b> của dự án để kéo thẳng vào CapCut. Link đã tải rồi thì bỏ qua.</p>
+    <textarea id="linktai" rows="4" style="min-height:90px" placeholder="https://www.youtube.com/watch?v=…"></textarea>
+    <div class="row" style="margin-top:8px"><button id="taive">⬇ Tải về</button><button class="p" id="movideo">Mở thư mục video</button><span class="sub" id="ttai" style="margin:0"></span></div>
+    <div id="dstai" style="margin-top:8px"></div>
+  </section>
+
+  <section class="card" id="b4">
+    <h2><span class="n">4</span> Từ khoá tìm nguồn theo cảnh</h2>
+    <p class="sub">Mỗi cảnh: nội dung nên chiếu, từ khoá tìm video/ảnh (bấm để mở YouTube / Google Hình ảnh), và từ khoá tìm bản đồ (kèm link Google Maps) cho cảnh có nhắc địa điểm. Bản đầy đủ: <b>tu_khoa.md</b> trong thư mục kết quả.</p>
+    <div class="row"><span class="sub" id="thongke" style="margin:0"></span><span style="flex:1"></span><audio id="giongdoc" controls style="display:none;max-width:420px"></audio></div>
+    <div id="tukhoa" style="margin-top:10px"></div>
+  </section>
+</main>
+<dialog id="hop"><video id="xem" controls autoplay></video><div style="padding:10px 14px" class="row"><span id="chuthich" class="grow"></span><button class="p" onclick="hop.close()">Đóng</button></div></dialog>
+<div class="thongbao" id="tb"></div>
+<script>
+const $=s=>document.querySelector(s);
+const hop=$('#hop');
+const BUOC=[["tach","Tách cảnh"],["tu_khoa","Từ khoá (ChatGPT)"],["giong","Đọc giọng"],["xuat","Xuất từ khoá"],["nhap","Bản nháp CapCut"]];
+let du='',ketqua=[],hen=null;
+function tb(m){const e=$('#tb');e.textContent=m;e.classList.add('hien');setTimeout(()=>e.classList.remove('hien'),2600)}
+async function api(p,o){const r=await fetch(p,o);if(!r.ok){let t='';try{t=await r.text()}catch(e){}const m=t.match(/<pre>([\s\S]*?)<\/pre>/i);const div=document.createElement('div');div.innerHTML=m?m[1]:'';const msg=(m?div.textContent:t.replace(/<[^>]*>/g,' ')).replace(/\s+/g,' ').trim().slice(0,160);throw new Error(msg||('mã '+r.status))}return r.json()}
+const post=(p,d)=>api(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+async function napDuAn(chon){
+  const d=await api('/api/du_an');const s=$('#duan');
+  s.innerHTML=d.du_an.map(x=>`<option value="${esc(x.ten)}">${esc(x.ten)}${x.dang_chay?' ⏳':x.co_ket_qua?' ✓':''}</option>`).join('');
+  let luu='';try{luu=localStorage.getItem('bc_du_an')||''}catch(e){}
+  const dang=(d.du_an.find(x=>x.dang_chay)||{}).ten;           // F5 giữa lúc đang chạy: quay lại đúng dự án đang chạy
+  du=chon||du||dang||(d.du_an.some(x=>x.ten===luu)?luu:'')||d.cuoi||(d.du_an[0]&&d.du_an[0].ten)||'';if(du)s.value=du;
+  if(du)await chonDuAn();
+}
+async function chonDuAn(){
+  du=$('#duan').value;if(!du)return;try{localStorage.setItem('bc_du_an',du)}catch(e){}
+  const k=await api('/api/kich_ban?du_an='+encodeURIComponent(du));
+  $('#kichban').value=k.text;veCau(k.cau);$('#tennhap').value=$('#tennhap').value||du;
+  lanChay();poll();napTuKhoa();napTai();napGiongCanh();
+}
+function veCau(c){$('#demcau').textContent=c.length?`${c.length} câu`:'';
+  $('#dscau').innerHTML=c.map((t,i)=>`<div class="cau"><b>${i+1}</b><span>${esc(t)}</span></div>`).join('')}
+$('#luu').onclick=async()=>{if(!du)return tb('Chọn hoặc tạo dự án trước');
+  const r=await post('/api/kich_ban',{du_an:du,text:$('#kichban').value});veCau(r.cau);tb('Đã lưu')};
+$('#chontep').onclick=()=>$('#tepkb').click();
+$('#tepkb').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
+  if(!du)return tb('Chọn hoặc tạo dự án trước');
+  const b=$('#chontep');b.disabled=true;b.textContent='Đang đọc file…';
+  try{const fd=new FormData();fd.append('tep',f);const r=await api('/api/kich_ban/tep',{method:'POST',body:fd});
+    $('#kichban').value=r.text;const s=await post('/api/kich_ban',{du_an:du,text:r.text});veCau(s.cau);
+    tb('Đã nạp "'+f.name+'" và lưu ('+s.cau.length+' câu)')}catch(err){tb('Lỗi: '+err.message)}
+  b.disabled=false;b.textContent='📄 Chọn file (.txt, .docx, .doc)'};
+$('#moi').onclick=async()=>{const t=prompt('Tên dự án mới (không dấu, không khoảng trắng):');if(!t)return;
+  const r=await post('/api/kich_ban',{du_an:t,text:''});await napDuAn(r.ten)};
+$('#duan').onchange=chonDuAn;
+$('#mothumuc').onclick=()=>post('/api/mo_thu_muc',{du_an:du});
+
+async function napGiong(){
+  const d=await api('/api/giong');$('#giong').innerHTML=d.giong.map(g=>`<option value="${esc(g.tep)}">${esc(g.ten)}</option>`).join('');
+  const t=[...$('#giong').options].find(o=>o.text==='Tự tin');if(t)$('#giong').value=t.value;
+}
+$('#nghethu').onclick=async()=>{const b=$('#nghethu');b.disabled=true;b.textContent='Đang đọc thử… (≈20 giây)';
+  try{const k=($('#kichban').value.match(/[^.!?…]+[.!?…]/)||[''])[0].trim();
+   const r=await post('/api/giong/thu',{giong:$('#giong').value,toc_do:+$('#tocdo').value,text:k});
+   const a=$('#amthu');a.style.display='block';a.src=r.url;a.play()}catch(e){tb('Lỗi: '+e.message)}
+  b.disabled=false;b.textContent='▶ Nghe thử'};
+$('#themgiong').onclick=()=>$('#tepgiong').click();
+$('#tepgiong').onchange=async e=>{const f=e.target.files[0];if(!f)return;const fd=new FormData();fd.append('tep',f);
+  const r=await api('/api/giong/them',{method:'POST',body:fd});tb(r.ok?'Đã thêm giọng '+r.ten:'Không thêm được');await napGiong();e.target.value=''};
+
+$('#chay').onclick=async()=>{if(!du)return tb('Chọn dự án');
+  try{await post('/api/chay',{du_an:du,text:$('#kichban').value,giong:$('#giong').value,toc_do:+$('#tocdo').value,
+    gioi_han:+$('#gioihan').value||0,ten_nhap:$('#tennhap').value||du,tao_nhap:$('#taonhap').checked,num_step:+$('#numstep').value});tb('Đã bắt đầu chạy');poll()}catch(e){tb('Lỗi: '+e.message)}};
+$('#lamlai').onclick=async()=>{
+  if(!confirm('Xoá dữ liệu riêng của dự án "'+du+'" (giọng đọc, nhịp, truy vấn, clip đã dựng) rồi chạy lại từ đầu?\nKho tìm kiếm và video đã tải dùng chung nên được giữ.\nBản nháp CapCut cùng tên sẽ bị ghi đè.'))return;
+  try{await post('/api/lam_lai',{du_an:du});tb('Đã xoá dữ liệu dự án, đang chạy lại…');$('#chay').click()}catch(e){tb('Lỗi: '+e.message)}};
+$('#dung').onclick=async()=>{await post('/api/dung',{du_an:du});tb('Đã gửi lệnh dừng')};
+function lanChay(){api('/api/trang_thai?du_an='+encodeURIComponent(du)).then(t=>{const l=t.lan_chay||{};
+  if(l.giong)$('#giong').value=l.giong;if(l.toc_do)$('#tocdo').value=l.toc_do;if(l.ten_nhap)$('#tennhap').value=l.ten_nhap;
+  if(l.gioi_han!==undefined)$('#gioihan').value=l.gioi_han||0;if(l.num_step)$('#numstep').value=l.num_step}).catch(()=>{})}
+async function poll(){
+  clearTimeout(hen);if(!du)return;
+  const t=await api('/api/trang_thai?du_an='+encodeURIComponent(du));
+  $('#buoc').innerHTML=BUOC.map(([k,n])=>{const b=(t.buoc||{})[k]||{tt:'cho'};
+    const mmss=s=>{s=Math.max(0,Math.round(s));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
+    const tg=b.bd?(b.tt==='dang'?' · '+mmss(t.bay_gio-b.bd):(b.kt&&b.kt-b.bd>=2?' · '+mmss(b.kt-b.bd):'')):'';
+    return `<span class="chip ${b.tt}" title="${esc(b.ghi_chu||'')}"><i></i>${n}${b.ghi_chu?' · '+esc(b.ghi_chu):''}${tg}</span>`}).join('');
+  const lg=$('#log');lg.style.display=t.log.length?'block':'none';lg.textContent=t.log.join('\n');lg.scrollTop=lg.scrollHeight;
+  $('#chay').style.display=t.dang_chay?'none':'';$('#lamlai').style.display=t.dang_chay?'none':'';$('#dung').style.display=t.dang_chay?'':'none';
+  $('#trangthai_dau').textContent=t.dang_chay?'⏳ đang chạy…':'';
+  if(t.dang_chay){hen=setTimeout(poll,2000);if(Date.now()%10000<2100)napGiongCanh()}else{await napTuKhoa();napGiongCanh()}
+}
+const yt=q=>'https://www.youtube.com/results?search_query='+encodeURIComponent(q);
+const gimg=q=>'https://www.google.com/search?tbm=isch&q='+encodeURIComponent(q);
+const mmss=s=>{s=Math.max(0,s||0);return Math.floor(s/60)+':'+(s%60).toFixed(1).padStart(4,'0')};
+function nut(q,u,nhan){return `<a href="${u(q)}" target="_blank" rel="noopener" class="tag" style="display:inline-block;margin:2px 4px 2px 0;padding:3px 8px;text-decoration:none;color:var(--ink)" title="${nhan}">${esc(q)}</a>`}
+async function napTuKhoa(){
+  if(!du)return;
+  let d;try{d=await api('/api/tu_khoa?du_an='+encodeURIComponent(du))}catch(e){return}
+  const ds=d.ds||[];const a=$('#giongdoc');
+  if(d.giong_url){a.style.display='';if(!a.src.endsWith(d.giong_url))a.src=d.giong_url}else a.style.display='none';
+  const nbd=ds.filter(x=>(x.ban_do||[]).length).length;
+  $('#thongke').textContent=ds.length?`${ds.length} cảnh · ${nbd} cảnh có địa điểm`:'Chưa có — hãy chạy dự án.';
+  $('#tukhoa').innerHTML=ds.map(x=>`<div class="cau" style="grid-template-columns:110px 1fr">
+    <b>Cảnh ${x.id}<br><span style="font-weight:400">${mmss(x.bat_dau)} → ${mmss(x.bat_dau+x.dai)}</span></b>
+    <div><div>${esc(x.text)}</div>
+      ${x.noi_dung?`<div class="md" style="margin:4px 0"><b>Nên chiếu:</b> ${esc(x.noi_dung)}</div>`:''}
+      ${(x.video||[]).length?`<div><span class="sub" style="margin:0">Video:</span> ${x.video.map(q=>nut(q,yt,'Mở YouTube')).join('')}${(x.video_vi||[]).map(q=>nut(q,yt,'Mở YouTube')).join('')}</div>`:''}
+      ${(x.anh||[]).length?`<div><span class="sub" style="margin:0">Ảnh:</span> ${x.anh.map(q=>nut(q,gimg,'Mở Google Hình ảnh')).join('')}</div>`:''}
+      ${(x.ban_do||[]).map(b=>`<div><span class="sub" style="margin:0">Bản đồ (${esc(b.ten)}):</span> ${b.tu_khoa.map(q=>nut(q,gimg,'Mở Google Hình ảnh')).join('')}<a href="${b.google_maps}" target="_blank" rel="noopener" class="tag" style="display:inline-block;margin:2px 4px 2px 0;padding:3px 8px;text-decoration:none;color:var(--ink)">📍 Google Maps</a></div>`).join('')}
+    </div></div>`).join('');
+}
+hop.addEventListener('close',()=>$('#xem').pause());
+let boGiong=[];
+async function napGiongCanh(){
+  if(!du)return;let d;try{d=await api('/api/giong_canh?du_an='+encodeURIComponent(du))}catch(e){return}
+  boGiong=d.bo||[];const s=$('#bogiong');const cu=s.value;
+  s.innerHTML=boGiong.length?boGiong.map((b,i)=>`<option value="${i}">${esc(b.ten)} — ${b.so}${b.tong?'/'+b.tong:''} cảnh</option>`).join(''):'<option>Chưa có giọng nào được đọc</option>';
+  if(cu&&+cu<boGiong.length)s.value=cu;veGiongCanh()}
+function veGiongCanh(){
+  const b=boGiong[+$('#bogiong').value||0];
+  if(!b){$('#dsgiong').innerHTML='';$('#ttgiong').textContent='';return}
+  $('#ttgiong').textContent=`${b.so} cảnh đã có giọng`;
+  $('#dsgiong').innerHTML=b.canh.map(c=>`<div class="cau" style="grid-template-columns:90px 1fr"><b><button class="p" style="padding:3px 10px" data-u="${c.url}">▶ ${c.id}</button></b><span>${esc(c.text)}</span></div>`).join('');
+  $('#dsgiong').querySelectorAll('button[data-u]').forEach(n=>n.onclick=()=>{const a=$('#amcanh');a.style.display='block';a.src=n.dataset.u;a.play()});
+}
+$('#bogiong').onchange=veGiongCanh;$('#tailaigiong').onclick=napGiongCanh;
+let henTai=null;
+async function napTai(){
+  clearTimeout(henTai);if(!du)return;
+  let d;try{d=await api('/api/tai_link?du_an='+encodeURIComponent(du))}catch(e){return}
+  if(document.activeElement!==$('#linktai')&&!$('#linktai').dataset.sua)$('#linktai').value=d.text||'';
+  const ds=d.links||[];const xong=ds.filter(x=>x.tt==='xong').length,loi=ds.filter(x=>x.tt==='loi').length;
+  $('#ttai').textContent=ds.length?`${xong}/${ds.length} xong${loi?' · '+loi+' lỗi':''}${d.dang_tai?' · đang tải…':''}`:'';
+  $('#taive').disabled=d.dang_tai;
+  $('#dstai').innerHTML=ds.map(x=>`<div class="cau" style="grid-template-columns:70px 1fr">
+    <b style="color:${x.tt==='xong'?'var(--ok)':x.tt==='loi'?'var(--er)':x.tt==='dang'?'var(--ac)':'var(--mut)'}">${x.tt==='xong'?'Xong':x.tt==='loi'?'Lỗi':x.tt==='dang'?Math.round(x.pt)+'%':'Chờ'}</b>
+    <div style="overflow:hidden;text-overflow:ellipsis">${x.url_file?`<a href="#" data-v="${x.url_file}" data-c="${esc(x.ten)}">${esc(x.ten)}</a>`:esc(x.url)}${x.loi?`<div class="md" style="color:var(--er)">${esc(x.loi)}</div>`:''}</div></div>`).join('');
+  $('#dstai').querySelectorAll('a[data-v]').forEach(a=>a.onclick=e=>{e.preventDefault();$('#xem').src=a.dataset.v;$('#chuthich').textContent=a.dataset.c;hop.showModal()});
+  if(d.dang_tai)henTai=setTimeout(napTai,1500);
+}
+$('#linktai').oninput=()=>{$('#linktai').dataset.sua='1'};
+$('#taive').onclick=async()=>{if(!du)return tb('Chọn dự án trước');
+  try{const r=await post('/api/tai_link',{du_an:du,text:$('#linktai').value});delete $('#linktai').dataset.sua;tb('Bắt đầu tải '+r.so+' link');setTimeout(napTai,800)}catch(e){tb('Lỗi: '+e.message)}};
+$('#movideo').onclick=()=>post('/api/mo_video',{du_an:du});
+napGiong().then(()=>napDuAn());
+</script>
+</body>
+</html>

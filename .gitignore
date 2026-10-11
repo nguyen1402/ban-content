@@ -1,0 +1,24 @@
+cache/
+ra/
+tools/
+keyapi.txt
+__pycache__/
+*.pyc
+pexels_key.txt
+pixabay_key.txt
+ort_gpu/
+
+# log chạy, dữ liệu người dùng (kịch bản, giọng mẫu), bản thử
+ra_log*.txt
+kich_ban/
+kichbantest.txt
+kich_ban_thu_coc.txt
+cam_chon.json
+voices/
+remotion/node_modules/
+remotion/*.mp4
+remotion/*.png
+remotion/thu*.json
+*.wav
+*.mp4
+remotion/npm_install.log
