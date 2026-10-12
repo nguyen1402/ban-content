@@ -9,13 +9,14 @@ import io
 import json
 import math
 import os
+import re
 import time
 import urllib.parse
 import urllib.request
 
 from PIL import Image
 
-from common import duong_cache, log
+from common import CACHE_CHUNG, duong_cache, log
 
 UA = {"User-Agent": "ban-content/0.3 (documentary illustration tool; cached tiles)"}
 R0 = 156543.03392
@@ -30,11 +31,21 @@ def _world(lon, lat, z):
     return x, y
 
 
-def _tai_o(z, x, y):
-    p = duong_cache("tiles", f"{z}_{x}_{y}.png")
+#: nền VỆ TINH: Sentinel-2 cloudless 2016 của EOX — giấy phép CC BY 4.0 (dùng thương mại được, phải ghi nguồn);
+#: các năm 2017+ là CC BY-NC-SA nên KHÔNG dùng. Ảnh thật ~10 m/điểm -> nét tới mức zoom ~13-14.
+NGUON = {"osm": ("tiles", "https://tile.openstreetmap.org/{z}/{x}/{y}.png", ".png", 17),
+         "vetinh": ("tiles_vt", "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg", ".jpg", 13)}
+GHI_NGUON = {"osm": "© OpenStreetMap contributors",
+             "vetinh": "Sentinel-2 cloudless 2016 by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016)"}
+
+
+def _tai_o(z, x, y, nguon="osm"):
+    thu, mau, duoi, _zmax = NGUON[nguon]
+    p = os.path.join(CACHE_CHUNG, thu, f"{z}_{x}_{y}{duoi}")
+    os.makedirs(os.path.dirname(p), exist_ok=True)
     if os.path.isfile(p) and os.path.getsize(p) > 100:
         return p
-    url = f"https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+    url = mau.format(z=z, x=x, y=y)
     for lan in range(3):
         try:
             with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=30) as r, \
@@ -47,7 +58,7 @@ def _tai_o(z, x, y):
     return None
 
 
-def ghep_lop(lat, lon, z, n):
+def ghep_lop(lat, lon, z, n, nguon="osm"):
     """Lớp ảnh n×n ô quanh (lat,lon) ở mức zoom z. Trả dict {src(data-URI), z, ox, oy, w, h} hoặc None."""
     wx, wy = _world(lon, lat, z)
     tx0, ty0 = int(wx // 256) - n // 2, int(wy // 256) - n // 2
@@ -58,7 +69,7 @@ def ghep_lop(lat, lon, z, n):
             x, y = tx0 + i, ty0 + j
             if not (0 <= y < 2 ** z):
                 continue
-            p = _tai_o(z, x % 2 ** z, y)
+            p = _tai_o(z, x % 2 ** z, y, nguon)
             if not p:
                 thieu += 1
                 continue
@@ -71,26 +82,26 @@ def ghep_lop(lat, lon, z, n):
             "z": z, "ox": tx0 * 256, "oy": ty0 * 256, "w": n * 256, "h": n * 256}
 
 
-def chon_zoom_gan(lat, rong_km):
-    """Mức zoom gần nhất mà ô OSM còn >= độ nét cần cho bề ngang rong_km trên màn 1920px."""
+def chon_zoom_gan(lat, rong_km, nguon="osm"):
+    """Mức zoom gần nhất mà ô còn >= độ nét cần cho bề ngang rong_km trên màn 1920px."""
     mpp = rong_km * 1000 / 1920
     z = math.log2(R0 * math.cos(math.radians(lat)) / mpp)
-    return max(8, min(17, int(math.floor(z))))     # floor: lớp gần 8x8 ô vẫn phủ kín khung ở cuối
+    return max(5, min(NGUON[nguon][3], int(math.floor(z))))     # floor: lớp gần 8x8 ô vẫn phủ kín khung ở cuối
 
 
-def lop_nen(lat, lon, rong_km):
-    khoa = f"{lat:.3f}_{lon:.3f}_{int(rong_km)}"
+def lop_nen(lat, lon, rong_km, nguon="osm"):
+    khoa = f"{lat:.3f}_{lon:.3f}_{int(rong_km)}" + ("" if nguon == "osm" else "_" + nguon)
     cache = duong_cache("nen_lop", khoa + ".json")
     if os.path.isfile(cache):
         try:
             return json.load(open(cache, encoding="utf-8"))
         except ValueError:
             pass
-    zg = chon_zoom_gan(lat, rong_km)
+    zg = chon_zoom_gan(lat, rong_km, nguon)
     zs = [max(3, zg - 2 * BUOC_ZOOM), max(3, zg - BUOC_ZOOM), zg]
     lop = []
     for z, n in zip(zs, SO_O):
-        l = ghep_lop(lat, lon, z, n)
+        l = ghep_lop(lat, lon, z, n, nguon)
         if not l:
             return None
         lop.append(l)
@@ -119,7 +130,7 @@ def _vong_tu_geojson(g):
     else:
         return []
     ra = []
-    for v in sorted(vong, key=len, reverse=True)[:4]:
+    for v in sorted(vong, key=len, reverse=True)[:12]:   # vùng có đảo/bán đảo: giữ nhiều mảnh
         b = max(1, len(v) // 220)                        # thưa bớt điểm cho nhẹ
         ra.append([[round(p[0], 6), round(p[1], 6)] for p in v[::b]])
     return ra
@@ -182,3 +193,153 @@ def chuan_bi(b):
     log(f"    nền OSM {b.get('dia_diem', '')[:30]}: z={[l['z'] for l in lop]}, rộng {b.get('rong_km'):.1f}km, "
         f"viền {sum(len(v) for v in vien)} điểm")
     return ra
+
+
+def chuan_bi_vetinh(ten, ten_hien=None):
+    """Props cho cảnh bản đồ VỆ TINH khoanh vùng một địa danh (12/10 user): camera phóng từ rất xa vào trên ảnh vệ
+    tinh, đường viền thật của nơi đó chạy nét + tô mờ. Khung cuối vừa ôm trọn địa danh (vùng/nước lớn cũng được)."""
+    def hop_le(d):                                          # vùng hành chính / địa danh thật, không phải "bãi cát"
+        return bool(d) and d.get("class") in ("boundary", "place") and int(d.get("place_rank") or 99) <= 18             and (d.get("geojson") or {}).get("type") in ("Polygon", "MultiPolygon")
+    huong = r"\b(northern|southern|eastern|western|central|north|south|east|west|northwest|northeast|southwest|southeast)\b"
+    phan = [x.strip() for x in ten.split(",") if x.strip()]
+    thu = [ten, phan[0]] + [re.sub(huong, "", x, flags=re.I).strip() for x in [ten] + phan] + phan[1:]
+    d = None
+    for q in dict.fromkeys(x for x in thu if x):
+        d = _nominatim(q)
+        if hop_le(d):
+            break
+        d = None
+    if not d:
+        log(f"    ! bản đồ vệ tinh: không tìm thấy vùng '{ten}'")
+        return None
+    vien = _vong_tu_geojson(d.get("geojson") or {})
+    v = max(vien, key=lambda r: (max(p[0] for p in r) - min(p[0] for p in r)) * (max(p[1] for p in r) - min(p[1] for p in r)))
+    w_, e_ = min(p[0] for p in v), max(p[0] for p in v)       # khung theo MẢNH LỚN NHẤT (bỏ đảo xa như Canary)
+    s_, n_ = min(p[1] for p in v), max(p[1] for p in v)
+    lat, lon = (s_ + n_) / 2, (w_ + e_) / 2
+    dx = (e_ - w_) * 111.32 * math.cos(math.radians(lat))
+    dy = (n_ - s_) * 110.57
+    rong_km = max(8.0, max(dx, dy * 16 / 9) * 1.35)       # ôm trọn địa danh, chừa lề
+    lop = lop_nen(lat, lon, rong_km, "vetinh")
+    if not lop:
+        log(f"    ! bản đồ vệ tinh: thiếu ô ảnh cho '{ten}'")
+        return None
+    log(f"    vệ tinh '{ten}': rộng {rong_km:.0f} km, z={[l['z'] for l in lop]}, viền {sum(len(v) for v in vien)} điểm")
+    return {"dia_diem": ten_hien or ten.split(",")[0].strip(), "lat": lat, "lon": lon, "rong_km": rong_km,
+            "lop": lop, "vien": vien, "nguon": "vetinh", "ghi_nguon": GHI_NGUON["vetinh"]}
+
+
+def dung_clip_vetinh(viec):
+    """Render clip bản đồ vệ tinh bằng Remotion. viec: [(ten_dia_danh, giay, ten_hien)] -> {(ten, giay): mp4 | None}.
+    Cache theo (địa danh, độ dài) ở cache/ban_do_vt/ — chạy lại không render lại."""
+    import hashlib
+    import subprocess
+    import do_hoa
+    from common import ghi_json
+    thu = os.path.join(CACHE_CHUNG, "ban_do_vt")
+    os.makedirs(thu, exist_ok=True)
+    ra, jobs = {}, []
+    for ten, giay, ten_hien in viec:
+        giay = round(float(giay), 2)
+        out = os.path.join(thu, hashlib.md5(f"{ten}|{giay}|{ten_hien}|v4".encode()).hexdigest()[:16] + ".mp4")
+        ra[(ten, giay)] = out
+        if os.path.isfile(out) and os.path.getsize(out) > 5000:
+            continue
+        pr = chuan_bi_vetinh(ten, ten_hien)
+        if not pr:
+            ra[(ten, giay)] = None
+            continue
+        jobs.append({"comp": "BanDoNen", "giay": giay, "out": out, "props": pr})
+    if jobs:
+        log(f"    Remotion dựng {len(jobs)} clip bản đồ vệ tinh…")
+        p = os.path.join(thu, "jobs.json")
+        ghi_json(p, jobs)
+        env = dict(os.environ)
+        ch = do_hoa._chrome()                                       # noqa: SLF001
+        if ch:
+            env["BROWSER_EXE"] = ch
+        r = subprocess.run(["node", "render.mjs", p], cwd=do_hoa.REMOTION, env=env, capture_output=True,
+                           timeout=3600, creationflags=0x08000000 if os.name == "nt" else 0)
+        log("    " + "\n    ".join(r.stdout.decode("utf-8", "ignore").strip().splitlines()[-3:]))
+    return {k: (v if v and os.path.isfile(v) and os.path.getsize(v) > 5000 else None) for k, v in ra.items()}
+
+
+def _diem(ten):
+    """(lat, lon, d) điểm của một địa danh qua Nominatim (ưu tiên vùng hành chính / địa danh thật)."""
+    phan = [x.strip() for x in ten.split(",") if x.strip()]
+    huong = r"\b(northern|southern|eastern|western|central|north|south|east|west)\b"
+    bo_huong = [re.sub(huong, "", x, flags=re.I).strip() for x in [ten] + phan]   # "Northern Spain" -> "Spain"
+    for q in dict.fromkeys(x for x in [ten, phan[0] if phan else ten] + bo_huong if x):
+        d = _nominatim(q, polygon=False)
+        if d and d.get("class") in ("boundary", "place") and int(d.get("place_rank") or 99) <= 16:
+            return float(d["lat"]), float(d["lon"]), d
+    return None                                             # không phải địa danh thật cấp thành phố trở lên -> bỏ
+
+
+def chuan_bi_duong(tu, den, ten_tu=None, ten_den=None):
+    """Props bản đồ VỆ TINH kiểu ĐƯỜNG ĐI A -> B (12/10 user): camera ôm cả hai điểm, đường vàng cong vẽ dần từ A tới B,
+    chấm sáng chạy ở mũi đường; điểm A có nhãn, điểm B có chấm đỏ; tiêu đề 'A → B'."""
+    a, b = _diem(tu), _diem(den)
+    if not a or not b:
+        log(f"    ! bản đồ đường đi: '{tu}' hoặc '{den}' không phải địa danh thật — bỏ")
+        return None
+    ten_a, ten_b = a[2].get("display_name", ""), b[2].get("display_name", "")
+    if ten_b.split(",")[0].strip() in ten_a or ten_a.split(",")[0].strip() in ten_b:
+        log(f"    ! bản đồ đường đi: '{tu}' nằm trong '{den}' (hoặc ngược lại) — bỏ")
+        return None
+    if math.hypot((a[1] - b[1]) * 111.32 * math.cos(math.radians((a[0] + b[0]) / 2)), (a[0] - b[0]) * 110.57) < 50:
+        log(f"    ! bản đồ đường đi: '{tu}' và '{den}' gần nhau dưới 50 km — bỏ")
+        return None
+    la, lo = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+    dx = abs(a[1] - b[1]) * 111.32 * math.cos(math.radians(la))
+    dy = abs(a[0] - b[0]) * 110.57
+    rong_km = max(60.0, max(dx, dy * 16 / 9) * 1.8)       # chừa lề: hai điểm không dính mép khung
+    lop = lop_nen(la, lo, rong_km, "vetinh")
+    if not lop:
+        return None
+    ten_tu = ten_tu or tu.split(",")[0].strip()
+    ten_den = ten_den or den.split(",")[0].strip()
+    log(f"    đường đi '{ten_tu}' -> '{ten_den}': rộng {rong_km:.0f} km, z={[l['z'] for l in lop]}")
+    return {"dia_diem": f"{ten_tu} → {ten_den}", "lat": b[0], "lon": b[1], "cam_lat": la, "cam_lon": lo,
+            "rong_km": rong_km, "lop": lop, "vien": [], "noi": True,
+            "dau": [{"ten": ten_tu, "lat": a[0], "lon": a[1], "vien": []}],
+            "nguon": "vetinh", "ghi_nguon": GHI_NGUON["vetinh"]}
+
+
+def dung_clip_duong(viec):
+    """viec: [(tu, den, giay, ten_tu, ten_den)] -> {(tu, den, giay): mp4 | None}. Cache cache/ban_do_vt/."""
+    import hashlib
+    thu = os.path.join(CACHE_CHUNG, "ban_do_vt")
+    os.makedirs(thu, exist_ok=True)
+    ra, jobs = {}, []
+    for tu, den, giay, ten_tu, ten_den in viec:
+        giay = round(float(giay), 2)
+        out = os.path.join(thu, "duong_" + hashlib.md5(f"{tu}|{den}|{giay}|{ten_tu}|{ten_den}|v2".encode()).hexdigest()[:14] + ".mp4")
+        ra[(tu, den, giay)] = out
+        if os.path.isfile(out) and os.path.getsize(out) > 5000:
+            continue
+        pr = chuan_bi_duong(tu, den, ten_tu, ten_den)
+        if not pr:
+            ra[(tu, den, giay)] = None
+            continue
+        jobs.append({"comp": "BanDoNen", "giay": giay, "out": out, "props": pr})
+    _render(jobs, thu)
+    return {k: (v if v and os.path.isfile(v) and os.path.getsize(v) > 5000 else None) for k, v in ra.items()}
+
+
+def _render(jobs, thu):
+    if not jobs:
+        return
+    import subprocess
+    import do_hoa
+    from common import ghi_json
+    log(f"    Remotion dựng {len(jobs)} clip bản đồ…")
+    p = os.path.join(thu, "jobs.json")
+    ghi_json(p, jobs)
+    env = dict(os.environ)
+    ch = do_hoa._chrome()                                           # noqa: SLF001
+    if ch:
+        env["BROWSER_EXE"] = ch
+    r = subprocess.run(["node", "render.mjs", p], cwd=do_hoa.REMOTION, env=env, capture_output=True,
+                       timeout=3600, creationflags=0x08000000 if os.name == "nt" else 0)
+    log("    " + "\n    ".join(r.stdout.decode("utf-8", "ignore").strip().splitlines()[-3:]))

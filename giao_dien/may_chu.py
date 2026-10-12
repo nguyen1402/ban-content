@@ -552,6 +552,196 @@ def mo_video():
     return json_ok({"ok": True})
 
 
+TRANG_DUNG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dung.html")
+
+
+@app.get("/dung")
+def trang_dung():
+    response.content_type = "text/html; charset=utf-8"
+    return doc_text(TRANG_DUNG)
+
+
+def _kho_ra(t):
+    import dung_tay
+    ra = []
+    for kid, m in sorted(dung_tay.doc_kho(t).items(), key=lambda x: -x[1].get("luc", 0)):
+        f = m.get("file", "")
+        co = os.path.isfile(f) and m.get("trang_thai") == "xong"
+        thumb = (f"https://i.ytimg.com/vi/{kid[2:]}/mqdefault.jpg" if m.get("loai") == "video" and "youtube" in m.get("nguon", "")
+                 else (url_tep(f) if co and m.get("loai") == "anh" else ""))
+        ra.append(dict(m, id=kid, url=url_tep(f) if co else None, thumb=thumb))
+    return ra
+
+
+@app.get("/api/dung/du_lieu")
+def dung_du_lieu():
+    """Mọi thứ trình dựng tay cần: cảnh (lời, mốc, từ khoá), kế hoạch đã lưu, kho media, giọng đọc nguyên bài."""
+    import dung_tay
+    t = slug(tham_so_q("du_an"))
+    cache, out = common.thu_muc_du_an(t)
+    canh = common.doc_json(os.path.join(out, "tu_khoa.json"), []) or []
+    dung = dung_tay.doc_dung(t)
+    for kh in dung.values():
+        for d in kh.get("cat", []):
+            d["url"] = url_tep(d["file"]) if os.path.isfile(d.get("file", "")) else None
+    wav = os.path.join(out, "giong_doc.wav")
+    return json_ok({"canh": canh, "dung": dung, "kho": _kho_ra(t), "giong_url": url_tep(wav) if os.path.isfile(wav) else None})
+
+
+@app.get("/api/kho")
+def kho_ds():
+    return json_ok({"kho": _kho_ra(slug(tham_so_q("du_an")))})
+
+
+@app.get("/api/tim_video")
+def tim_video():
+    import dung_tay
+    q = tham_so_q("q").strip()
+    if not q:
+        raise HTTPError(400, "thiếu từ khoá")
+    return json_ok({"ds": dung_tay.tim_youtube(q, n=int(tham_so_q("n") or 12))})
+
+
+@app.get("/api/tim_anh")
+def tim_anh():
+    import dung_tay
+    q = tham_so_q("q").strip()
+    if not q:
+        raise HTTPError(400, "thiếu từ khoá")
+    return json_ok({"ds": dung_tay.tim_anh(q, n=int(tham_so_q("n") or 40))})
+
+
+def _vec_tim(d):
+    """Vector truy vấn để chấm kết quả tìm: theo cảnh đang chọn nếu có, không thì theo từ khoá."""
+    import xep_hang
+    canh = None
+    if d.get("canh_id") is not None and d.get("du_an"):
+        ds = common.doc_json(os.path.join(common.thu_muc_du_an(slug(d["du_an"]))[1], "tu_khoa.json"), []) or []
+        canh = next((c for c in ds if c.get("id") == int(d["canh_id"])), None)
+    return xep_hang.vec_canh(canh, (d.get("q") or "").strip())
+
+
+@app.post("/api/diem_video")
+def diem_video():
+    """Chấm video YouTube (storyboard, không tải video) theo cảnh: {diem: {id: {diem, t}}}."""
+    import xep_hang
+    d = request.json or {}
+    ids = [str(x) for x in (d.get("ids") or [])][:30]
+    return json_ok({"diem": xep_hang.diem_video(ids, _vec_tim(d)), "nguong": xep_hang.NGUONG_THAP})
+
+
+@app.post("/api/diem_anh")
+def diem_anh():
+    """Chấm ảnh (ảnh thu nhỏ) theo cảnh: {diem: [..]} cùng thứ tự urls."""
+    import xep_hang
+    d = request.json or {}
+    urls = [str(x) for x in (d.get("urls") or [])][:60]
+    diem, chu = xep_hang.diem_anh(urls, _vec_tim(d), chu=True)
+    return json_ok({"diem": diem, "chu": chu, "nguong": xep_hang.NGUONG_THAP})
+
+
+@app.post("/api/dung/tu_dong")
+def dung_tu_dong():
+    """Tự tìm + tải (ngân sách phút video) + khớp + ảnh bù + bản nháp — chạy nền."""
+    import tu_dong_tim
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    try:
+        tu_dong_tim.chay_nen(t, float(d.get("ngan_sach") or tu_dong_tim.NGAN_SACH_PHUT),
+                             (d.get("ten_nhap") or "").strip() or None)
+    except ValueError as e:
+        raise HTTPError(400, str(e))
+    return json_ok({"ok": True})
+
+
+@app.get("/api/dung/tu_dong_tt")
+def dung_tu_dong_tt():
+    import tu_dong_tim
+    return json_ok(tu_dong_tim.TT.get(slug(tham_so_q("du_an")), {}))
+
+
+@app.post("/api/kho/tai_video")
+def kho_tai_video():
+    import dung_tay
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t or not d.get("id"):
+        raise HTTPError(400, "thiếu dự án hoặc video")
+    kid = dung_tay.tai_video(t, str(d["id"]), d.get("tieu_de", ""), d.get("dai") or 0)
+    return json_ok({"ok": True, "kho_id": kid})
+
+
+@app.post("/api/kho/tai_anh")
+def kho_tai_anh():
+    import dung_tay
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t or not d.get("url"):
+        raise HTTPError(400, "thiếu dự án hoặc link ảnh")
+    try:
+        kid = dung_tay.tai_anh(t, d["url"], d.get("tieu_de", ""))
+    except Exception as e:                                  # noqa: BLE001
+        raise HTTPError(400, f"không tải được ảnh: {common.gon_loi(e)}")
+    return json_ok({"ok": True, "kho_id": kid})
+
+
+@app.post("/api/dung/luu")
+def dung_luu():
+    import dung_tay
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t or d.get("canh_id") is None:
+        raise HTTPError(400, "thiếu dự án hoặc cảnh")
+    return json_ok({"ok": True, "canh": dung_tay.luu_canh(t, int(d["canh_id"]), d.get("doan") or [])})
+
+
+@app.post("/api/dung/cat")
+def dung_cat():
+    import dung_tay
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    try:
+        cat = dung_tay.cat_canh(t, int(d["canh_id"]))
+    except ValueError as e:
+        raise HTTPError(400, str(e))
+    return json_ok({"ok": True, "so": len(cat)})
+
+
+@app.post("/api/dung/goi_y")
+def dung_goi_y():
+    """Gợi ý tự động: có canh_id -> làm ngay cho cảnh đó (ghi đè); không -> chạy nền cho mọi cảnh CHƯA dựng."""
+    import goi_y
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    try:
+        if d.get("canh_id") is not None:
+            n = goi_y.goi_y(t, [int(d["canh_id"])], chi_canh_trong=False)
+            return json_ok({"ok": True, "so_canh": n})
+        goi_y.goi_y_nen(t, ten_nhap=(d.get("ten_nhap") or "").strip() or None)
+    except ValueError as e:
+        raise HTTPError(400, str(e))
+    return json_ok({"ok": True, "nen": True})
+
+
+@app.get("/api/dung/goi_y_tt")
+def dung_goi_y_tt():
+    import goi_y
+    return json_ok(goi_y.TT.get(slug(tham_so_q("du_an")), {}))
+
+
+@app.post("/api/dung/nhap")
+def dung_nhap():
+    import dung_tay
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    dd = common.thu_muc_nhap_capcut()
+    if not dd:
+        raise HTTPError(400, "không dò được thư mục CapCut Drafts")
+    ten = (d.get("ten") or t).strip()
+    n = dung_tay.tao_nhap(t, ten, dd)
+    return json_ok({"ok": True, "so": n, "ten": ten})
+
+
 @app.post("/api/dung")
 def dung():
     t = slug((request.json or {}).get("du_an", ""))

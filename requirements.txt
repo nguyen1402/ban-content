@@ -6,3 +6,10 @@ numpy
 opencv-python
 pillow
 pywin32
+
+# Trình dựng tay + nút 🤖 tự tìm/tải/khớp (SigLIP so400m chấm hình, RapidOCR dò chữ) — cài torch bản CUDA trước:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu124
+transformers
+sentencepiece
+rapidocr
+# onnxruntime-gpu 1.22.0 (CUDA 12) cài riêng vào ort_gpu/ — xem README

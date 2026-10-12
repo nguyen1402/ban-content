@@ -70,6 +70,22 @@ python chay.py kich_ban\ten_du_an.txt --du-an ten_du_an --ten "Tên bản nháp"
 
 ---
 
+## Trình dựng + tự động tìm hình (nút 🤖) + skill hoàn thiện
+
+Sau khi `chay.py` xong, nút "🎬 Mở trình dựng tay" (http://127.0.0.1:8777/dung?du_an=<dự án>):
+
+- **Tìm video** (YouTube, xếp theo độ khớp SigLIP chấm trên storyboard, có "khớp nhất ở phút…") và **tìm ảnh**
+  (Google Images qua cửa sổ Chrome hiện — Google hỏi captcha thì tự giải; ảnh có chữ bị đánh dấu). Bấm mới tải.
+- **🤖 Tự tìm + tải + khớp + bản nháp** (`tu_dong_tim.py`): hỏi ChatGPT mô tả khung hình từng cảnh → tìm video
+  stock SẠCH Pexels/Pixabay + YouTube theo nhóm cảnh → chọn theo NGÂN SÁCH phút tải → khớp đoạn (cắt theo cảnh quay
+  nguồn và theo chỗ ngắt nghỉ của giọng đọc) → ảnh Google bù chỗ trống → bản nháp CapCut, đoạn trỏ VIDEO GỐC.
+- **Skill hoàn thiện** (`chinh_sua/dung_hoan_chinh.py`, tài liệu `skill/chinh-sua-video-tho/SKILL.md`): bản đồ vệ
+  tinh khoanh vùng / đường đi A→B (Remotion, `remotion/`), khung highlight viền vàng, phủ màu đổi chương, thẻ ảnh phủ,
+  chuyển cảnh. Remotion: `cd remotion && npm install` một lần.
+- Cần thêm: torch (CUDA) + `transformers` + `rapidocr` (đã ghi trong `requirements.txt`); onnxruntime-gpu 1.22.0
+  (bản CUDA 12) cài riêng: `pip install onnxruntime-gpu==1.22.0 --target ort_gpu`. Model SigLIP
+  `google/siglip2-so400m-patch16-256` (~4,3 GB) tự tải lần đầu.
+
 ## Ghi chú
 
 - **Số dài**: OmniVoice tự nuốt "trăm/mươi/nghìn" khi đọc số dài. Trước khi đọc, `tts/tach_so.py` đổi chữ số ra chữ

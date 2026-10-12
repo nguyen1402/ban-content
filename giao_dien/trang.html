@@ -112,7 +112,7 @@ dialog::backdrop{background:#000a}dialog video{width:100%;display:block;border-r
   <section class="card" id="b4">
     <h2><span class="n">4</span> Từ khoá tìm nguồn theo cảnh</h2>
     <p class="sub">Mỗi cảnh: nội dung nên chiếu, từ khoá tìm video/ảnh (bấm để mở YouTube / Google Hình ảnh), và từ khoá tìm bản đồ (kèm link Google Maps) cho cảnh có nhắc địa điểm. Bản đầy đủ: <b>tu_khoa.md</b> trong thư mục kết quả.</p>
-    <div class="row"><span class="sub" id="thongke" style="margin:0"></span><span style="flex:1"></span><audio id="giongdoc" controls style="display:none;max-width:420px"></audio></div>
+    <div class="row"><button id="modung">🎬 Mở trình dựng tay (chọn video/ảnh cho từng cảnh)</button><span class="sub" id="thongke" style="margin:0"></span><span style="flex:1"></span><audio id="giongdoc" controls style="display:none;max-width:420px"></audio></div>
     <div id="tukhoa" style="margin-top:10px"></div>
   </section>
 </main>
@@ -244,6 +244,7 @@ async function napTai(){
   if(d.dang_tai)henTai=setTimeout(napTai,1500);
 }
 $('#linktai').oninput=()=>{$('#linktai').dataset.sua='1'};
+$('#modung').onclick=()=>{if(!du)return tb('Chọn dự án trước');window.open('/dung?du_an='+encodeURIComponent(du),'_blank')};
 $('#taive').onclick=async()=>{if(!du)return tb('Chọn dự án trước');
   try{const r=await post('/api/tai_link',{du_an:du,text:$('#linktai').value});delete $('#linktai').dataset.sua;tb('Bắt đầu tải '+r.so+' link');setTimeout(napTai,800)}catch(e){tb('Lỗi: '+e.message)}};
 $('#movideo').onclick=()=>post('/api/mo_video',{du_an:du});

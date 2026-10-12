@@ -24,10 +24,19 @@ for p in (ROOT, AQ):
 from common import OUT, doc_json, ghi_json, hoi_llm, log, rut_json, thu_muc_nhap_capcut     # noqa: E402
 import ghep                                                                                  # noqa: E402
 import kho_capcut                                                                            # noqa: E402
+import so_hien_thi                                                                           # noqa: E402
 
 SEC = 1_000_000
 #: Người dùng chốt 09/10: BỎ hết hiệu ứng âm thanh (chỗ chèn không hợp). Mã SFX còn đó, bật lại bằng True.
 SFX_BAT = False
+#: 12/10 user: BỎ tự thêm nhạc nền và chữ nhấn mạnh (mã còn đó, bật lại bằng True / cờ --co-nhac --co-chu).
+NHAC_BAT = False
+CHU_BAT = False
+#: 12/10 user: lớp ẢNH PHỦ minh hoạ khi cần (chinh_sua/lop_phu.py). Tắt bằng --khong-lop-phu.
+LOP_PHU_BAT = True
+#: 12/10 user: hiệu ứng kiểu video mẫu (chinh_sua/hieu_ung.py): bản đồ đường đi A->B, khung highlight viền vàng,
+#: phủ màu khi đổi chương. Tắt bằng --khong-hieu-ung.
+HIEU_UNG_BAT = True
 KE_HOACH = os.path.join(OUT, "ke_hoach.json")
 
 MILD = ["Mờ dần", "Rõ dần", "Trượt sang trái", "Trượt sang phải"]
@@ -134,6 +143,8 @@ def chuyen_canh_theo_luat(canh, cau, chuong, theo_i, chuong_cua_cau, rnd):
         a, b = seg[k], seg[k + 1]
         if a[2] == b[2]:
             continue                                        # nhịp trong cùng một cảnh: cắt thẳng
+        if abs(a[0] + a[1] - b[0]) > int(0.05 * SEC):
+            continue                                        # hai đoạn không liền nhau (có khoảng nghỉ): không chuyển
         ca, cb = chuong_cua_cau(cau_dau_canh.get(a[2], 1)), chuong_cua_cau(cau_dau_canh.get(b[2], 1))
         ranh = (b[0]) / SEC
         if ca != cb and manh:
@@ -260,6 +271,68 @@ def lap_chu_so_lieu(cau):
     return loc_chu_so_lieu(ra)
 
 
+CHU_CACH_TOI_THIEU = 6.0      # hai chữ nhấn mạnh cách nhau tối thiểu (giây)
+CAU_MOI_DOAN = 20              # mỗi lần hỏi ChatGPT một đoạn nội dung ~20 câu
+
+_P_NHAN_DOAN = """You are the editor of a Vietnamese documentary video. Below is ONE PASSAGE of the narration (sentence index. text).
+Decide which words should be EMPHASISED ON SCREEN as text while the narrator says them — the words a viewer must catch to follow this passage: key numbers and amounts, the name of a species/place/organisation when it is first introduced, a key term, or the turning-point word of a dramatic sentence.
+Rules:
+- "cum" MUST be copied EXACTLY (same words, same order) from that sentence, 1-5 words. Never rewrite, translate or summarise.
+- Pick only what really matters: about 1 emphasis per 4-6 sentences, never two in a row; skip the passage entirely if nothing stands out.
+- No slogans, no full sentences, no generic words.
+Return ONLY JSON: [{{"cau": <sentence index>, "cum": "<exact words from the sentence>"}}]
+
+PASSAGE:
+{ds}"""
+
+
+def lap_chu_nhan(cau):
+    """12/10 user: chữ nhấn mạnh do ChatGPT chọn THEO TỪNG ĐOẠN NỘI DUNG (~20 câu), cụm chép NGUYÊN VĂN từ câu,
+    hiện đúng lúc giọng đọc tới cụm đó. Các đoạn hỏi song song (mỗi cookie một luồng)."""
+    from common import hoi_nhieu
+    lots = [cau[i:i + CAU_MOI_DOAN] for i in range(0, len(cau), CAU_MOI_DOAN)]
+    log(f"[KH] chữ nhấn mạnh: hỏi ChatGPT {len(lots)} đoạn nội dung…")
+    tra = hoi_nhieu([_P_NHAN_DOAN.format(ds=chr(10).join(f"{c['i']}. {c['text']}" for c in lot)) for lot in lots],
+                    timeout=240)
+    theo_i = {c["i"]: c for c in cau}
+    chu = []
+    for r in tra:
+        for x in (rut_json(r) or []):
+            if not isinstance(x, dict):
+                continue
+            try:
+                c = theo_i.get(int(x.get("cau", 0)))
+            except (TypeError, ValueError):
+                continue
+            cum = str(x.get("cum", "")).strip().strip(".,;:!?\"'")
+            if not c or not cum or len(cum.split()) > 6:
+                continue
+            vt = c["text"].lower().find(cum.lower())
+            if vt < 0:                                        # không chép nguyên văn -> bỏ (tránh chữ sai lời)
+                continue
+            goc = c["text"]
+            t = c["t0"] + (c["t1"] - c["t0"]) * (vt / max(len(goc), 1))
+            chu.append({"cau": c["i"], "text": goc[vt:vt + len(cum)].upper(), "kieu": "nhan",
+                        "bd": round(t, 2), "dai": round(max(1.8, min(2.8, c["t1"] - t + 0.6)), 2)})
+    ra, cuoi = [], -1e9
+    for x in sorted(chu, key=lambda z: z["bd"]):
+        if x["bd"] - cuoi >= CHU_CACH_TOI_THIEU:
+            ra.append(x)
+            cuoi = x["bd"]
+    log(f"    {len(ra)} chữ nhấn mạnh")
+    return ra
+
+
+def chu_dat(chu, tong_s):
+    """Chỉ giữ chữ CÓ CON SỐ (loc_chu_so_lieu), cách nhau >= CHU_CACH_TOI_THIEU giây, tối đa ~1 chữ/phút."""
+    ra, cuoi = [], -1e9
+    for x in loc_chu_so_lieu(chu):
+        if x["bd"] - cuoi >= CHU_CACH_TOI_THIEU:
+            ra.append(x)
+            cuoi = x["bd"]
+    return ra[:max(1, int(tong_s // 60))]
+
+
 def lap_ke_hoach(canh, cau, tong_s):
     rnd = random.Random(7)
     ds_ngan = chr(10).join(f"{c['i']}. {c['text'][:45]}" for c in cau)
@@ -272,7 +345,7 @@ def lap_ke_hoach(canh, cau, tong_s):
         ch = [{"tu_cau": i * k + 1, "den_cau": (i + 1) * k if i < 4 else len(cau), "ten": f"Phần {i + 1}",
                "tam_trang": "dien_anh"} for i in range(5)]
     chu, sfx_llm = [], []
-    for i in range(0, len(cau), 70):
+    for i in (range(0, len(cau), 70) if SFX_BAT else []):
         lot = cau[i:i + 70]
         log(f"[KH] chữ nhấn mạnh + SFX cho câu {lot[0]['i']}-{lot[-1]['i']}…")
         r = rut_json(hoi_llm(_P_NHAN.format(ds=chr(10).join(f"{c['i']}. [{c['t0']:.0f}s] {c['text']}"
@@ -333,7 +406,7 @@ def lap_ke_hoach(canh, cau, tong_s):
         if not gon or s["t"] - gon[-1]["t"] >= 1.2:
             gon.append(s)
 
-    return {"tong_giay": round(tong_s, 2), "chuong": chuong, "chu": chu_ra, "chuyen_canh": chuyen, "sfx": gon,
+    return {"tong_giay": round(tong_s, 2), "chuong": chuong, "chu": lap_chu_nhan(cau) if CHU_BAT else [], "chuyen_canh": chuyen, "sfx": gon,
             "ghi_chu": "Sửa tay file này rồi chạy lại với --giu-ke-hoach. Thời gian tính bằng giây."}
 
 
@@ -413,7 +486,8 @@ def chuyen_dong_anh(seg, d, k, KP):
         seg.add_keyframe(KP.position_y, d - 1000, 0.03)
 
 
-def dung_du_an(canh, kh, ten):
+def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
+    """giong_chung: dự án kiểu mới — một file giọng nguyên bài (giong_doc.wav) đặt từ giây 0."""
     import pycapcut as draft
     from pycapcut import trange
     dd = thu_muc_nhap_capcut()
@@ -421,23 +495,41 @@ def dung_du_an(canh, kh, ten):
     script = folder.create_draft(ten, ghep.W, ghep.H, allow_replace=True)
     for nm, tp in (("hinh", draft.TrackType.video), ("giong", draft.TrackType.audio), ("nhac", draft.TrackType.audio),
                    ("sfx", draft.TrackType.audio), ("chu", draft.TrackType.text)):
-        if nm == "sfx" and not kh["sfx"]:
+        if (nm == "sfx" and not kh["sfx"]) or (nm == "nhac" and not kh["nhac"]) or (nm == "chu" and not kh["chu"]):
             continue
         script.add_track(tp, track_name=nm)
+    if kh.get("hieu_ung"):
+        script.add_track(draft.TrackType.video, track_name="hieu_ung", relative_index=1)  # trên track hình
+    if kh.get("lop_phu"):
+        script.add_track(draft.TrackType.video, track_name="lop_phu", relative_index=2)   # trên cùng: thẻ ảnh phủ
     KP0 = draft.KeyframeProperty
     kieu_anh = 0
+    vat_lieu = {}
     for c in canh:
         for (t, d, o) in c["_os"]:
-            vs = draft.VideoSegment(draft.VideoMaterial(o["clip"]), trange(t, d))
+            if o["clip"] not in vat_lieu:
+                vat_lieu[o["clip"]] = draft.VideoMaterial(o["clip"])
+            mat = vat_lieu[o["clip"]]
+            if o.get("vao") is not None and not o.get("anh"):   # dự án mới: trỏ VIDEO GỐC, chọn lại đoạn trong CapCut được
+                vao = int(round(o["vao"] * SEC))
+                d = min(d, int(mat.duration) - vao - 1000)
+                ph = float(o.get("phong") or 1.0)               # logo ở góc -> phóng to giấu logo
+                vs = draft.VideoSegment(mat, trange(t, d), source_timerange=trange(vao, d), volume=0.0,
+                                        clip_settings=draft.ClipSettings(scale_x=ph, scale_y=ph) if ph > 1.0 else None)
+            else:
+                vs = draft.VideoSegment(mat, trange(t, d))
             if o.get("anh"):                                  # MỌI ẢNH đều có chuyển động (yêu cầu của người dùng)
                 chuyen_dong_anh(vs, d, kieu_anh, KP0)
                 kieu_anh += 1
             script.add_segment(vs, track_name="hinh")
-        if c.get("giong") and c["_os"]:
+        if not giong_chung and c.get("giong") and c["_os"]:
             ad = min(int(c["giong_dai"] * SEC), c["_t1"] - c["_t0"])
             if ad > 0:
                 script.add_segment(draft.AudioSegment(draft.AudioMaterial(c["giong"]), trange(c["_t0"], ad)),
                                    track_name="giong")
+    if giong_chung:
+        gm = draft.AudioMaterial(giong_chung)
+        script.add_segment(draft.AudioSegment(gm, trange(0, int(gm.duration) - 1000)), track_name="giong")
     for m in kh["nhac"]:
         mat = draft.AudioMaterial(m["file"])
         d = min(int((m["den"] - m["tu"]) * SEC), mat.duration)
@@ -459,7 +551,7 @@ def dung_du_an(canh, kh, ten):
     for x in kh["chu"]:
         d = int(x["dai"] * SEC)
         seg = draft.TextSegment(
-            x["text"], trange(int(x["bd"] * SEC), d),
+            so_hien_thi.doi(x["text"]).upper(), trange(int(x["bd"] * SEC), d),   # số viết chữ -> chữ số khi hiện
             style=draft.TextStyle(size=16.0, bold=True, color=(1.0, 0.84, 0.1), align=1, auto_wrapping=True,
                                   max_line_width=0.8),
             border=draft.TextBorder(color=(0.0, 0.0, 0.0), width=60.0),
@@ -472,7 +564,16 @@ def dung_du_an(canh, kh, ten):
         seg.add_keyframe(KP.alpha, max(d - int(0.25 * SEC), int(0.4 * SEC)), 1.0)
         seg.add_keyframe(KP.alpha, d - 1000, 0.0)
         script.add_segment(seg, track_name="chu")
+    if kh.get("hieu_ung"):
+        import hieu_ung
+        hieu_ung.dat(script, kh["hieu_ung"], SEC)
+    if kh.get("lop_phu"):
+        import lop_phu
+        lop_phu.dat(script, kh["lop_phu"], SEC)
     script.save()
+    if giong_chung:
+        import dung_tay
+        dung_tay._sua_nhap(os.path.join(dd, ten), list(vat_lieu))   # noqa: SLF001  (tắt hút + video gốc vào Phương tiện)
     return os.path.join(dd, ten)
 
 
@@ -533,14 +634,28 @@ def main():
     ap.add_argument("--giu-ke-hoach", action="store_true", help="dùng ra/ke_hoach.json đã có (đã sửa tay)")
     ap.add_argument("--du-an", default=None, help="tên dự án (mặc định: dự án chạy gần nhất)")
     ap.add_argument("--chi-lap-ke-hoach", action="store_true")
+    ap.add_argument("--khong-ban-do", action="store_true", help="dự án mới: không thay cảnh địa điểm bằng bản đồ vệ tinh")
+    ap.add_argument("--co-nhac", action="store_true", help="bật lại tự thêm nhạc nền")
+    ap.add_argument("--co-chu", action="store_true", help="bật lại chữ nhấn mạnh")
+    ap.add_argument("--khong-lop-phu", action="store_true", help="không thêm lớp ảnh phủ minh hoạ")
+    ap.add_argument("--khong-hieu-ung", action="store_true", help="không thêm bản đồ đường đi / highlight / phủ màu")
     ap.add_argument("--sua-nhanh", action="store_true",
                     help="giữ kế hoạch: bỏ SFX, làm lại chữ (chỉ số liệu/dữ kiện) và chọn lại nhạc từ kho YouTube")
     ap.add_argument("--tinh-lai-chuyen-canh", action="store_true",
                     help="giữ kế hoạch cũ, chỉ dựng lại chuyển cảnh theo các ô hình hiện tại")
     a = ap.parse_args()
+    global NHAC_BAT, CHU_BAT, LOP_PHU_BAT, HIEU_UNG_BAT
+    HIEU_UNG_BAT = HIEU_UNG_BAT and not a.khong_hieu_ung
+    NHAC_BAT, CHU_BAT, LOP_PHU_BAT = NHAC_BAT or a.co_nhac, CHU_BAT or a.co_chu, LOP_PHU_BAT and not a.khong_lop_phu
 
-    canh = json.load(open(os.path.join(OUT, "ket_qua.json"), encoding="utf-8"))
-    tong = dong_thoi_gian(canh) / SEC
+    giong_chung = None
+    if not os.path.isfile(os.path.join(OUT, "ket_qua.json")) and os.path.isfile(os.path.join(OUT, "dung.json")):
+        import du_an_moi                                    # dự án kiểu mới (trình dựng tay / nút 🤖)
+        from common import DU_AN
+        canh, giong_chung, tong = du_an_moi.tai(DU_AN, ban_do=not a.khong_ban_do)
+    else:
+        canh = json.load(open(os.path.join(OUT, "ket_qua.json"), encoding="utf-8"))
+        tong = dong_thoi_gian(canh) / SEC
     cau = tao_srt(canh)
     ghi_srt(cau, os.path.join(OUT, "kich_ban_cau.srt"))
     log(f"[1] dự án thô: {len(canh)} cảnh, {sum(len(c['_os']) for c in canh)} đoạn hình, {tong:.0f}s; "
@@ -551,9 +666,9 @@ def main():
         kh = json.load(open(KE_HOACH, encoding="utf-8"))
         log("[2] dùng kế hoạch đã có")
         if a.sua_nhanh:
-            kh["chu"] = lap_chu_so_lieu(cau)
+            kh["chu"] = lap_chu_nhan(cau) if CHU_BAT else []
             kh["sfx"] = []
-            kh["nhac"] = chon_nhac(kh["chuong"], am)
+            kh["nhac"] = chon_nhac(kh["chuong"], am) if NHAC_BAT else []
             ghi_json(KE_HOACH, kh)
             log(f"    kế hoạch sửa: {len(kh['chu'])} chữ số liệu, 0 SFX, {len(kh['nhac'])} đoạn nhạc (kho YouTube)")
         if a.tinh_lai_chuyen_canh:
@@ -565,16 +680,29 @@ def main():
             log(f"    đã thay {doi} chuyển cảnh gây nháy bằng chuyển cảnh sạch")
     else:
         kh = lap_ke_hoach(canh, cau, tong)
-        kh["nhac"] = chon_nhac(kh["chuong"], am)
+        kh["nhac"] = chon_nhac(kh["chuong"], am) if NHAC_BAT else []
+        if HIEU_UNG_BAT:
+            import hieu_ung
+            kh["hieu_ung"] = hieu_ung.lap(cau, canh, kh["chuong"], OUT)
+        if LOP_PHU_BAT:
+            import lop_phu
+            kh["lop_phu"] = lop_phu.lap(cau, OUT)
+            hu = [(y["bd"], y["bd"] + y["dai"]) for y in kh.get("hieu_ung") or [] if y["kieu"] != "phu_mau"]
+            kh["lop_phu"] = [x for x in kh["lop_phu"]                          # thẻ ảnh không đè lên bản đồ/highlight
+                             if all(x["bd"] + x["dai"] <= a or x["bd"] >= b for a, b in hu)]
         kh["sfx"] = chon_sfx(kh["sfx"], am) if SFX_BAT else []
         ghi_json(KE_HOACH, kh)
-        log(f"[2] kế hoạch: {len(kh['chuong'])} chương, {len(kh['chu'])} chữ nhấn mạnh, "
+        log(f"[2] kế hoạch: {len(kh['chuong'])} chương, {len(kh['chu'])} chữ nhấn mạnh, {len(kh.get('lop_phu') or [])} ảnh phủ, {len(kh.get('hieu_ung') or [])} hiệu ứng, "
             f"{len(kh['chuyen_canh'])} chuyển cảnh, {len(kh['nhac'])} đoạn nhạc, {len(kh['sfx'])} SFX -> ra/ke_hoach.json")
     if a.chi_lap_ke_hoach:
         return
     if not SFX_BAT:
         kh["sfx"] = []
-    thu_muc = dung_du_an(canh, kh, a.ten)
+    if not NHAC_BAT:
+        kh["nhac"] = []
+    if not CHU_BAT:
+        kh["chu"] = []
+    thu_muc = dung_du_an(canh, kh, a.ten, giong_chung, tong)
     n = gan_chuyen_canh(thu_muc, kh)
     log(f"[3] dự án CapCut: {thu_muc}  (chuyển cảnh gắn được: {n}/{len(kh['chuyen_canh'])})")
 

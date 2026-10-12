@@ -46,7 +46,7 @@ def main():
         tt[u]["tt"] = "dang"
         ghi()
         lenh = [YTDLP, *YT_JS, "--no-playlist", "--newline", "--no-warnings", "--no-overwrites", "--no-part",
-                "-f", "bv*[height<=1080][ext=mp4]+ba[ext=m4a]/bv*[height<=1080]+ba/b[height<=1080]/b",
+                "-f", "bv*+ba/b", "-S", "res:1080,vcodec:h264,acodec:m4a",
                 "--merge-output-format", "mp4", "--ffmpeg-location", os.path.dirname(FFMPEG),
                 "--progress-template", "download:PT %(progress._percent_str)s",
                 "--print", "after_move:FILE %(filepath)s",
