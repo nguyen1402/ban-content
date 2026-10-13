@@ -98,7 +98,7 @@ def tim_anh(q, n=40):
 
 
 # --------------------------------------------------------------------------- tải
-def tai_video(du_an, vid, tieu_de="", dai=0, url=None):
+def tai_video(du_an, vid, tieu_de="", dai=0, url=None, tay=False):
     """Tải video YouTube (hoặc link yt-dlp hỗ trợ) bản <=720p có tiếng vào kho dự án — chạy nền."""
     kid = "v_" + re.sub(r"[^\w-]", "", vid)[:40]
     kho = doc_kho(du_an)
@@ -108,7 +108,7 @@ def tai_video(du_an, vid, tieu_de="", dai=0, url=None):
     os.makedirs(thu, exist_ok=True)
     dich = os.path.join(thu, kid + ".mp4")
     _cap_nhat_kho(du_an, kid, loai="video", tieu_de=tieu_de, dai=dai, nguon=url or f"https://www.youtube.com/watch?v={vid}",
-                  file=dich, trang_thai="dang", pt=0.0, luc=time.time())
+                  file=dich, trang_thai="dang", pt=0.0, luc=time.time(), tay=tay)   # tay: người dùng tự bấm tải
 
     def chay():
         lenh = [YTDLP, *YT_JS, "--no-playlist", "--newline", "--no-warnings", "--no-part",
@@ -136,7 +136,7 @@ def tai_video(du_an, vid, tieu_de="", dai=0, url=None):
     return kid
 
 
-def tai_file(du_an, kid, url, tieu_de="", nguon=""):
+def tai_file(du_an, kid, url, tieu_de="", nguon="", ghi_nguon=""):
     """Tải thẳng một file video (Pexels/Pixabay: mp4 không watermark) vào kho — chạy nền như tai_video.
     Kho ghi sach=True (nguồn sạch, không logo) để bước khớp ưu tiên."""
     kho = doc_kho(du_an)
@@ -146,7 +146,7 @@ def tai_file(du_an, kid, url, tieu_de="", nguon=""):
     os.makedirs(thu, exist_ok=True)
     dich = os.path.join(thu, kid + ".mp4")
     _cap_nhat_kho(du_an, kid, loai="video", tieu_de=tieu_de, dai=0, nguon=url, nguon_kho=nguon, sach=True,
-                  file=dich, trang_thai="dang", pt=0.0, luc=time.time())
+                  ghi_nguon=ghi_nguon, file=dich, trang_thai="dang", pt=0.0, luc=time.time())
 
     def chay():
         tam = dich + ".part"
@@ -174,7 +174,15 @@ def tai_file(du_an, kid, url, tieu_de="", nguon=""):
                     if tong and time.time() - t_ghi > 1.0:
                         _cap_nhat_kho(du_an, kid, pt=round(da * 100 / tong, 1))
                         t_ghi = time.time()
-            os.replace(tam, dich)
+            if url.split("?")[0].lower().endswith((".webm", ".ogv", ".ogg")):   # Wikimedia: đổi sang mp4 cho CapCut
+                p = subprocess.run([FFMPEG, "-y", "-v", "error", "-i", tam, "-an", "-c:v", "libx264", "-crf", "20",
+                                    "-preset", "veryfast", "-pix_fmt", "yuv420p", dich], capture_output=True, timeout=1800,
+                                   creationflags=0x08000000 if os.name == "nt" else 0)
+                os.remove(tam)
+                if p.returncode != 0:
+                    raise RuntimeError("đổi sang mp4 lỗi: " + p.stderr.decode("utf-8", "ignore")[-150:])
+            else:
+                os.replace(tam, dich)
             _cap_nhat_kho(du_an, kid, trang_thai="xong", pt=100.0, dai=_do_dai(dich))
         except Exception as e:                              # noqa: BLE001
             _cap_nhat_kho(du_an, kid, trang_thai="loi", loi=str(e)[:200])

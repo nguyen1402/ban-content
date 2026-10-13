@@ -13,6 +13,7 @@ import subprocess
 from common import FFMPEG, hoi_nhieu, log, rut_json
 
 CAU_MOI_DOAN = 20
+PHONG_BAT = False          # 12/10 user: bỏ "khoanh highlight không có ảnh" (kính lúp viền vàng) — thay bằng thẻ ảnh 65% + chữ
 _P = """You are the editor of a Vietnamese documentary video. Below is ONE PASSAGE of the narration (sentence index. text).
 Find ONLY these two kinds of sentences:
 (a) "duong": the sentence describes MOVEMENT, TRAVEL, SPREAD or SHIPPING from one NAMED real place to ANOTHER named real place (country, region, city, port) — both must be proper geographic names on a world map, far apart, and neither inside the other. NOT generic places like "the apiary", "home", "nearby forests", "an area". Give "tu" and "den" as English place names WITH country (e.g. "Bordeaux, France"), and "tu_vi" / "den_vi" as the short Vietnamese names used in the narration.
@@ -73,11 +74,20 @@ def _clip_phong(o, src0, dai, out, phong=2.0, LW=900, LH=506, vien=10):
     return out
 
 
-def lap(cau, canh, chuong, out, SEC=1_000_000):
-    """Kế hoạch hiệu ứng: [{kieu, bd, dai, file, ...}] không chồng nhau, theo giờ câu (cau: t0/t1 giây)."""
+def lap(cau, canh, chuong, out, SEC=1_000_000, san=None):
+    """Kế hoạch hiệu ứng: [{kieu, bd, dai, file, ...}] không chồng nhau, theo giờ câu (cau: t0/t1 giây).
+    san: các lớp minh hoạ đã dựng (minh_hoa.lap, 13/10) -> KHÔNG hỏi ChatGPT đường đi/highlight riêng, chỉ thêm phủ màu."""
     import nen_ban_do
     thu = os.path.join(out, "hieu_ung")
     os.makedirs(thu, exist_ok=True)
+    if san is not None:
+        ra = list(san)
+        png = _png_mau(os.path.join(thu, "_phu_mau.png"))
+        for ch in chuong[1:]:
+            a = float(ch.get("tu") or 0) - 0.5
+            if a > 0 and all(a + 1.0 <= y["bd"] - 0.05 or a >= y["bd"] + y["dai"] + 0.05 for y in ra):
+                ra.append({"kieu": "phu_mau", "bd": round(a, 2), "dai": 1.0, "file": png})
+        return sorted(ra, key=lambda y: y["bd"])
     lots = [cau[i:i + CAU_MOI_DOAN] for i in range(0, len(cau), CAU_MOI_DOAN)]
     log(f"[HU] hiệu ứng (đường đi / highlight): hỏi ChatGPT {len(lots)} đoạn…")
     tra = hoi_nhieu([_P.format(ds=chr(10).join(f"{c['i']}. {c['text']}" for c in lot)) for lot in lots], timeout=240)
@@ -93,7 +103,7 @@ def lap(cau, canh, chuong, out, SEC=1_000_000):
                 continue
             if x.get("kieu") == "duong" and x.get("tu") and x.get("den"):
                 duong.append((c, x))
-            elif x.get("kieu") == "phong":
+            elif x.get("kieu") == "phong" and PHONG_BAT:
                 phong.append(c)
     ra = []
 

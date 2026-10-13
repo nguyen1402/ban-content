@@ -640,6 +640,62 @@ def diem_anh():
     return json_ok({"diem": diem, "chu": chu, "nguong": xep_hang.NGUONG_THAP})
 
 
+procs_ht = {}                                            # dự án -> Popen "hoàn thiện bản nháp" (skill)
+BUOC_HT = [("[3] dự án CapCut", "xong"), ("[2] kế hoạch", "đặt lên bản nháp"), ("[LP]", "tìm ảnh highlight"),
+           ("lớp ảnh phủ", "tìm ảnh highlight"), ("[HU]", "bản đồ đường đi"), ("Remotion dựng", "render bản đồ"),
+           ("[KH]", "chia chương"), ("[1] dự án thô", "đọc dự án"), ("căn giờ từng chữ", "căn giờ theo giọng"),
+           ("vệ tinh", "bản đồ vệ tinh")]
+
+
+def _log_ht(t):
+    return os.path.join(common.thu_muc_du_an(t)[1], "hoan_thien.log")
+
+
+@app.post("/api/dung/hoan_thien")
+def dung_hoan_thien():
+    """Chạy skill hoàn thiện (chinh_sua/dung_hoan_chinh.py) ở nền cho dự án: bản đồ, thẻ ảnh highlight, hiệu ứng,
+    chuyển cảnh -> bản nháp CapCut mới. Log ở ra/<dự án>/hoan_thien.log."""
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    ten = (d.get("ten") or f"{t}_hoan_chinh").strip()
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    p = procs_ht.get(t)
+    if p and p.poll() is None:
+        raise HTTPError(409, "đang hoàn thiện — chờ xong")
+    log_f = open(_log_ht(t), "w", encoding="utf-8")
+    # BC_DU_AN của máy chủ (dự án mặc định) thắng --du-an trong common.py -> phải đặt đúng dự án cho tiến trình con
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", BC_DU_AN=t)
+    procs_ht[t] = subprocess.Popen([sys.executable, "-X", "utf8", "dung_hoan_chinh.py", "--du-an", t, "--ten", ten],
+                                   cwd=os.path.join(ROOT, "chinh_sua"), stdout=log_f, stderr=subprocess.STDOUT, env=env,
+                                   creationflags=0x08000000 if os.name == "nt" else 0)
+    procs_ht[t].ten_nhap = ten
+    return json_ok({"ok": True, "ten": ten})
+
+
+@app.get("/api/dung/hoan_thien_tt")
+def dung_hoan_thien_tt():
+    t = slug(tham_so_q("du_an"))
+    p = procs_ht.get(t)
+    try:
+        dong = [x.rstrip() for x in open(_log_ht(t), encoding="utf-8", errors="ignore").read().splitlines() if x.strip()]
+    except OSError:
+        dong = []
+    dong = [x for x in dong if not re.search(r"Warning|Loading weights|transformers\]|Some weights|You should|chatgpt '", x)]
+    buoc = ""
+    for x in reversed(dong):
+        hit = next((b for k, b in BUOC_HT if k in x), None)
+        if hit:
+            buoc = hit
+            break
+    dang = bool(p and p.poll() is None)
+    loi = ""
+    if p and not dang and p.returncode != 0:
+        loi = next((x for x in reversed(dong) if "Error" in x or "Traceback" in x), "lỗi (xem hoan_thien.log)")[:300]
+    return json_ok({"dang": dang, "buoc": buoc, "cuoi": dong[-1][:160] if dong else "", "loi": loi,
+                    "xong": bool(p and not dang and p.returncode == 0), "ten": getattr(p, "ten_nhap", "")})
+
+
 @app.post("/api/dung/tu_dong")
 def dung_tu_dong():
     """Tự tìm + tải (ngân sách phút video) + khớp + ảnh bù + bản nháp — chạy nền."""
@@ -667,7 +723,7 @@ def kho_tai_video():
     t = slug(d.get("du_an", ""))
     if not t or not d.get("id"):
         raise HTTPError(400, "thiếu dự án hoặc video")
-    kid = dung_tay.tai_video(t, str(d["id"]), d.get("tieu_de", ""), d.get("dai") or 0)
+    kid = dung_tay.tai_video(t, str(d["id"]), d.get("tieu_de", ""), d.get("dai") or 0, tay=True)
     return json_ok({"ok": True, "kho_id": kid})
 
 

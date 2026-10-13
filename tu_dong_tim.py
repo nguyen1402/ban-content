@@ -28,9 +28,10 @@ VIDEO_MIN, VIDEO_MAX = 20, 45 * 60     # bỏ video quá ngắn / dài hơn 45 p
 NGUONG_DUNG = 0.12          # điểm storyboard dưới mức này: video không giúp gì cho cảnh
 NGUONG_ANH = 0.10           # sau gợi ý: đoạn điểm dưới mức này (hoặc trống) -> tìm ảnh bù
 ANH_MOI_CANH = 2
-STOCK_MOI_CANH = 2          # 12/10: video stock SẠCH (Pexels/Pixabay) — mỗi cảnh lấy tối đa bấy nhiêu clip khớp nhất
+DUNG_YOUTUBE = False        # 12/10 user: KHÔNG tự tải YouTube nữa (logo kênh) — chỉ kho miễn phí sạch
+STOCK_MOI_CANH = 3          # 12/10: video stock SẠCH (Pexels/Pixabay) — mỗi cảnh lấy tối đa bấy nhiêu clip khớp nhất
 NGUONG_STOCK = 0.12         # điểm ảnh thu nhỏ tối thiểu để tải clip stock
-STOCK_TOI_DA = 60           # trần số clip stock mỗi lần chạy (mỗi clip 10-30 s, 5-15 MB)
+STOCK_TOI_DA = 150           # trần số clip stock mỗi lần chạy (mỗi clip 10-30 s, 5-15 MB)
 ANH_MOI_DIA_DANH = 4        # mỗi địa danh: 2 ảnh phong cảnh + 2 ảnh từ trên cao
 GIAY_MOI_NHOM = 60.0        # gom cảnh liền nhau thành nhóm ~1 phút voice; mỗi nhóm tìm TU_MOI_NHOM từ khoá
 TU_MOI_NHOM = 2
@@ -153,8 +154,8 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
     Q = np.stack([xep_hang.vec_canh(c) for c in can])
     w = np.array([float(c.get("dai") or 3.0) for c in can])
 
-    # 1. tìm YouTube
-    tu = list(dict.fromkeys(tu_khoa_nhom(can)))
+    # 1. tìm YouTube (tắt mặc định — DUNG_YOUTUBE)
+    tu = list(dict.fromkeys(tu_khoa_nhom(can))) if DUNG_YOUTUBE else []
     kq = {}
     dem = [0]
 
@@ -231,8 +232,8 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
     if chon_s and not chi_chon:
         kids_s = []
         for b in range(0, len(chon_s), 3):                   # 3 file một lúc (Pixabay chặn 429 khi tải dồn)
-            kids_s += [dung_tay.tai_file(du_an, ds_s[i]["id"], ds_s[i]["file"], ds_s[i]["ten"], ds_s[i]["nguon"])
-                       for i in chon_s[b:b + 3]]
+            kids_s += [dung_tay.tai_file(du_an, ds_s[i]["id"], ds_s[i]["file"], ds_s[i]["ten"], ds_s[i]["nguon"],
+                                     ds_s[i].get("ghi_nguon", "")) for i in chon_s[b:b + 3]]
             _cho_tai(du_an, kids_s, "tai_stock")
     kho = dung_tay.doc_kho(du_an)
 
@@ -369,6 +370,15 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
             goi_y.goi_y(du_an, ids=ids)
         except ValueError:
             pass
+
+    # 6b. ghi nguồn (Wikimedia CC BY bắt buộc ghi tác giả) cho các clip ĐANG DÙNG trong kế hoạch
+    dung = dung_tay.doc_dung(du_an)
+    kho = dung_tay.doc_kho(du_an)
+    dung_id = {x["kho_id"] for kh in dung.values() for x in kh.get("doan", [])}
+    dong = sorted({kho[k]["ghi_nguon"] for k in dung_id if kho.get(k, {}).get("ghi_nguon")})
+    with open(os.path.join(out, "ghi_nguon.txt"), "w", encoding="utf-8") as f:
+        f.write("Nguồn video (chép vào mô tả video):\n" + "\n".join(dong) + "\n" +
+                "Video thêm từ Pexels, Pixabay, Mixkit, Coverr (giấy phép miễn phí, không bắt buộc ghi nguồn).\n")
 
     # 7. bản nháp
     nhap = None

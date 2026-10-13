@@ -21,8 +21,8 @@ Story summary: {tom_tat}
 For each line, describe what the viewer should SEE so the picture conveys the MEANING of the line (not necessarily the exact subject): the ACTION happening and the SETTING. If the line is abstract (numbers, ideas), describe a concrete scene that carries the same meaning.
 Return ONLY a JSON array, one object per line:
 {{"id": <id>, "loai": one of "hanh_dong" (an action/event), "dia_diem" (a place/region/country is the focus), "vat" (an animal/object is the focus), "nguoi" (people/human activity), "khai_niem" (abstract idea/numbers),
- "canh_en": [2 short English shot descriptions, 6-14 words each, concrete and visual, e.g. "a hornet hovering in front of a beehive snatching a honey bee in mid-air"],
- "dia_danh_en": English place name with its country if loai is "dia_diem" (e.g. "Galicia, Spain"), else ""}}
+ "canh_en": [2 short English shot descriptions, 6-14 words each, concrete and visual, e.g. "a fishing boat sailing out of a harbor at dawn"],
+ "dia_danh_en": English place name with its country if loai is "dia_diem" (e.g. "Kyoto, Japan"), else ""}}
 
 Lines (with the previous line for context):
 {muc}"""

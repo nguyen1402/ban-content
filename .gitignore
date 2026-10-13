@@ -23,3 +23,6 @@ remotion/thu*.json
 !voices/*.wav
 *.mp4
 remotion/npm_install.log
+
+# ảnh tách nền / clip nền Remotion sinh ra khi chạy (13/10)
+remotion/public/

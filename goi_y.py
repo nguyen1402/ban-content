@@ -27,6 +27,9 @@ TT = {}                      # dự án -> trạng thái chạy nền {dang, xon
 _KHOA = threading.Lock()
 
 
+BO_YOUTUBE_TU_DONG = True   # 12/10 user: không dùng video YouTube do máy tự tải (dính logo kênh); video tự tải tay vẫn dùng
+
+
 def _chi_muc(kho, mo_hinh=None):
     """[(id, t, e, file, bien, tong, xau)] cho mọi video đã tải xong trong kho (chỉ mục CLIP + điểm đổi cảnh, có cache)."""
     mo_hinh = mo_hinh or MO_HINH_MAC_DINH
@@ -35,6 +38,8 @@ def _chi_muc(kho, mo_hinh=None):
     ra = []
     for kid, m in kho.items():
         if m.get("loai") != "video" or m.get("trang_thai") != "xong" or not os.path.isfile(m.get("file", "")):
+            continue
+        if BO_YOUTUBE_TU_DONG and not m.get("sach") and not m.get("tay"):
             continue
         try:
             if mo_hinh == "siglip":

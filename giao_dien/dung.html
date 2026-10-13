@@ -70,6 +70,7 @@ video,iframe{width:100%;border-radius:8px;background:#000;display:block}
   <button id="tudong" title="Cảnh chưa dựng: tự chọn đoạn từ Kho dự án; cảnh bạn đã dựng giữ nguyên. Rồi tạo bản nháp CapCut, mỗi đoạn trỏ vào VIDEO GỐC để bạn chọn lại đoạn khác ngay trong CapCut.">⚡ Tự động chọn đoạn + tạo bản nháp</button>
   <span class="sub">Tải tối đa</span><input type="number" id="ngansach" value="120" min="10" max="600" step="10" style="width:64px" title="Tổng phút video được tải cho dự án (lố tối đa 10%). Ảnh không giới hạn."><span class="sub">phút video</span>
   <button id="tutim" title="Tự tìm YouTube theo từ khoá mọi cảnh, chấm storyboard (chưa tải), chọn video phủ được nhiều cảnh nhất trong ngân sách phút, tải 720p, khớp đoạn; cảnh thiếu thì tìm ảnh Google bù; rồi tạo bản nháp (đoạn trỏ video gốc). Cảnh bạn đã tự dựng giữ nguyên.">🤖 Tự tìm + tải + khớp + bản nháp</button>
+  <button id="hoanthien" title="Chạy bước HOÀN THIỆN (skill chỉnh sửa) trên kế hoạch hiện tại: căn giờ theo giọng đọc, bản đồ vệ tinh cho cảnh địa điểm, bản đồ đường đi, thẻ ảnh highlight 65% kèm chữ nhấn mạnh ở mọi chỗ dẫn chứng/so sánh/nhấn mạnh, phủ màu đổi chương, chuyển cảnh -> bản nháp CapCut mới tên <tên>_hoan_chinh. Không thêm nhạc/chữ tự động.">✨ Hoàn thiện bản nháp</button>
   <button class="p" id="taonhap" title="Tạo bản nháp từ kế hoạch hiện có của mọi cảnh (đoạn trỏ video gốc)">📦 Chỉ tạo bản nháp</button>
 </header>
 <div class="khung">
@@ -336,7 +337,19 @@ $('#taonhap').onclick=async()=>{const b=$('#taonhap');b.disabled=true;
   try{const r=await post('/api/dung/nhap',{du_an:DU,ten:$('#tennhap').value});tb(`Đã tạo bản nháp "${r.ten}" (${r.so} đoạn hình trỏ video gốc + giọng đọc)`)}
   catch(e){tb('Lỗi: '+e.message)}b.disabled=false};
 window.addEventListener('beforeunload',e=>{if(daSua){e.preventDefault();e.returnValue=''}});
-nap();theoDoiGoiY();theoDoiTuDong();
+let henHT=null;
+async function theoDoiHoanThien(){
+  clearTimeout(henHT);let t;try{t=await api('/api/dung/hoan_thien_tt?du_an='+encodeURIComponent(DU))}catch(e){return}
+  const b=$('#hoanthien');
+  if(t.dang){b.disabled=true;b.textContent='✨ '+(t.buoc||'đang chạy')+'…';b.title=t.cuoi||'';henHT=setTimeout(theoDoiHoanThien,3000);return}
+  b.disabled=false;b.textContent='✨ Hoàn thiện bản nháp';
+  if(b.dataset.cho){delete b.dataset.cho;
+    if(t.loi)tb('Hoàn thiện lỗi: '+t.loi);else if(t.xong)tb(`Xong: bản nháp "${t.ten}" đã có trong CapCut`)}
+}
+$('#hoanthien').onclick=async()=>{const goc=($('#tennhap').value.trim()||DU).replace(/_dung$|_tu_dong$/,'');const ten=goc+'_hoan_chinh';
+  if(!confirm(`Hoàn thiện bản nháp từ kế hoạch hiện tại → bản nháp CapCut "${ten}" (ghi đè nếu trùng tên).\n\nGồm: căn giờ theo giọng đọc, bản đồ vệ tinh, thẻ ảnh highlight + chữ nhấn mạnh, phủ màu, chuyển cảnh. Mất khoảng 10-30 phút (tìm ảnh Google — nếu Google hỏi captcha, giải ở cửa sổ Chrome tìm ảnh). Tiếp tục?`))return;
+  try{await post('/api/dung/hoan_thien',{du_an:DU,ten});$('#hoanthien').dataset.cho='1';theoDoiHoanThien()}catch(e){tb('Lỗi: '+e.message)}};
+nap();theoDoiGoiY();theoDoiTuDong();theoDoiHoanThien();
 </script>
 </body>
 </html>

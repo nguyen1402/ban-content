@@ -58,6 +58,9 @@ def tai(du_an, ban_do=True):
             het = t0 + dl
         tong = max(tong, c["_t1"] / SEC)
         canh.append(c)
+    if os.path.isfile(wav):                                  # 12/10: giờ TỪNG CHỮ theo giọng thật (wav2vec2 căn bắt buộc)
+        import can_chu
+        can_chu.gan_moc(du_an, canh, wav)
     if ban_do:
         viec = []
         for c in canh:

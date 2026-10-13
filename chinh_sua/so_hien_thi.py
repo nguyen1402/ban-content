@@ -68,6 +68,10 @@ def doi(text):
                 i += 1
                 continue
             chac = any(x in HANG for x in cum) or len(cum) >= 2
+            # phải có ÍT NHẤT MỘT chữ số thật (một, hai… / mười): "hàng chục nghìn", "vài trăm" giữ nguyên chữ
+            # (13/10: "Hàng chục nghìn tổ" từng thành "Hàng chục 0 tổ")
+            if not any(x in SO or x == "mười" for x in cum) or cum[0] in ("nghìn", "ngàn", "triệu", "tỷ", "tỉ", "trăm", "mươi"):
+                chac = False
             if not chac:
                 ra.append(tokens[i])
                 i += 1

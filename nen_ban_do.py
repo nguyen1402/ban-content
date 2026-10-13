@@ -241,7 +241,7 @@ def dung_clip_vetinh(viec):
     ra, jobs = {}, []
     for ten, giay, ten_hien in viec:
         giay = round(float(giay), 2)
-        out = os.path.join(thu, hashlib.md5(f"{ten}|{giay}|{ten_hien}|v4".encode()).hexdigest()[:16] + ".mp4")
+        out = os.path.join(thu, hashlib.md5(f"{ten}|{giay}|{ten_hien}|v5".encode()).hexdigest()[:16] + ".mp4")
         ra[(ten, giay)] = out
         if os.path.isfile(out) and os.path.getsize(out) > 5000:
             continue
@@ -276,10 +276,13 @@ def _diem(ten):
     return None                                             # không phải địa danh thật cấp thành phố trở lên -> bỏ
 
 
-def chuan_bi_duong(tu, den, ten_tu=None, ten_den=None):
+def chuan_bi_duong(tu, den, ten_tu=None, ten_den=None, phuong_tien=""):
     """Props bản đồ VỆ TINH kiểu ĐƯỜNG ĐI A -> B (12/10 user): camera ôm cả hai điểm, đường vàng cong vẽ dần từ A tới B,
     chấm sáng chạy ở mũi đường; điểm A có nhãn, điểm B có chấm đỏ; tiêu đề 'A → B'."""
     a, b = _diem(tu), _diem(den)
+    if a and b and (_luc_dia(a[2]) or _luc_dia(b[2])):
+        log(f"    ! bản đồ đường đi: '{tu}' / '{den}' là cả lục địa — bỏ")
+        return None
     if not a or not b:
         log(f"    ! bản đồ đường đi: '{tu}' hoặc '{den}' không phải địa danh thật — bỏ")
         return None
@@ -302,8 +305,80 @@ def chuan_bi_duong(tu, den, ten_tu=None, ten_den=None):
     log(f"    đường đi '{ten_tu}' -> '{ten_den}': rộng {rong_km:.0f} km, z={[l['z'] for l in lop]}")
     return {"dia_diem": f"{ten_tu} → {ten_den}", "lat": b[0], "lon": b[1], "cam_lat": la, "cam_lon": lo,
             "rong_km": rong_km, "lop": lop, "vien": [], "noi": True,
-            "dau": [{"ten": ten_tu, "lat": a[0], "lon": a[1], "vien": []}],
+            "dau": [{"ten": ten_tu, "lat": a[0], "lon": a[1], "vien": []}], "phuong_tien": phuong_tien or "",
             "nguon": "vetinh", "ghi_nguon": GHI_NGUON["vetinh"]}
+
+
+def _luc_dia(d):
+    """Địa danh là cả LỤC ĐỊA ("Asia", "Europe") -> điểm giữa lục địa vô nghĩa trên bản đồ đường đi -> bỏ."""
+    return (d.get("type") == "continent" or d.get("addresstype") == "continent"
+            or int(d.get("place_rank") or 99) <= 2)
+
+
+def _km(a, b):
+    return math.hypot((a[1] - b[1]) * 111.32 * math.cos(math.radians((a[0] + b[0]) / 2)), (a[0] - b[0]) * 110.57)
+
+
+def chuan_bi_lan_rong(goc, noi, goc_vi=None, phuong_tien=""):
+    """Props bản đồ vệ tinh LAN RỘNG (13/10 user): một nơi gốc toả nhiều tuyến tới nhiều nơi, vẽ lần lượt.
+    noi: [(en, vi)]. Bỏ nơi không phải địa danh thật / nằm trong nơi gốc / gần dưới 50 km. Cần >= 2 tuyến."""
+    a = _diem(goc)
+    if a and _luc_dia(a[2]):
+        a = None
+    if not a:
+        log(f"    ! lan rộng: gốc '{goc}' không phải địa danh thật — bỏ")
+        return None
+    ten_a = a[2].get("display_name", "")
+    tuyen = []
+    for en, vi in noi:
+        b = _diem(en)
+        if not b or _luc_dia(b[2]):
+            continue
+        ten_b = b[2].get("display_name", "")
+        if ten_b.split(",")[0].strip() in ten_a or ten_a.split(",")[0].strip() in ten_b or _km(a, b) < 50:
+            continue
+        tuyen.append({"tu": {"lat": a[0], "lon": a[1]}, "den": {"lat": b[0], "lon": b[1], "ten": vi or en.split(",")[0]}})
+    if len(tuyen) < 2:
+        log(f"    ! lan rộng từ '{goc}': chỉ {len(tuyen)} nơi đến hợp lệ — bỏ")
+        return None
+    las = [a[0]] + [t["den"]["lat"] for t in tuyen]
+    los = [a[1]] + [t["den"]["lon"] for t in tuyen]
+    la, lo = (min(las) + max(las)) / 2, (min(los) + max(los)) / 2
+    dx = (max(los) - min(los)) * 111.32 * math.cos(math.radians(la))
+    dy = (max(las) - min(las)) * 110.57
+    rong_km = max(80.0, max(dx, dy * 16 / 9) * 1.5)
+    lop = lop_nen(la, lo, rong_km, "vetinh")
+    if not lop:
+        return None
+    ten_goc = goc_vi or goc.split(",")[0].strip()
+    log(f"    lan rộng '{ten_goc}' -> {len(tuyen)} nơi: rộng {rong_km:.0f} km")
+    return {"dia_diem": ten_goc, "lat": a[0], "lon": a[1], "cam_lat": la, "cam_lon": lo, "rong_km": rong_km,
+            "lop": lop, "vien": [], "noi": False, "tuyen": tuyen, "phuong_tien": phuong_tien or "",
+            "dau": [{"ten": ten_goc, "lat": a[0], "lon": a[1], "vien": []}],
+            "nguon": "vetinh", "ghi_nguon": GHI_NGUON["vetinh"]}
+
+
+def dung_clip(viec):
+    """viec: [(khoa, giay, ham_props, args)] -> {khoa: mp4 | None}. Render chung một lần, cache cache/ban_do_vt/."""
+    import hashlib
+    import json as _json
+    thu = os.path.join(CACHE_CHUNG, "ban_do_vt")
+    os.makedirs(thu, exist_ok=True)
+    ra, jobs = {}, []
+    for khoa, giay, ham, args in viec:
+        giay = round(float(giay), 2)
+        out = os.path.join(thu, "bd_" + hashlib.md5(f"{ham.__name__}|{_json.dumps(args, ensure_ascii=False)}|{giay}|v7"
+                                                   .encode()).hexdigest()[:14] + ".mp4")
+        ra[khoa] = out
+        if os.path.isfile(out) and os.path.getsize(out) > 5000:
+            continue
+        pr = ham(*args)
+        if not pr:
+            ra[khoa] = None
+            continue
+        jobs.append({"comp": "BanDoNen", "giay": giay, "out": out, "props": pr})
+    _render(jobs, thu)
+    return {k: (v if v and os.path.isfile(v) and os.path.getsize(v) > 5000 else None) for k, v in ra.items()}
 
 
 def dung_clip_duong(viec):

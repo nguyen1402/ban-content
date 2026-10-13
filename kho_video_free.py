@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-"""Tìm VIDEO STOCK MIỄN PHÍ, KHÔNG WATERMARK/LOGO trên Pexels và Pixabay — mở trang tìm trong cửa sổ Chrome hiện
+"""Tìm VIDEO STOCK MIỄN PHÍ, KHÔNG WATERMARK/LOGO trên Pexels, Pixabay, Mixkit, Coverr, Wikimedia Commons (12/10 user:
+bỏ tự tải YouTube vì dính logo kênh). Pexels/Pixabay/Mixkit/Coverr — mở trang tìm trong cửa sổ Chrome hiện
 (cùng hạ tầng DevTools với anh_google: hồ sơ riêng, không cần API key), đọc JSON-LD VideoObject trong trang.
 
   * Pexels: link file mp4 trực tiếp (sd 960x540 / hd 1280x720 / hd 1920x1080 / uhd) -> lấy bản hd <= 1080p.
@@ -112,7 +113,102 @@ def tim_pixabay(q):
     return ra
 
 
-def tim(q, nguon=("pexels", "pixabay")):
+def _slug(q):
+    return re.sub(r"[^a-z0-9]+", "-", q.lower()).strip("-")
+
+
+def tim_mixkit(q):
+    """Mixkit (Mixkit License: thương mại, không cần ghi nguồn): thẻ kết quả có mã + ảnh thu nhỏ + tiêu đề; file 720p."""
+    h = _mo_trang(f"https://mixkit.co/free-stock-video/{_slug(q)}/")
+    ra, thay = [], set()
+    for m in re.finditer(r'data-item-grid--video-player-item-id-value="(\d+)"', h):
+        vid = m.group(1)
+        if vid in thay:
+            continue
+        thay.add(vid)
+        doan = h[m.end():m.end() + 2500]
+        alt = re.search(r'class="item-grid-video-player__thumb" alt="([^"]*)"', doan)
+        ra.append({"nguon": "mixkit", "id": "mk_" + vid, "ten": html_unescape(alt.group(1)) if alt else "",
+                   "trang": f"https://mixkit.co/free-stock-video/{vid}/",
+                   "thumb": f"https://assets.mixkit.co/videos/{vid}/{vid}-thumb-360-0.jpg",
+                   "file": f"https://assets.mixkit.co/videos/{vid}/{vid}-720.mp4", "dai": 0.0})
+    return ra
+
+
+def html_unescape(s):
+    import html
+    return html.unescape(s)
+
+
+def tim_coverr(q):
+    """Coverr (Coverr License: miễn phí thương mại): JSON trong trang có tiêu đề, ảnh thu nhỏ, độ dài, cờ dọc/premium,
+    link mp4 1080p. Chỉ lấy video NGANG, không premium."""
+    h = _mo_trang(f"https://coverr.co/s?q={urllib.parse.quote(q)}")
+    ra, thay = [], set()
+    for m in re.finditer(r'"baseFilename":"([^"]+)"', h):
+        base = m.group(1)
+        if base in thay:
+            continue
+        thay.add(base)
+        dau = h.rfind('{"id":"', 0, m.start())               # chỉ đọc trong ĐÚNG đối tượng của video này
+        het = h.find('"allSlugs"', m.end())
+        if dau < 0 or het < 0 or het - m.end() > 4000:
+            continue
+        truoc, sau = h[dau:m.start()], h[m.end():het]
+        if '"urls":{"mp4"' not in sau or '"isVertical":true' in sau or '"isPremium":true' in sau \
+                or '"isAiGenerated":true' in sau:
+            continue                                         # không phải video (banner, ảnh) / dọc / trả phí / AI
+        td = re.findall(r'"title":"([^"]*)"', truoc)
+        du = re.search(r'"duration":"([\d.]+)"', sau)
+        ra.append({"nguon": "coverr", "id": "cv_" + re.sub(r"[^\w-]", "", base)[-40:], "ten": td[-1] if td else base,
+                   "trang": "https://coverr.co", "thumb": f"https://cdn.coverr.co/videos/{base}/thumbnail?width=640",
+                   "file": f"https://cdn.coverr.co/videos/{base}/1080p.mp4", "dai": float(du.group(1)) if du else 0.0})
+    return ra
+
+
+GIAY_PHEP_NHAN = ("cc0", "public domain", "pd", "cc by 1.0", "cc by 2.0", "cc by 2.5", "cc by 3.0", "cc by 4.0", "cc by")
+
+
+def tim_wikimedia(q):
+    """Wikimedia Commons qua API công khai (không key): chỉ nhận PD / CC0 / CC BY (BỎ BY-SA, NC, ND — ràng buộc khi dùng
+    thương mại). Kèm tác giả + giấy phép để ghi nguồn (ghi_nguon.txt)."""
+    import urllib.request
+    url = "https://commons.wikimedia.org/w/api.php?" + urllib.parse.urlencode({
+        "action": "query", "format": "json", "generator": "search", "gsrsearch": f"filetype:video {q}",
+        "gsrnamespace": 6, "gsrlimit": 25, "prop": "imageinfo", "iiprop": "url|extmetadata|size|mediatype",
+        "iiurlwidth": 640})
+    try:
+        r = urllib.request.urlopen(urllib.request.Request(url, headers={
+            "User-Agent": "ban-content/0.4 (documentary editing tool; contact via github nguyen1402)"}), timeout=30)
+        d = json.loads(r.read().decode("utf-8"))
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! Wikimedia '{q[:40]}': {str(e)[:80]}")
+        return []
+    ra = []
+    for p in (d.get("query") or {}).get("pages", {}).values():
+        ii = (p.get("imageinfo") or [{}])[0]
+        md = ii.get("extmetadata") or {}
+        lic = re.sub(r"<[^>]+>", "", (md.get("LicenseShortName") or {}).get("value", "")).strip()
+        lk = lic.lower()
+        if not lk or any(x in lk for x in ("sa", "nc", "nd")) and "public" not in lk:
+            continue
+        if not any(lk.startswith(x) or lk == x for x in GIAY_PHEP_NHAN):
+            continue
+        if (ii.get("width") or 0) < (ii.get("height") or 1) or (ii.get("width") or 0) < 640:
+            continue                                         # chỉ video NGANG, >= 640 px
+        tg = re.sub(r"<[^>]+>", "", (md.get("Artist") or {}).get("value", "")).strip()[:120]
+        ra.append({"nguon": "wikimedia", "id": "wm_" + str(p.get("pageid")), "ten": p.get("title", "")[5:],
+                   "trang": ii.get("descriptionurl", ""), "thumb": ii.get("thumburl", ""), "file": ii.get("url", ""),
+                   "dai": float(ii.get("duration") or 0), "ghi_nguon": f"{p.get('title', '')[5:]} — {tg} — {lic} — {ii.get('descriptionurl', '')}"})
+    return ra
+
+
+NGUON_MAC_DINH = ("pexels", "pixabay", "mixkit", "coverr", "wikimedia")
+_HAM = {"pexels": "tim_pexels", "pixabay": "tim_pixabay", "mixkit": "tim_mixkit", "coverr": "tim_coverr",
+        "wikimedia": "tim_wikimedia"}
+
+
+def tim(q, nguon=NGUON_MAC_DINH):
     """Kết quả cả hai kho cho từ khoá q (cache 7 ngày)."""
     da = doc_json(_CACHE, {}) or {}
     ra = []
@@ -122,7 +218,7 @@ def tim(q, nguon=("pexels", "pixabay")):
             ra += da[k]["ds"]
             continue
         try:
-            ds = tim_pexels(q) if n == "pexels" else tim_pixabay(q)
+            ds = globals()[_HAM[n]](q)
         except Exception as e:                               # noqa: BLE001
             log(f"    ! tìm {n} '{q[:40]}': {str(e)[:100]}")
             ds = []

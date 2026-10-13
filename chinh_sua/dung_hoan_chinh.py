@@ -30,13 +30,23 @@ SEC = 1_000_000
 #: Người dùng chốt 09/10: BỎ hết hiệu ứng âm thanh (chỗ chèn không hợp). Mã SFX còn đó, bật lại bằng True.
 SFX_BAT = False
 #: 12/10 user: BỎ tự thêm nhạc nền và chữ nhấn mạnh (mã còn đó, bật lại bằng True / cờ --co-nhac --co-chu).
-NHAC_BAT = False
+NHAC_BAT = True           # 13/10 user: CÓ nhạc nền — nguồn Mixkit (nhac_mixkit.py), an toàn cho YouTube, hợp nội dung
+NHAC_NGUON = "mixkit"     # "mixkit" | "kho" (kho cũ: nhạc kênh YouTube "No Copyright" — không chắc an toàn)
 CHU_BAT = False
 #: 12/10 user: lớp ẢNH PHỦ minh hoạ khi cần (chinh_sua/lop_phu.py). Tắt bằng --khong-lop-phu.
-LOP_PHU_BAT = True
+LOP_PHU_BAT = False        # 13/10 user: ẨN thẻ highlight ("hiện tại chưa cần dùng tới") — bật lại: True / bỏ --khong-lop-phu
 #: 12/10 user: hiệu ứng kiểu video mẫu (chinh_sua/hieu_ung.py): bản đồ đường đi A->B, khung highlight viền vàng,
 #: phủ màu khi đổi chương. Tắt bằng --khong-hieu-ung.
 HIEU_UNG_BAT = True
+#: 12/10 user: lớp Remotion "BẢNG GIẤY" khớp lời (chinh_sua/bang_giay.py, kiểu kênh "Вся жизнь пчелы"): thẻ video trên
+#: nền giấy + tiêu đề/nhãn, mũi tên, thẻ câu hỏi, cột so sánh, mốc năm, bản đồ phẳng. Tắt: --khong-bang-giay.
+#: 13/10 user: điều phối chung (dieu_phoi.py) — mỗi câu tối đa MỘT lớp: thẻ highlight / bản đồ (khoanh vùng, đường đi
+#: có icon phương tiện, lan rộng) / sơ đồ Remotion trên nền video tối (cấu tạo, quy trình, vòng đời, mô phỏng).
+#: Tắt (về cách cũ: thẻ và đường đi hỏi riêng): --khong-dieu-phoi.
+DIEU_PHOI_BAT = True
+#: 13/10 user nghe thử rồi BỎ NGAY tiếng động diễn cảnh ("nghe không hợp"). Mã còn đó; bật lại = True.
+TIENG_DONG_BAT = False
+BANG_GIAY_BAT = False      # 12/10 user xem bản thử rồi BỎ ("không muốn vẽ kiểu đấy") — bật lại bằng --co-bang-giay
 KE_HOACH = os.path.join(OUT, "ke_hoach.json")
 
 MILD = ["Mờ dần", "Rõ dần", "Trượt sang trái", "Trượt sang phải"]
@@ -85,7 +95,9 @@ def tao_srt(canh):
             for s, nt in zip(ss, n_tok):
                 idx += 1
                 cau.append({"i": idx, "t0": round(c["_t0"] / SEC + moc[j][0], 2),
-                            "t1": round(c["_t0"] / SEC + moc[j + nt - 1][1], 2), "text": s, "canh": c["id"]})
+                            "t1": round(c["_t0"] / SEC + moc[j + nt - 1][1], 2), "text": s, "canh": c["id"],
+                            "tu": [(tk, round(c["_t0"] / SEC + moc[j + q][0], 3), round(c["_t0"] / SEC + moc[j + q][1], 3))
+                                   for q, tk in enumerate(s.split())]})     # giờ từng chữ (căn theo giọng thật)
                 j += nt
             continue
         for s, wi in zip(ss, w):
@@ -500,8 +512,14 @@ def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
         script.add_track(tp, track_name=nm)
     if kh.get("hieu_ung"):
         script.add_track(draft.TrackType.video, track_name="hieu_ung", relative_index=1)  # trên track hình
+    if kh.get("bang_giay"):
+        script.add_track(draft.TrackType.video, track_name="bang_giay", relative_index=4)  # trên cùng: khối bảng giấy
+    if kh.get("tieng_dong") and TIENG_DONG_BAT:
+        script.add_track(draft.TrackType.audio, track_name="tieng_dong")
     if kh.get("lop_phu"):
-        script.add_track(draft.TrackType.video, track_name="lop_phu", relative_index=2)   # trên cùng: thẻ ảnh phủ
+        script.add_track(draft.TrackType.video, track_name="lop_phu", relative_index=2)   # thẻ: ảnh thật
+        script.add_track(draft.TrackType.video, track_name="lop_phu_khung", relative_index=3)   # thẻ: khung trắng
+        script.add_track(draft.TrackType.text, track_name="lop_phu_chu", relative_index=1)   # thẻ: chữ (sửa tay được)
     KP0 = draft.KeyframeProperty
     kieu_anh = 0
     vat_lieu = {}
@@ -547,6 +565,17 @@ def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
         if d < int(s["dai"] * SEC):
             seg.add_fade(0, int(min(0.15 * SEC, d // 2)))
         script.add_segment(seg, track_name="sfx")
+    ds_td = sorted(kh.get("tieng_dong") or [], key=lambda z: z["t"]) if TIENG_DONG_BAT else []
+    for k, s in enumerate(ds_td):                            # tiếng động diễn cảnh (13/10 user)
+        toi_da = (ds_td[k + 1]["t"] - s["t"] - 0.05) if k + 1 < len(ds_td) else s["dai"]
+        mat = draft.AudioMaterial(s["file"])
+        d = min(int(min(s["dai"], toi_da) * SEC), mat.duration)
+        if d < int(0.15 * SEC):
+            continue
+        seg = draft.AudioSegment(mat, trange(int(s["t"] * SEC), d), source_timerange=trange(0, d), volume=s["vol"])
+        if d < int(float(s.get("dai_goc", s["dai"])) * SEC):
+            seg.add_fade(0, int(min(0.12 * SEC, d // 2)))
+        script.add_segment(seg, track_name="tieng_dong")
     KP = draft.KeyframeProperty
     for x in kh["chu"]:
         d = int(x["dai"] * SEC)
@@ -570,6 +599,9 @@ def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
     if kh.get("lop_phu"):
         import lop_phu
         lop_phu.dat(script, kh["lop_phu"], SEC)
+    if kh.get("bang_giay"):
+        import bang_giay
+        bang_giay.dat(script, kh["bang_giay"], SEC)
     script.save()
     if giong_chung:
         import dung_tay
@@ -637,16 +669,25 @@ def main():
     ap.add_argument("--khong-ban-do", action="store_true", help="dự án mới: không thay cảnh địa điểm bằng bản đồ vệ tinh")
     ap.add_argument("--co-nhac", action="store_true", help="bật lại tự thêm nhạc nền")
     ap.add_argument("--co-chu", action="store_true", help="bật lại chữ nhấn mạnh")
+    ap.add_argument("--khong-dieu-phoi", action="store_true", help="không dùng điều phối chung (thẻ/bản đồ hỏi riêng như cũ)")
+    ap.add_argument("--khong-nhac", action="store_true", help="không thêm nhạc nền")
+    ap.add_argument("--co-lop-phu", action="store_true", help="bật lại thẻ ảnh highlight (mặc định tắt từ 13/10)")
     ap.add_argument("--khong-lop-phu", action="store_true", help="không thêm lớp ảnh phủ minh hoạ")
     ap.add_argument("--khong-hieu-ung", action="store_true", help="không thêm bản đồ đường đi / highlight / phủ màu")
+    ap.add_argument("--khong-bang-giay", action="store_true", help="không dựng lớp Remotion bảng giấy")
+    ap.add_argument("--co-bang-giay", action="store_true", help="bật lớp Remotion bảng giấy (mặc định tắt)")
+    ap.add_argument("--bang-giay-den", type=float, default=None, help="bảng giấy chỉ làm tới giây này (bản thử)")
     ap.add_argument("--sua-nhanh", action="store_true",
                     help="giữ kế hoạch: bỏ SFX, làm lại chữ (chỉ số liệu/dữ kiện) và chọn lại nhạc từ kho YouTube")
     ap.add_argument("--tinh-lai-chuyen-canh", action="store_true",
                     help="giữ kế hoạch cũ, chỉ dựng lại chuyển cảnh theo các ô hình hiện tại")
     a = ap.parse_args()
-    global NHAC_BAT, CHU_BAT, LOP_PHU_BAT, HIEU_UNG_BAT
+    global NHAC_BAT, CHU_BAT, LOP_PHU_BAT, HIEU_UNG_BAT, BANG_GIAY_BAT, DIEU_PHOI_BAT
+    DIEU_PHOI_BAT = DIEU_PHOI_BAT and not a.khong_dieu_phoi
+    BANG_GIAY_BAT = (BANG_GIAY_BAT or a.co_bang_giay) and not a.khong_bang_giay
     HIEU_UNG_BAT = HIEU_UNG_BAT and not a.khong_hieu_ung
-    NHAC_BAT, CHU_BAT, LOP_PHU_BAT = NHAC_BAT or a.co_nhac, CHU_BAT or a.co_chu, LOP_PHU_BAT and not a.khong_lop_phu
+    NHAC_BAT, CHU_BAT = (NHAC_BAT or a.co_nhac) and not a.khong_nhac, CHU_BAT or a.co_chu
+    LOP_PHU_BAT = (LOP_PHU_BAT or a.co_lop_phu) and not a.khong_lop_phu
 
     giong_chung = None
     if not os.path.isfile(os.path.join(OUT, "ket_qua.json")) and os.path.isfile(os.path.join(OUT, "dung.json")):
@@ -675,25 +716,61 @@ def main():
             kh = tinh_lai_chuyen_canh(canh, cau, kh)
             ghi_json(KE_HOACH, kh)
             log(f"    dựng lại {len(kh['chuyen_canh'])} chuyển cảnh theo ô hiện tại")
+        if NHAC_BAT and NHAC_NGUON == "mixkit" and not kh.get("nhac"):    # kế hoạch cũ chưa có nhạc: tìm bổ sung
+            import nhac_mixkit
+            kh["nhac"] = nhac_mixkit.chon(kh["chuong"], cau, OUT)
+            ghi_json(KE_HOACH, kh)
         doi = doi_chuyen_canh_nhay(kh)
         if doi:
             log(f"    đã thay {doi} chuyển cảnh gây nháy bằng chuyển cảnh sạch")
     else:
         kh = lap_ke_hoach(canh, cau, tong)
-        kh["nhac"] = chon_nhac(kh["chuong"], am) if NHAC_BAT else []
+        if NHAC_BAT and NHAC_NGUON == "mixkit":
+            import nhac_mixkit
+            kh["nhac"] = nhac_mixkit.chon(kh["chuong"], cau, OUT)
+        else:
+            kh["nhac"] = chon_nhac(kh["chuong"], am) if NHAC_BAT else []
+        if BANG_GIAY_BAT:
+            import bang_giay
+            kh["bang_giay"] = bang_giay.lap(cau, canh, OUT, den_giay=a.bang_giay_den)
+        bg = [(y["bd"], y["bd"] + y["dai"]) for y in kh.get("bang_giay") or []]
+
+        def ngoai_bg(x):                                     # hiệu ứng/thẻ ảnh không trùng khoảng đã có khối bảng giấy
+            return all(x["bd"] + x["dai"] <= a_ or x["bd"] >= b_ for a_, b_ in bg)
+        # 13/10 user: MỘT lần hỏi ChatGPT chọn cho mỗi câu tối đa một lớp: thẻ highlight / bản đồ / sơ đồ Remotion
+        de = None
+        if DIEU_PHOI_BAT and (HIEU_UNG_BAT or LOP_PHU_BAT):
+            import dieu_phoi
+            de = dieu_phoi.hoi(cau, OUT, co_the=LOP_PHU_BAT)
         if HIEU_UNG_BAT:
             import hieu_ung
-            kh["hieu_ung"] = hieu_ung.lap(cau, canh, kh["chuong"], OUT)
+            if de is not None:
+                import minh_hoa
+                kh["hieu_ung"] = [x for x in hieu_ung.lap(cau, canh, kh["chuong"], OUT, san=minh_hoa.lap(cau, canh, de))
+                                  if ngoai_bg(x)]
+            else:
+                kh["hieu_ung"] = [x for x in hieu_ung.lap(cau, canh, kh["chuong"], OUT) if ngoai_bg(x)]
+        # 13/10 user: tiếng động đi kèm diễn cảnh (độc lập với SFX_BAT cũ đã tắt)
+        su_kien = sorted((a_ for y in kh.get("hieu_ung") or [] for a_ in (y.get("am") or [])), key=lambda z: z["t"])
+        kh["tieng_dong"] = []
+        for s_ in chon_sfx([dict(z) for z in su_kien], am):
+            s_["dai_goc"] = float(s_["dai"])
+            s_["dai"] = min(float(s_["dai"]), 1.6)
+            s_["vol"] = round(float(s_["vol"]) * 0.6, 3)            # nhỏ hơn giọng đọc
+            kh["tieng_dong"].append(s_)
         if LOP_PHU_BAT:
             import lop_phu
-            kh["lop_phu"] = lop_phu.lap(cau, OUT)
+            cam = [(y["bd"], y["bd"] + y["dai"]) for y in kh.get("hieu_ung") or [] if y["kieu"] != "phu_mau"]
+            cam += [(t / SEC, (t + d) / SEC) for c in canh for (t, d, o) in c["_os"] if o.get("ban_do")]
+            kh["lop_phu"] = lop_phu.lap(cau, OUT, de_xuat=de, cam=cam)
             hu = [(y["bd"], y["bd"] + y["dai"]) for y in kh.get("hieu_ung") or [] if y["kieu"] != "phu_mau"]
             kh["lop_phu"] = [x for x in kh["lop_phu"]                          # thẻ ảnh không đè lên bản đồ/highlight
-                             if all(x["bd"] + x["dai"] <= a or x["bd"] >= b for a, b in hu)]
+                             if all(x["bd"] + x["dai"] <= a or x["bd"] >= b for a, b in hu) and ngoai_bg(x)]
         kh["sfx"] = chon_sfx(kh["sfx"], am) if SFX_BAT else []
         ghi_json(KE_HOACH, kh)
-        log(f"[2] kế hoạch: {len(kh['chuong'])} chương, {len(kh['chu'])} chữ nhấn mạnh, {len(kh.get('lop_phu') or [])} ảnh phủ, {len(kh.get('hieu_ung') or [])} hiệu ứng, "
-            f"{len(kh['chuyen_canh'])} chuyển cảnh, {len(kh['nhac'])} đoạn nhạc, {len(kh['sfx'])} SFX -> ra/ke_hoach.json")
+        log(f"[2] kế hoạch: {len(kh['chuong'])} chương, {len(kh['chu'])} chữ nhấn mạnh, {len(kh.get('lop_phu') or [])} ảnh phủ, {len(kh.get('hieu_ung') or [])} hiệu ứng, {len(kh.get('bang_giay') or [])} khối bảng giấy, "
+            f"{len(kh['chuyen_canh'])} chuyển cảnh, {len(kh['nhac'])} đoạn nhạc, {len(kh['sfx'])} SFX, "
+            f"{len(kh.get('tieng_dong') or [])} tiếng động diễn cảnh -> ra/ke_hoach.json")
     if a.chi_lap_ke_hoach:
         return
     if not SFX_BAT:

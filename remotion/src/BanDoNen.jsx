@@ -14,11 +14,13 @@ const wy = (lat, z) => {
 };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const mem = (x) => x * x * (3 - 2 * x);
+// icon phương tiện (emoji hệ thống). Máy bay gốc hướng lên-phải (xoay theo hướng bay); tàu/xe gốc hướng TRÁI.
+const ICON = {may_bay: '✈️', tau_thuy: '🚢', tau_hoa: '🚆', xe: '🚚', di_bo: '🚶'};
 
 // props: {giay, dia_diem, lat, lon, rong_km, nam_tu, nam_den, dau[{ten,lat,lon,vien}], noi, chu_thich[], lop[], vien[]}
 export const BanDoNen = ({
   dia_diem = '', lat = 0, lon = 0, rong_km = 20, nam_tu = null, nam_den = null,
-  dau = [], noi = false, chu_thich = [], lop = [], vien = [], nguon = 'osm', ghi_nguon = '© OpenStreetMap contributors', cam_lat = null, cam_lon = null,
+  dau = [], noi = false, tuyen = null, phuong_tien = '', chu_thich = [], lop = [], vien = [], nguon = 'osm', ghi_nguon = '© OpenStreetMap contributors', cam_lat = null, cam_lon = null,
 }) => {
   const veTinh = nguon === 'vetinh';
   const f = useCurrentFrame();
@@ -54,7 +56,19 @@ export const BanDoNen = ({
 
   const duongViền = (vong) => 'M' + vong.map(([lo, la]) => toScreen(lo, la).map((v) => v.toFixed(1)).join(',')).join('L') + 'Z';
   const diem = toScreen(lon, lat);
+  // 13/10 user: khoanh xong thì GHI TÊN vào giữa vùng khoanh (thay tiêu đề ở góc)
+  const vongLon = vien.length ? vien.reduce((a, b) => (b.length > a.length ? b : a)) : null;
+  let tenVung = null;
+  if (vongLon) {
+    const ps = vongLon.map(([lo, la]) => toScreen(lo, la));
+    const xs = ps.map((q) => q[0]), ys = ps.map((q) => q[1]);
+    const x0 = Math.max(60, Math.min(...xs)), x1 = Math.min(W - 60, Math.max(...xs));
+    const y0 = Math.max(60, Math.min(...ys)), y1 = Math.min(H - 60, Math.max(...ys));
+    tenVung = {x: (x0 + x1) / 2, y: (y0 + y1) / 2, co: clamp((x1 - x0) / Math.max(4, dia_diem.length * 0.62), 46, 110)};
+  }
   const diemDau = dau.map((m) => ({...m, p: toScreen(m.lon, m.lat)}));
+  // tuyến vẽ: props.tuyen [{tu:{lat,lon}, den:{lat,lon,ten}}] (lan_rong); bản cũ noi + dau[0] -> 1 tuyến tới điểm chính
+  const tuyenVe = tuyen || (noi && dau[0] ? [{tu: dau[0], den: {lat, lon}}] : []);
 
   return (
     <AbsoluteFill style={{background: '#1b2733', fontFamily: FONT, overflow: 'hidden'}}>
@@ -80,24 +94,53 @@ export const BanDoNen = ({
         <defs>
           <filter id="glow"><feGaussianBlur stdDeviation="6" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
         </defs>
-        {noi && diemDau[0] && (() => {
-          // đường đi A -> B: vẽ dần (chạy nét) rồi giữ; chấm sáng chạy ở đầu mũi đường
-          const [ax, ay] = diemDau[0].p;
-          const [bx, by] = diem;
-          const ve = mem(clamp((f / N - 0.28) / 0.42, 0, 1));
-          const mx = (ax + bx) / 2, my = (ay + by) / 2 - Math.hypot(bx - ax, by - ay) * 0.18;   // cong nhẹ lên
+        {tuyenVe.map((r, k) => {
+          // 13/10 user: đường đi có MŨI TÊN ở đích + ICON PHƯƠNG TIỆN chạy dọc đường (máy bay xoay theo hướng bay;
+          // tàu/xe lật trái-phải theo hướng đi). lan_rong: nhiều tuyến toả ra lần lượt.
+          const [ax, ay] = toScreen(r.tu.lon, r.tu.lat);
+          const [bx, by] = toScreen(r.den.lon, r.den.lat);
+          const bay = phuong_tien === 'may_bay';
+          const cao = bay ? 0.3 : 0.16;
+          const mx = (ax + bx) / 2, my = (ay + by) / 2 - Math.hypot(bx - ax, by - ay) * cao;
           const d = `M${ax},${ay} Q${mx},${my} ${bx},${by}`;
-          const t = ve;
-          const px = (1 - t) * (1 - t) * ax + 2 * (1 - t) * t * mx + t * t * bx;
-          const py = (1 - t) * (1 - t) * ay + 2 * (1 - t) * t * my + t * t * by;
+          const t0 = 0.26 + 0.11 * k, dt = tuyenVe.length > 1 ? 0.3 : 0.42;
+          const ve = mem(clamp((f / N - t0) / dt, 0, 1));
+          const P = (t) => [(1 - t) * (1 - t) * ax + 2 * (1 - t) * t * mx + t * t * bx,
+            (1 - t) * (1 - t) * ay + 2 * (1 - t) * t * my + t * t * by];
+          const [px, py] = P(ve);
+          const [qx, qy] = P(Math.min(1, ve + 0.01));
+          const [ux, uy] = P(0.98);
+          const goc = Math.atan2(qy - py, qx - px) * 180 / Math.PI;
+          const gocCuoi = Math.atan2(by - uy, bx - ux) * 180 / Math.PI;
+          const icon = ICON[phuong_tien];
+          const mau = phuong_tien === 'tau_thuy' ? '#7fd8ff' : '#ffd400';
+          const net = phuong_tien === 'may_bay' || phuong_tien === 'tau_thuy' ? '22 16' : undefined;
           return (
-            <g>
-              <path d={d} stroke="#ffd400" strokeWidth="7" fill="none" pathLength="1" strokeDasharray="1"
-                strokeDashoffset={1 - ve} strokeLinecap="round" filter="url(#glow)" />
-              {ve > 0 && ve < 1 && <circle cx={px} cy={py} r="14" fill="#fff" stroke="#ffd400" strokeWidth="5" filter="url(#glow)" />}
+            <g key={'r' + k}>
+              <mask id={'m' + k} maskUnits="userSpaceOnUse" x="0" y="0" width={W} height={H}>
+                <path d={d} stroke="#fff" strokeWidth="16" fill="none" pathLength="1" strokeDasharray="1"
+                  strokeDashoffset={1 - ve} strokeLinecap="round" />
+              </mask>
+              <path d={d} stroke={mau} strokeWidth="7" fill="none" strokeDasharray={net} strokeLinecap="round"
+                mask={`url(#m${k})`} filter="url(#glow)" />
+              {ve >= 0.995 && (
+                <g transform={`translate(${bx},${by}) rotate(${gocCuoi})`}>
+                  <path d="M -34 -20 L 6 0 L -34 20 Z" fill={mau} stroke="#10202e" strokeWidth="3" filter="url(#glow)" />
+                </g>
+              )}
+              {r.den.ten && ve > 0.6 && (
+                <text x={bx + 26} y={by - 22} fontSize="40" fontWeight="700" fill="#fff" stroke="#10202e" strokeWidth="8"
+                  paintOrder="stroke" opacity={clamp((ve - 0.6) / 0.3, 0, 1)}>{r.den.ten}</text>
+              )}
+              {ve > 0 && ve < 0.995 && (icon
+                ? <text x={0} y={0} fontSize="78" textAnchor="middle" dominantBaseline="central"
+                    style={{fontFamily: '"Segoe UI Emoji", "Noto Color Emoji", sans-serif'}}
+                    transform={bay ? `translate(${px},${py}) rotate(${goc + 45})`
+                      : `translate(${px},${py}) scale(${qx < px ? 1 : -1},1)`}>{icon}</text>
+                : <circle cx={px} cy={py} r="14" fill="#fff" stroke="#ffd400" strokeWidth="5" filter="url(#glow)" />)}
             </g>
           );
-        })()}
+        })}
         {vien.length === 0 && (
           <circle cx={diem[0]} cy={diem[1]} r={70 + 6 * Math.sin(f / 6)} fill="rgba(255,59,48,0.12)" stroke="#ff3b30" strokeWidth="7"
             pathLength="1" strokeDasharray="1" strokeDashoffset={1 - veNet} filter="url(#glow)" />
@@ -123,8 +166,15 @@ export const BanDoNen = ({
         {!(veTinh && vien.length) && <circle cx={diem[0]} cy={diem[1]} r={38 * pulse} fill="rgba(255,59,48,0.22)" />}
         {!(veTinh && vien.length) && <circle cx={diem[0]} cy={diem[1]} r="13" fill="#ff3b30" stroke="#fff" strokeWidth="4" />}
       </svg>
-      <div style={{position: 'absolute', left: 70, top: 54, color: '#fff', fontSize: 64, fontWeight: 800,
-        textShadow: '0 4px 16px rgba(0,0,0,0.8)', opacity: interpolate(f, [0, 18], [0, 1])}}>{dia_diem}</div>
+      {tenVung ? (
+        <div style={{position: 'absolute', left: tenVung.x, top: tenVung.y, color: '#fff', fontSize: tenVung.co, fontWeight: 900,
+          whiteSpace: 'nowrap', textShadow: '0 0 6px #000, 0 4px 18px rgba(0,0,0,0.9)', letterSpacing: 1,
+          opacity: clamp((veNet - 0.85) / 0.15, 0, 1),
+          transform: `translate(-50%, -50%) scale(${0.85 + 0.15 * clamp((veNet - 0.85) / 0.15, 0, 1)})`}}>{dia_diem}</div>
+      ) : (
+        <div style={{position: 'absolute', left: 70, top: 54, color: '#fff', fontSize: 64, fontWeight: 800,
+          textShadow: '0 4px 16px rgba(0,0,0,0.8)', opacity: interpolate(f, [0, 18], [0, 1])}}>{dia_diem}</div>
+      )}
       {nam !== null && (
         <div style={{position: 'absolute', right: 80, bottom: 78, color: '#ffd400', fontSize: 190, fontWeight: 900,
           textShadow: '0 6px 20px rgba(0,0,0,0.8)', letterSpacing: 4}}>{nam}</div>
