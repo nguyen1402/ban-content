@@ -152,7 +152,7 @@ def _render_so_do(jobs):
     os.makedirs(thu, exist_ok=True)
     ra, viec = {}, []
     for khoa, giay, pr in jobs:
-        out = os.path.join(thu, hashlib.md5((json.dumps(pr, ensure_ascii=False, sort_keys=True) + f"|{giay}|v11")
+        out = os.path.join(thu, hashlib.md5((json.dumps(pr, ensure_ascii=False, sort_keys=True) + f"|{giay}|v12")
                                             .encode()).hexdigest()[:16] + ".mp4")
         ra[khoa] = out
         if not (os.path.isfile(out) and os.path.getsize(out) > 5000):

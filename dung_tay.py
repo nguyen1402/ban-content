@@ -438,5 +438,10 @@ def tao_nhap(du_an, ten, drafts_dir, dung=None):
                            track_name="giong")
     script.save()
     _sua_nhap(os.path.join(drafts_dir, ten), list(vat_lieu))
+    try:                                                    # 13/10 user: 2 dòng chữ mẫu (chu_mau.json) trên mọi bản nháp
+        import chu_mau
+        chu_mau.gan(os.path.join(drafts_dir, ten))
+    except Exception as e:                                  # noqa: BLE001
+        log(f"  ! gắn chữ mẫu lỗi: {e}")
     log(f"bản nháp dựng tay '{ten}': {n} đoạn hình (trỏ video gốc)")
     return n

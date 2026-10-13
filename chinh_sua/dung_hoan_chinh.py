@@ -781,6 +781,13 @@ def main():
         kh["chu"] = []
     thu_muc = dung_du_an(canh, kh, a.ten, giong_chung, tong)
     n = gan_chuyen_canh(thu_muc, kh)
+    try:                                                    # 13/10 user: 2 dòng chữ mẫu (chu_mau.json) trên mọi bản nháp
+        import chu_mau
+        n_chu = chu_mau.gan(thu_muc)
+        if n_chu:
+            log(f"    chữ mẫu: gắn {n_chu} dòng")
+    except Exception as e:                                  # noqa: BLE001
+        log(f"    ! gắn chữ mẫu lỗi: {e}")
     log(f"[3] dự án CapCut: {thu_muc}  (chuyển cảnh gắn được: {n}/{len(kh['chuyen_canh'])})")
 
 

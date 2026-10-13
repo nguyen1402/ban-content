@@ -282,15 +282,26 @@ const DienCanh = ({vai, hanh_dong}) => {
   });
   // chỗ đứng: theo vi_tri ChatGPT chọn; vai hiện từ đầu chưa có vi_tri thì lấp các chỗ còn trống (trái -> phải)
   const dau = vai.map((v, i) => i).filter((i) => !an.has(i));
-  const nDau = Math.max(1, Math.min(3, dau.length));
+  const nDau = Math.max(1, Math.min(4, dau.length));
   const cho = {};
   const dung = new Set();
   vai.forEach((v, i) => { if (v.vi_tri && O_TEN[v.vi_tri] && !an.has(i)) { cho[i] = O_TEN[v.vi_tri]; dung.add(v.vi_tri); } });
+  if (nDau >= 4) {                                          // 4 vai đứng cùng lúc: 4 chỗ cách đều, bỏ vi_tri
+    dau.forEach((i, k) => { cho[i] = [300, 740, 1180, 1620][Math.min(k, 3)]; });
+  }
   const tu_do = (nDau === 1 ? ['giua'] : nDau === 2 ? ['trai', 'phai'] : ['trai', 'giua', 'phai']).filter((k) => !dung.has(k));
   dau.forEach((i) => { if (cho[i] == null) cho[i] = O_TEN[tu_do.shift() || 'giua']; });
   vai.forEach((v, i) => { if (cho[i] == null) cho[i] = O_TEN[v.vi_tri] || 960; });
-  cao = nDau <= 1 ? 480 : nDau === 2 ? 420 : 350;          // cỡ theo số vai ĐANG đứng trên khung, không tính vai vào sau
-  const rongO = nDau <= 1 ? 900 : nDau === 2 ? 620 : 500;
+  cao = nDau <= 1 ? 480 : nDau === 2 ? 420 : nDau === 3 ? 350 : 300;   // cỡ theo số vai ĐANG đứng, không tính vai vào sau
+  const rongO = nDau <= 1 ? 900 : nDau === 2 ? 620 : nDau === 3 ? 500 : 400;
+  // 13/10 user: "không tấn công mà cứ đè vật thể lên nhau" -> tiến lại thì chỉ tới SÁT CẠNH (khoảng cách tâm KC theo bề
+  // rộng ô), không chồng lên; chỉ tan_cong (lao vào rồi lùi), an, ket_hop, mang_di mới được chạm/chồng.
+  const KC = rongO * 0.8;
+  const toiCanh = (a, b, ty) => {                          // điểm đứng sát cạnh b về phía a đang đứng
+    const dau_ = a.x <= b.x ? -1 : 1;
+    const tx = b.x + dau_ * KC;
+    return Math.abs(tx - a.x) < 40 ? a.x : a.x + (tx - a.x) * ty;
+  };
   const st = vai.map((v, i) => {
     // 13/10: vai hiện đúng lúc giọng nhắc tới (v.vao, giây) — không hiện sẵn từ đầu cảnh rồi đứng im
     const vao = an.has(i) || v.vao == null ? 0 : bat(v.vao);
@@ -328,7 +339,8 @@ const DienCanh = ({vai, hanh_dong}) => {
     } else if (h.lam === 'gam' && b) {                      // gặm dần: áp sát, mổ nhiều lần, mục tiêu rung nhẹ + vụn bay
       const lai = mem(clamp((now - h.t) / 0.5, 0, 1));
       const mo = now - h.t > 0.5 ? Math.abs(Math.sin((now - h.t) * 9)) : 0;
-      a.x += (b.x - a.x) * (0.42 * lai + 0.06 * mo); a.y += (b.y - a.y) * 0.42 * lai;
+      const sat = toiCanh(a, b, lai);                       // áp SÁT cạnh rồi mổ nhẹ vào mép, không đè hẳn lên
+      a.x = sat + (b.x > sat ? 1 : -1) * 0.12 * rongO * mo; a.y += (b.y - a.y) * 0.42 * lai;
       if (now - h.t > 0.5) {
         b.rung = Math.max(b.rung, 0.25);
         for (let j = 0; j < 5; j++) {
@@ -353,12 +365,12 @@ const DienCanh = ({vai, hanh_dong}) => {
       a.s *= 1 + 0.55 * p;
     } else if (h.lam === 'bien_mat') {
       a.op *= 1 - p; a.s *= 1 - 0.5 * p;
-    } else if (h.lam === 'bay_toi' && b) {
-      a.x += (b.x - a.x) * 0.55 * p; a.y += (b.y - a.y) * 0.55 * p - Math.sin(p * Math.PI) * 90;
+    } else if (h.lam === 'bay_toi' && b) {                  // tới SÁT CẠNH b, không đè
+      a.x = toiCanh(a, b, p); a.y += (b.y - a.y) * 0.5 * p - Math.sin(p * Math.PI) * 90;
     } else if (h.lam === 'bay_toi') {                       // không có đích: lướt ngang TRONG khung (không ra mép)
       const q = mem(clamp((now - h.t) / 1.6, 0, 1));
-      const huong = a.x > 960 ? -1 : 1;
-      a.x += huong * 420 * q; a.y -= Math.sin(q * Math.PI) * 120;
+      const huong = a.x > 960 ? -1 : 1;                      // lượn trong khoảng trống của chính nó (không lấn vai bên)
+      a.x += huong * Math.min(420, rongO * 0.3) * Math.sin(q * Math.PI); a.y -= Math.sin(q * Math.PI) * 160;
     } else if (h.lam === 'tan_cong' && b) {
       const lao = Math.sin(clamp((now - h.t) / 0.7, 0, 1) * Math.PI);
       a.x += (b.x - a.x) * 0.62 * lao; a.y += (b.y - a.y) * 0.62 * lao; a.xoay += 12 * lao;
