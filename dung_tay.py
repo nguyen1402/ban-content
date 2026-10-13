@@ -183,11 +183,38 @@ def tai_file(du_an, kid, url, tieu_de="", nguon="", ghi_nguon=""):
                     raise RuntimeError("đổi sang mp4 lỗi: " + p.stderr.decode("utf-8", "ignore")[-150:])
             else:
                 os.replace(tam, dich)
-            _cap_nhat_kho(du_an, kid, trang_thai="xong", pt=100.0, dai=_do_dai(dich))
+            w, h = _kich_thuoc(dich)
+            if w and h and w <= h:                          # 13/10 user: chỉ lấy video NGANG (dọc / vuông -> bỏ)
+                os.remove(dich)
+                _cap_nhat_kho(du_an, kid, trang_thai="loi", loi=f"video dọc {w}x{h} — bỏ (chỉ lấy video ngang)")
+                return
+            _cap_nhat_kho(du_an, kid, trang_thai="xong", pt=100.0, dai=_do_dai(dich), rong=w, cao=h)
         except Exception as e:                              # noqa: BLE001
             _cap_nhat_kho(du_an, kid, trang_thai="loi", loi=str(e)[:200])
     threading.Thread(target=chay, daemon=True).start()
     return kid
+
+
+def _kich_thuoc(f):
+    """(rộng, cao) HIỂN THỊ của video — tính cả cờ xoay (video quay điện thoại lưu ngang + rotate 90 là video dọc)."""
+    import json as _json
+    ffprobe = FFMPEG.replace("ffmpeg.exe", "ffprobe.exe").replace("ffmpeg", "ffprobe") if FFMPEG else "ffprobe"
+    try:
+        p = subprocess.run([ffprobe, "-v", "error", "-select_streams", "v:0", "-show_entries",
+                            "stream=width,height:stream_tags=rotate:stream_side_data=rotation", "-of", "json", f],
+                           capture_output=True, timeout=60, creationflags=0x08000000 if os.name == "nt" else 0)
+        st = (_json.loads(p.stdout.decode("utf-8", "ignore") or "{}").get("streams") or [{}])[0]
+    except Exception:                                       # noqa: BLE001
+        return 0, 0
+    w, h = int(st.get("width") or 0), int(st.get("height") or 0)
+    xoay = st.get("tags", {}).get("rotate") or next((d.get("rotation") for d in st.get("side_data_list") or []
+                                                      if "rotation" in d), 0)
+    try:
+        if abs(int(float(xoay))) % 180 == 90:
+            w, h = h, w
+    except (TypeError, ValueError):
+        pass
+    return w, h
 
 
 PHONG_LOGO = 1.25            # video có logo/watermark tĩnh ở góc: phóng to bấy nhiêu lần để đẩy logo ra khỏi khung

@@ -69,7 +69,7 @@ video,iframe{width:100%;border-radius:8px;background:#000;display:block}
   <button class="p" id="goiytatca" title="Tự điền đoạn hình cho mọi cảnh CHƯA dựng, lấy từ video/ảnh trong Kho dự án. Bạn xem, sửa rồi mới cắt.">✨ Gợi ý cho mọi cảnh chưa dựng</button>
   <button id="tudong" title="Cảnh chưa dựng: tự chọn đoạn từ Kho dự án; cảnh bạn đã dựng giữ nguyên. Rồi tạo bản nháp CapCut, mỗi đoạn trỏ vào VIDEO GỐC để bạn chọn lại đoạn khác ngay trong CapCut.">⚡ Tự động chọn đoạn + tạo bản nháp</button>
   <span class="sub">Tải tối đa</span><input type="number" id="ngansach" value="120" min="10" max="600" step="10" style="width:64px" title="Tổng phút video được tải cho dự án (lố tối đa 10%). Ảnh không giới hạn."><span class="sub">phút video</span>
-  <button id="tutim" title="Tự tìm YouTube theo từ khoá mọi cảnh, chấm storyboard (chưa tải), chọn video phủ được nhiều cảnh nhất trong ngân sách phút, tải 720p, khớp đoạn; cảnh thiếu thì tìm ảnh Google bù; rồi tạo bản nháp (đoạn trỏ video gốc). Cảnh bạn đã tự dựng giữ nguyên.">🤖 Tự tìm + tải + khớp + bản nháp</button>
+  <button id="tutim" title="Tự tìm footage SẠCH (Pexels, Pixabay, Mixkit, Coverr, Wikimedia) theo mô tả mọi cảnh, chấm điểm, tải trong ngân sách phút, khớp đoạn; cảnh thiếu thì ảnh Google bù; rồi tạo bản nháp (đoạn trỏ video gốc). Cảnh bạn đã tự dựng giữ nguyên.">🤖 Tự tìm + tải + khớp + bản nháp</button><label class="sub" title="Xong bước 🤖 thì máy chủ TỰ chạy tiếp ✨ Hoàn thiện bản nháp (diễn cảnh, bản đồ, nhạc) — một mạch tới bản cuối, đóng trang cũng được."><input type="checkbox" id="lienht"> rồi hoàn thiện luôn</label>
   <button id="hoanthien" title="Chạy bước HOÀN THIỆN (skill chỉnh sửa) trên kế hoạch hiện tại: căn giờ theo giọng đọc, bản đồ vệ tinh cho cảnh địa điểm, bản đồ đường đi, thẻ ảnh highlight 65% kèm chữ nhấn mạnh ở mọi chỗ dẫn chứng/so sánh/nhấn mạnh, phủ màu đổi chương, chuyển cảnh -> bản nháp CapCut mới tên <tên>_hoan_chinh. Không thêm nhạc/chữ tự động.">✨ Hoàn thiện bản nháp</button>
   <button class="p" id="taonhap" title="Tạo bản nháp từ kế hoạch hiện có của mọi cảnh (đoạn trỏ video gốc)">📦 Chỉ tạo bản nháp</button>
 </header>
@@ -254,11 +254,19 @@ async function theoDoiTuDong(){
   if(t.luc_xong&&Date.now()/1000-t.luc_xong<900){
     if(t.loi)tb('Tự động lỗi: '+t.loi);
     else if(t.ket_qua){const k=t.ket_qua;await napLaiDung();veDsCanh();if(canhChon&&!daSua)chonCanh(canhChon.id);
-      tb(`Xong: tải ${k.video} video (${k.phut} phút), ${k.co_hinh}/${k.so_canh} cảnh có hình`+(k.nhap?`, bản nháp "${k.nhap.ten}"`:'')+(k.loi_anh?' — ảnh bù dừng: '+k.loi_anh:''))}}
+      tb(`Xong: tải ${k.video} video (${k.phut} phút), ${k.co_hinh}/${k.so_canh} cảnh có hình`+(k.nhap?`, bản nháp "${k.nhap.ten}"`:'')+(k.loi_anh?' — ảnh bù dừng: '+k.loi_anh:'')+
+        (t.hoan_thien?(String(t.hoan_thien).startsWith('lỗi')?' — Hoàn thiện KHÔNG chạy được: '+t.hoan_thien:' — đang tự Hoàn thiện…'):''))
+      if(t.hoan_thien&&!String(t.hoan_thien).startsWith('lỗi'))theoDoiHoanThien()}}
 }
+try{$('#lienht').checked=localStorage.getItem('lienht')!=='0'}catch(e){$('#lienht').checked=true}
+$('#lienht').onchange=()=>{try{localStorage.setItem('lienht',$('#lienht').checked?'1':'0')}catch(e){}};
 $('#tutim').onclick=async()=>{const ten=$('#tennhap').value.trim()||DU;const ns=+$('#ngansach').value||120;
-  if(!confirm(`Tự tìm + tải tối đa ~${ns} phút video (lố ≤10%), khớp đoạn cho mọi cảnh CHƯA dựng, ảnh Google bù chỗ thiếu, rồi tạo bản nháp "${ten}" (ghi đè nếu trùng tên).\n\nCảnh bạn đã tự dựng giữ nguyên. Nếu Google hỏi captcha, giải ở cửa sổ Chrome tìm ảnh. Tiếp tục?`))return;
-  try{await post('/api/dung/tu_dong',{du_an:DU,ngan_sach:ns,ten_nhap:ten});theoDoiTuDong()}catch(e){tb('Lỗi: '+e.message)}};
+  const lien=$('#lienht').checked;const tenHT=ten.replace(/_dung$|_tu_dong$/,'')+'_hoan_chinh';
+  if(!confirm(`Tự tìm + tải tối đa ~${ns} phút video (lố ≤10%), khớp đoạn cho mọi cảnh CHƯA dựng, ảnh Google bù chỗ thiếu, rồi tạo bản nháp "${ten}" (ghi đè nếu trùng tên).`+
+    (lien?`\n\nXONG sẽ TỰ chạy tiếp ✨ Hoàn thiện -> bản nháp "${tenHT}" (diễn cảnh, bản đồ, nhạc). Đóng bản nháp đó trong CapCut nếu đang mở.`:'')+
+    `\n\nCảnh bạn đã tự dựng giữ nguyên. Nếu Google hỏi captcha, giải ở cửa sổ Chrome tìm ảnh. Tiếp tục?`))return;
+  try{await post('/api/dung/tu_dong',{du_an:DU,ngan_sach:ns,ten_nhap:ten,hoan_thien:lien,ten_ht:tenHT});
+    if(lien)$('#hoanthien').dataset.cho='1';theoDoiTuDong()}catch(e){tb('Lỗi: '+e.message)}};
 $('#goiytatca').onclick=async()=>{if(!confirm('Tự điền đoạn hình cho mọi cảnh CHƯA dựng (cảnh bạn đã tự dựng giữ nguyên). Lần đầu phải lập chỉ mục mọi video trong kho nên có thể mất vài phút. Tiếp tục?'))return;
   try{await post('/api/dung/goi_y',{du_an:DU});theoDoiGoiY()}catch(e){tb('Lỗi: '+e.message)}};
 async function luu(){

@@ -29,7 +29,8 @@ Lines (with the previous line for context):
 
 
 def _khoa(c):
-    return hashlib.md5(c["text"].encode("utf-8")).hexdigest()[:10]
+    # 13/10: khoá gồm cả CÂU LỆNH — sửa câu lệnh thì mô tả cảnh tự hỏi lại (trước chỉ theo lời câu -> dùng mãi bản cũ)
+    return hashlib.md5((c["text"] + "|" + hashlib.md5(_P.encode("utf-8")).hexdigest()[:8]).encode("utf-8")).hexdigest()[:10]
 
 
 def lam_mo_ta(du_an, lo=10):

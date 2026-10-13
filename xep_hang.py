@@ -148,20 +148,53 @@ def diem_anh(urls, qv, luong=8, chu=False):
     return ra, co_chu
 
 
-def nhung_url(urls, luong=4):
-    """(chỉ số tải được, ma trận vector SigLIP) cho danh sách URL ảnh (ảnh thu nhỏ của kết quả tìm)."""
-    from PIL import Image
+def nhung_url(urls, luong=16, bao=None, cho=8):
+    """(chỉ số tải được, ma trận vector SigLIP) cho danh sách URL ảnh (ảnh thu nhỏ của kết quả tìm).
+    13/10 (đo: 3.022 ảnh, 4 luồng, chờ 15 s, không cache -> kẹt hàng chục phút khi mạng chập chờn): 16 luồng, chờ tối
+    đa `cho` s mỗi ảnh, CACHE vector theo URL ở cache/vec_url_<model>/ (chạy lại không tải lại), báo tiến độ qua
+    bao(xong, tong) mỗi lô."""
+    import hashlib
     import nhung_siglip
+    from PIL import Image
+    thu = os.path.join(CACHE_CHUNG, "vec_url_" + nhung_siglip.MO_HINH.split("/")[-1])
+    os.makedirs(thu, exist_ok=True)
+
+    def tep(u):
+        return os.path.join(thu, hashlib.md5(u.encode("utf-8")).hexdigest() + ".npy")
+    vec = [None] * len(urls)
+    for k, u in enumerate(urls):
+        f = tep(u)
+        if os.path.isfile(f):
+            try:
+                vec[k] = np.load(f)
+            except Exception:                                # noqa: BLE001
+                pass
+    can = [k for k in range(len(urls)) if vec[k] is None]
 
     def mot(u):
         try:
-            return Image.open(io.BytesIO(_lay(u, 15))).convert("RGB")
+            return Image.open(io.BytesIO(_lay(u, cho))).convert("RGB")
         except Exception:                                    # noqa: BLE001
             return None
+    xong = len(urls) - len(can)
+    if bao:
+        bao(xong, len(urls))
+    LO = 256
     with ThreadPoolExecutor(luong) as ex:
-        ims = list(ex.map(mot, urls))
-    co = [i for i, im in enumerate(ims) if im is not None]
-    return co, (nhung_siglip.nhung_anh([ims[i] for i in co]) if co else np.zeros((0, 1), np.float32))
+        for a in range(0, len(can), LO):
+            lo = can[a:a + LO]
+            ims = list(ex.map(mot, [urls[k] for k in lo]))
+            co_lo = [(k, im) for k, im in zip(lo, ims) if im is not None]
+            if co_lo:
+                E = nhung_siglip.nhung_anh([im for _, im in co_lo])
+                for (k, _), v in zip(co_lo, E):
+                    vec[k] = v
+                    np.save(tep(urls[k]), v)
+            xong += len(lo)
+            if bao:
+                bao(xong, len(urls))
+    co = [k for k in range(len(urls)) if vec[k] is not None]
+    return co, (np.stack([vec[k] for k in co]) if co else np.zeros((0, 1), np.float32))
 
 
 def vec_canh(canh=None, q=""):

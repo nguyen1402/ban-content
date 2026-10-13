@@ -20,6 +20,10 @@ BO_VAI_AI = True           # 13/10 user: mọi vai do AI vẽ CẢ BỘ một l�
 AM_HANH_DONG = {"xuat_hien": "pop", "an": "pop", "sinh_soi": "pop", "bay_toi": "whoosh", "bo_chay": "whoosh",
                 "mang_di": "whoosh", "lan_ra": "whoosh", "bien_mat": "whoosh", "bao_vay": "whoosh", "tan_cong": "hit",
                 "tach_ra": "hit", "bien_thanh": "ting", "ket_hop": "ting", "lon_len": "ting"}
+#: 13/10 user: "hình xuất hiện nhanh quá xong kết thúc luôn, người xem chưa hiểu" -> sau khi vật / nhịp CUỐI hiện xong
+#: (hoạt cảnh ~HOAT_CANH s) phải đứng yên thêm GIU_CUOI s rồi mới tắt; cảnh sau không được cắt đuôi ngắn hơn mức đó.
+HOAT_CANH = 1.0
+GIU_CUOI = 2.0
 KHOANG_NGAT = 4.0          # 13/10: hai hành động cách hơn 4 s -> tắt cảnh ở giữa, bật lại đúng lúc hành động sau
 LAM = {"xuat_hien", "bien_thanh", "bay_toi", "tan_cong", "bao_vay", "lan_ra", "sinh_soi", "bo_chay", "an", "mang_di",
        "lon_len", "bien_mat", "tach_ra", "ket_hop", "gam", "keo_di", "thay_the", "thu_nho"}
@@ -109,7 +113,8 @@ def _gio_dien_canh(x, ds_c, ke):
         cuoi = g[-1]["t"]
         tran = nhom[k + 1][0]["t"] - 0.9 if k + 1 < len(nhom) else 1e9
         ket = next((c["t1"] for c in tim_o if c["t0"] - 0.3 <= cuoi <= c["t1"] + 0.3), cuoi)   # hết câu chứa nhịp cuối
-        kt = min(tran, max(cuoi + 2.0, min(max(het_cau, ket + 0.3), cuoi + 5.0)))
+        it_nhat = cuoi + HOAT_CANH + GIU_CUOI                # nhịp cuối hiện xong + đứng yên 2 s cho người xem kịp hiểu
+        kt = max(min(tran, max(it_nhat, min(max(het_cau, ket + 0.3), cuoi + 5.0))), min(it_nhat, tran + 0.9))
         vao = []
         for i, v in enumerate(vai):
             dung = [h["t"] for h in g if h["ai"] == i or h["toi"] == i]
@@ -147,7 +152,7 @@ def _render_so_do(jobs):
     os.makedirs(thu, exist_ok=True)
     ra, viec = {}, []
     for khoa, giay, pr in jobs:
-        out = os.path.join(thu, hashlib.md5((json.dumps(pr, ensure_ascii=False, sort_keys=True) + f"|{giay}|v10")
+        out = os.path.join(thu, hashlib.md5((json.dumps(pr, ensure_ascii=False, sort_keys=True) + f"|{giay}|v11")
                                             .encode()).hexdigest()[:16] + ".mp4")
         ra[khoa] = out
         if not (os.path.isfile(out) and os.path.getsize(out) > 5000):
@@ -193,9 +198,9 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
     ung.sort(key=lambda z: z[0])
     # không chồng nhau. 13/10: cảnh nối sát nhau -> CẮT ĐUÔI cảnh trước tới lúc cảnh sau bật (đuôi chỉ là phần giữ hình
     # sau hành động cuối); chỉ bỏ cảnh sau khi cắt xong cảnh trước còn < 1,2 s sau hành động cuối của nó.
-    def _xong(u):
+    def _xong(u):                                            # sớm nhất được tắt: nhịp cuối hiện xong + giữ GIU_CUOI s
         g = (u[3] or {}).get("_gio")
-        return (g["hd"][-1]["t"] if g and g.get("hd") else u[0] + 2.0) + 1.2
+        return (g["hd"][-1]["t"] if g and g.get("hd") else u[0] + 1.0) + HOAT_CANH + GIU_CUOI
     nhan = []
     for u in ung:
         u = list(u)

@@ -55,6 +55,15 @@ def _xep_tai_khoan():
         return sorted(ds, key=lambda a: -(_CON.get(a["label"]) if _CON.get(a["label"]) is not None else -1))
 
 
+def _loai_han(e):
+    """Lỗi làm tài khoản hỏng hẳn trong lượt chạy (cookie hết hạn, bị chặn, hết lượt) — khác lỗi mạng tạm thời."""
+    t = (type(e).__name__ + " " + str(e)).lower()
+    tam = ("connection", "timeout", "timed out", "temporar", "lost", "reset", "try again", "503", "502", "500")
+    if any(k in t for k in tam) and not any(k in t for k in ("auth", "cookie", "quota", "exhaust", "usage limit")):
+        return False
+    return True
+
+
 def _tru(nhan):
     with _KHOA_CON:
         if isinstance(_CON.get(nhan), (int, float)):
@@ -107,7 +116,8 @@ def ve_prompt(prompt, thu, ten, tep=None, timeout=150):
             f, ly = asyncio.run(asyncio.wait_for(_ve(a["cookies"], prompt, thu, ten, timeout, tep), timeout + 30))
         except Exception as e:                               # noqa: BLE001
             log(f"    ! vẽ ảnh (tài khoản {nhan}): {type(e).__name__}: {str(e)[:100]}")
-            _HONG.add(nhan)
+            if _loai_han(e):                                 # 13/10: chỉ loại tài khoản khi lỗi đăng nhập / hết lượt;
+                _HONG.add(nhan)                              # mất kết nối tạm thời thì để lần sau dùng lại
             continue
         if f and os.path.isfile(f):
             return f
@@ -131,7 +141,8 @@ def ve(mo_ta, thu, ten, timeout=120):
             f, ly = asyncio.run(asyncio.wait_for(_ve(a["cookies"], prompt, thu, ten, timeout), timeout + 30))
         except Exception as e:                               # noqa: BLE001
             log(f"    ! vẽ ảnh (tài khoản {nhan}): {type(e).__name__}: {str(e)[:100]}")
-            _HONG.add(nhan)
+            if _loai_han(e):                                 # 13/10: chỉ loại tài khoản khi lỗi đăng nhập / hết lượt;
+                _HONG.add(nhan)                              # mất kết nối tạm thời thì để lần sau dùng lại
             continue
         if f and os.path.isfile(f):
             return f

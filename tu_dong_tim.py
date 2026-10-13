@@ -219,7 +219,7 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
     kho = dung_tay.doc_kho(du_an)
     ds_s = list(kq_s.values())                               # clip đã tải vẫn chấm (tai_file bỏ qua clip đã xong)
     _tt(du_an, buoc="cham_stock", xong=0, tong=len(ds_s))
-    co, E = xep_hang.nhung_url([x["thumb"] for x in ds_s])
+    co, E = xep_hang.nhung_url([x["thumb"] for x in ds_s], bao=lambda x, n: _tt(du_an, xong=x, tong=n))
     chon_s = {}
     if co:
         S = E @ Q.T                                          # (clip, cảnh)
@@ -396,7 +396,8 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
             "video": len(chon), "phut": round(tong_giay / 60, 1)}
 
 
-def chay_nen(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None):
+def chay_nen(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, sau=None):
+    """sau: hàm gọi khi chạy XONG không lỗi (13/10 user: tự chạy tiếp ✨ Hoàn thiện — một mạch tới bản cuối)."""
     with _KHOA:
         if TT.get(du_an, {}).get("dang"):
             raise ValueError("đang chạy tự động — chờ xong")
@@ -405,7 +406,14 @@ def chay_nen(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None):
     def ch():
         try:
             kq = chay(du_an, ngan_sach_phut, ten_nhap)
-            _tt(du_an, dang=False, ket_qua=kq, luc_xong=time.time())
+            ht = ""
+            if sau:
+                try:
+                    ht = sau() or ""
+                except Exception as e:                       # noqa: BLE001
+                    log(f"  ! không chạy tiếp được Hoàn thiện: {e}")
+                    ht = "lỗi: " + str(e)[:200]
+            _tt(du_an, dang=False, ket_qua=kq, luc_xong=time.time(), hoan_thien=ht)
         except Exception as e:                               # noqa: BLE001
             log(f"  ! tự động lỗi: {e}")
             _tt(du_an, dang=False, loi=str(e)[:300], luc_xong=time.time())

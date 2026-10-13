@@ -30,7 +30,7 @@ SEC = 1_000_000
 #: Người dùng chốt 09/10: BỎ hết hiệu ứng âm thanh (chỗ chèn không hợp). Mã SFX còn đó, bật lại bằng True.
 SFX_BAT = False
 #: 12/10 user: BỎ tự thêm nhạc nền và chữ nhấn mạnh (mã còn đó, bật lại bằng True / cờ --co-nhac --co-chu).
-NHAC_BAT = True           # 13/10 user: CÓ nhạc nền — nguồn Mixkit (nhac_mixkit.py), an toàn cho YouTube, hợp nội dung
+NHAC_BAT = False          # 13/10 tối user: "thôi không tìm nhạc nữa" (Mixkit vẫn còn mã — bật lại: --co-nhac)
 NHAC_NGUON = "mixkit"     # "mixkit" | "kho" (kho cũ: nhạc kênh YouTube "No Copyright" — không chắc an toàn)
 CHU_BAT = False
 #: 12/10 user: lớp ẢNH PHỦ minh hoạ khi cần (chinh_sua/lop_phu.py). Tắt bằng --khong-lop-phu.

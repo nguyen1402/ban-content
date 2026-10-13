@@ -95,7 +95,7 @@ dialog::backdrop{background:#000a}dialog video{width:100%;display:block;border-r
       <label>Chạy thử N cảnh đầu <input type="number" id="gioihan" value="0" min="0" style="width:80px"> <span class="sub" style="margin:0">(0 = cả kịch bản)</span></label>
       <label class="gy" style="margin:0"><input type="checkbox" id="taonhap" checked> Tạo bản nháp CapCut</label>
       <input type="text" id="tennhap" class="grow" placeholder="Tên bản nháp CapCut" style="max-width:300px">
-      <button id="chay">▶ Chạy</button><button id="lamlai" title="Xoá dữ liệu riêng của dự án (giọng, từ khoá, bản đồ) rồi chạy lại TỪ ĐẦU.">↻ Làm lại từ đầu</button><button class="er" id="dung" style="display:none">■ Dừng</button>
+      <button id="chay">▶ Chạy</button><button id="lamlai" title="Xoá dữ liệu riêng của dự án (giọng, từ khoá, bản đồ) rồi chạy lại TỪ ĐẦU.">↻ Làm lại từ đầu</button><button id="dondu" title="Dọn dự án ĐÃ LÀM XONG cho nhẹ ổ: xoá video/ảnh đã tải, kế hoạch, giọng đọc đã lưu (giữ kịch bản). Chỉ dọn sau khi đã xuất MP4 — bản nháp CapCut trỏ thẳng vào các video này.">🧹 Dọn dự án</button><button class="er" id="dung" style="display:none">■ Dừng</button>
     </div>
     <div class="row" id="buoc" style="margin-top:12px"></div>
     <pre id="log" style="display:none"></pre>
@@ -179,6 +179,20 @@ $('#lamlai').onclick=async()=>{
   if(!confirm('Xoá dữ liệu riêng của dự án "'+du+'" (giọng đọc, nhịp, truy vấn, clip đã dựng) rồi chạy lại từ đầu?\nKho tìm kiếm và video đã tải dùng chung nên được giữ.\nBản nháp CapCut cùng tên sẽ bị ghi đè.'))return;
   try{await post('/api/lam_lai',{du_an:du});tb('Đã xoá dữ liệu dự án, đang chạy lại…');$('#chay').click()}catch(e){tb('Lỗi: '+e.message)}};
 $('#dung').onclick=async()=>{await post('/api/dung',{du_an:du});tb('Đã gửi lệnh dừng')};
+const coMB=n=>n>=1073741824?(n/1073741824).toFixed(1)+' GB':(n/1048576).toFixed(0)+' MB';
+$('#dondu').onclick=async()=>{if(!du)return tb('Chọn dự án');
+  let k;try{k=await api('/api/don_du_an?du_an='+encodeURIComponent(du))}catch(e){return tb('Lỗi: '+e.message)}
+  if(k.ban)return tb('Không dọn được: dự án '+k.ban);
+  if(!k.muc.length&&!k.nhap.length)return tb('Dự án "'+du+'" không còn gì để dọn');
+  const tong=k.muc.reduce((a,x)=>a+x.dung_luong,0);
+  if(!confirm('🧹 Dọn dự án "'+du+'" — giải phóng khoảng '+coMB(tong)+':\n\n'+k.muc.map(x=>'• '+x.loai+' — '+coMB(x.dung_luong)).join('\n')+
+    '\n\nGIỮ: kịch bản, kho dùng chung. KHÔNG khôi phục được.\n⚠ Bản nháp CapCut của dự án trỏ thẳng vào các video này — chỉ dọn khi đã XUẤT MP4.\n\nTiếp tục?'))return;
+  let xn=false;
+  if(k.nhap.length)xn=confirm('Xoá luôn '+k.nhap.length+' bản nháp CapCut của dự án ('+coMB(k.nhap.reduce((a,x)=>a+x.dung_luong,0))+')?\n\n'+
+    k.nhap.map(x=>'• '+x.ten).join('\n')+'\n\nOK = xoá bản nháp · Huỷ = giữ bản nháp (đóng các bản nháp này trong CapCut trước khi xoá)');
+  try{const r=await post('/api/don_du_an',{du_an:du,xoa_nhap:xn});
+    tb((r.ok?'Đã dọn ':'Dọn chưa hết ')+'"'+du+'" — giải phóng '+coMB(r.giai_phong)+(r.loi.length?' · '+r.loi.join('; '):''));
+    await napDuAn(du)}catch(e){tb('Lỗi: '+e.message)}};
 function lanChay(){api('/api/trang_thai?du_an='+encodeURIComponent(du)).then(t=>{const l=t.lan_chay||{};
   if(l.giong)$('#giong').value=l.giong;if(l.toc_do)$('#tocdo').value=l.toc_do;if(l.ten_nhap)$('#tennhap').value=l.ten_nhap;
   if(l.gioi_han!==undefined)$('#gioihan').value=l.gioi_han||0;if(l.num_step)$('#numstep').value=l.num_step}).catch(()=>{})}
@@ -190,7 +204,7 @@ async function poll(){
     const tg=b.bd?(b.tt==='dang'?' · '+mmss(t.bay_gio-b.bd):(b.kt&&b.kt-b.bd>=2?' · '+mmss(b.kt-b.bd):'')):'';
     return `<span class="chip ${b.tt}" title="${esc(b.ghi_chu||'')}"><i></i>${n}${b.ghi_chu?' · '+esc(b.ghi_chu):''}${tg}</span>`}).join('');
   const lg=$('#log');lg.style.display=t.log.length?'block':'none';lg.textContent=t.log.join('\n');lg.scrollTop=lg.scrollHeight;
-  $('#chay').style.display=t.dang_chay?'none':'';$('#lamlai').style.display=t.dang_chay?'none':'';$('#dung').style.display=t.dang_chay?'':'none';
+  $('#chay').style.display=t.dang_chay?'none':'';$('#lamlai').style.display=t.dang_chay?'none':'';$('#dondu').style.display=t.dang_chay?'none':'';$('#dung').style.display=t.dang_chay?'':'none';
   $('#trangthai_dau').textContent=t.dang_chay?'⏳ đang chạy…':'';
   if(t.dang_chay){hen=setTimeout(poll,2000);if(Date.now()%10000<2100)napGiongCanh()}else{await napTuKhoa();napGiongCanh()}
 }

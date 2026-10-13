@@ -421,6 +421,100 @@ def chay():
     return json_ok({"ok": True, "pid": pid, "du_an": t})
 
 
+def _dung_luong(p):
+    if os.path.isfile(p):
+        return os.path.getsize(p)
+    n = 0
+    for goc, _, fs in os.walk(p):
+        for f in fs:
+            try:
+                n += os.path.getsize(os.path.join(goc, f))
+            except OSError:
+                pass
+    return n
+
+
+def _ke_hoach_don(t):
+    """Những gì 🧹 Dọn dự án sẽ xoá: thư mục dự án (ra/<t>), dữ liệu riêng (cache/du_an/<t>) và các bản nháp CapCut của
+    dự án (tên = tên nháp bước 1, <t>, <t>_… — trừ bản nháp thuộc dự án khác có tên dài hơn bắt đầu bằng <t>_).
+    KỊCH BẢN (kich_ban/<t>.txt) và kho/bộ nhớ đệm dùng chung được GIỮ."""
+    cache, out = common.thu_muc_du_an(t)
+    goc_ra = os.path.realpath(os.path.join(ROOT, "ra"))
+    goc_du = os.path.realpath(os.path.join(common.CACHE_CHUNG, "du_an"))
+    muc = []
+    for d, nhom in ((out, "dự án (video/ảnh đã tải, kế hoạch, giọng đọc)"), (cache, "dữ liệu riêng (giọng đã lưu, mô tả cảnh)")):
+        rp = os.path.realpath(d)
+        if os.path.isdir(rp) and (rp.startswith(goc_ra + os.sep) or rp.startswith(goc_du + os.sep)):
+            muc.append({"duong": rp, "loai": nhom, "dung_luong": _dung_luong(rp)})
+    nhap = []
+    dd = common.thu_muc_nhap_capcut()
+    if dd and os.path.isdir(dd):
+        ten_nhap = ""
+        try:
+            ten_nhap = (json.load(open(os.path.join(out, "lan_chay.json"), encoding="utf-8")) or {}).get("ten_nhap") or ""
+        except (OSError, ValueError):
+            pass
+        khac = [x["ten"] for x in json.loads(ds_du_an())["du_an"] if x["ten"] != t and x["ten"].startswith(t + "_")]
+        for f in sorted(os.listdir(dd)):
+            if not os.path.isdir(os.path.join(dd, f)) or any(f == k or f.startswith(k + "_") for k in khac):
+                continue
+            if f == t or f.startswith(t + "_") or (ten_nhap and (f == ten_nhap or f.startswith(ten_nhap + "_"))):
+                nhap.append({"ten": f, "duong": os.path.join(dd, f), "dung_luong": _dung_luong(os.path.join(dd, f))})
+    return muc, nhap
+
+
+def _dang_ban(t):
+    import tu_dong_tim
+    if dang_chay(t):
+        return "đang chạy bước 1"
+    p = procs_ht.get(t)
+    if p and p.poll() is None:
+        return "đang hoàn thiện bản nháp"
+    p = procs_tai.get(t)
+    if p and p.poll() is None:
+        return "đang tải link"
+    if (tu_dong_tim.TT.get(t) or {}).get("dang"):
+        return "đang tự tìm + tải"
+    return ""
+
+
+@app.get("/api/don_du_an")
+def xem_don_du_an():
+    t = slug(tham_so_q("du_an"))
+    if not t or t in common._CU:                             # noqa: SLF001
+        raise HTTPError(400, "dự án này không dọn được")
+    muc, nhap = _ke_hoach_don(t)
+    return json_ok({"muc": muc, "nhap": nhap, "ban": _dang_ban(t)})
+
+
+@app.post("/api/don_du_an")
+def don_du_an():
+    """🧹 Dọn dự án ĐÃ LÀM XONG (13/10 user): xoá thư mục dự án + dữ liệu riêng (+ bản nháp CapCut nếu chọn).
+    Bản nháp CapCut trỏ thẳng vào video trong ra/<dự án>/kho — chỉ dọn sau khi đã xuất MP4."""
+    import shutil
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t or t in common._CU:                             # noqa: SLF001
+        raise HTTPError(400, "dự án này không dọn được")
+    ban = _dang_ban(t)
+    if ban:
+        raise HTTPError(409, f"dự án {ban} — chờ xong hoặc dừng trước")
+    muc, nhap = _ke_hoach_don(t)
+    if d.get("xoa_nhap"):
+        muc += [dict(x, loai="bản nháp CapCut") for x in nhap]
+    xong, loi, giai = [], [], 0
+    for x in muc:
+        hong = []
+        shutil.rmtree(x["duong"], onerror=lambda f, pth, e: hong.append(pth))
+        if hong or os.path.exists(x["duong"]):
+            loi.append(f"{os.path.basename(x['duong'])}: {len(hong)} tệp không xoá được (đang mở trong CapCut?)")
+            giai += max(0, x["dung_luong"] - _dung_luong(x["duong"]))
+        else:
+            xong.append(os.path.basename(x["duong"]))
+            giai += x["dung_luong"]
+    return json_ok({"ok": not loi, "xong": xong, "loi": loi, "giai_phong": giai})
+
+
 @app.post("/api/lam_lai")
 def lam_lai():
     """Xoá DỮ LIỆU RIÊNG của dự án (giọng, nhịp, truy vấn, mốc, clip đã dựng) để lần chạy sau làm lại từ đầu.
@@ -651,18 +745,11 @@ def _log_ht(t):
     return os.path.join(common.thu_muc_du_an(t)[1], "hoan_thien.log")
 
 
-@app.post("/api/dung/hoan_thien")
-def dung_hoan_thien():
-    """Chạy skill hoàn thiện (chinh_sua/dung_hoan_chinh.py) ở nền cho dự án: bản đồ, thẻ ảnh highlight, hiệu ứng,
-    chuyển cảnh -> bản nháp CapCut mới. Log ở ra/<dự án>/hoan_thien.log."""
-    d = request.json or {}
-    t = slug(d.get("du_an", ""))
-    ten = (d.get("ten") or f"{t}_hoan_chinh").strip()
-    if not t:
-        raise HTTPError(400, "thiếu dự án")
+def _chay_hoan_thien(t, ten):
+    """Khởi chạy skill hoàn thiện ở nền -> tên bản nháp; ném RuntimeError nếu đang chạy."""
     p = procs_ht.get(t)
     if p and p.poll() is None:
-        raise HTTPError(409, "đang hoàn thiện — chờ xong")
+        raise RuntimeError("đang hoàn thiện — chờ xong")
     log_f = open(_log_ht(t), "w", encoding="utf-8")
     # BC_DU_AN của máy chủ (dự án mặc định) thắng --du-an trong common.py -> phải đặt đúng dự án cho tiến trình con
     env = dict(os.environ, PYTHONIOENCODING="utf-8", BC_DU_AN=t)
@@ -670,7 +757,22 @@ def dung_hoan_thien():
                                    cwd=os.path.join(ROOT, "chinh_sua"), stdout=log_f, stderr=subprocess.STDOUT, env=env,
                                    creationflags=0x08000000 if os.name == "nt" else 0)
     procs_ht[t].ten_nhap = ten
-    return json_ok({"ok": True, "ten": ten})
+    return ten
+
+
+@app.post("/api/dung/hoan_thien")
+def dung_hoan_thien():
+    """Chạy skill hoàn thiện (chinh_sua/dung_hoan_chinh.py) ở nền cho dự án: diễn cảnh, bản đồ, nhạc, chuyển cảnh
+    -> bản nháp CapCut mới. Log ở ra/<dự án>/hoan_thien.log."""
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    ten = (d.get("ten") or f"{t}_hoan_chinh").strip()
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    try:
+        return json_ok({"ok": True, "ten": _chay_hoan_thien(t, ten)})
+    except RuntimeError as e:
+        raise HTTPError(409, str(e))
 
 
 @app.get("/api/dung/hoan_thien_tt")
@@ -703,8 +805,10 @@ def dung_tu_dong():
     d = request.json or {}
     t = slug(d.get("du_an", ""))
     try:
+        ten_ht = (d.get("ten_ht") or f"{t}_hoan_chinh").strip()
         tu_dong_tim.chay_nen(t, float(d.get("ngan_sach") or tu_dong_tim.NGAN_SACH_PHUT),
-                             (d.get("ten_nhap") or "").strip() or None)
+                             (d.get("ten_nhap") or "").strip() or None,
+                             sau=(lambda: _chay_hoan_thien(t, ten_ht)) if d.get("hoan_thien") else None)
     except ValueError as e:
         raise HTTPError(400, str(e))
     return json_ok({"ok": True})
