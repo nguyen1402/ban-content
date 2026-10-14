@@ -65,6 +65,23 @@ def _chi_muc(kho, mo_hinh=None):
     return ra
 
 
+def _ngang(m):
+    """14/10 user: chỉ dùng hình NGANG (rộng >= 1,2 x cao). Đọc cỡ từ kho; thiếu thì đo file."""
+    w, h = m.get("rong") or 0, m.get("cao") or 0
+    f = m.get("file", "")
+    if not (w and h) and os.path.isfile(f):
+        try:
+            if m.get("loai") == "anh":
+                from PIL import Image
+                w, h = Image.open(f).size
+            else:
+                import dung_tay
+                w, h = dung_tay._kich_thuoc(f)               # noqa: SLF001
+        except Exception:                                   # noqa: BLE001
+            return True
+    return not (w and h) or w >= 1.2 * h
+
+
 def _anh(kho, mo_hinh=None):
     """[(id, vector, dia_danh)] cho mọi ảnh trong kho (nhúng, lưu cạnh file). dia_danh: ảnh tìm theo tên địa danh."""
     mo_hinh = mo_hinh or MO_HINH_MAC_DINH
@@ -143,7 +160,9 @@ def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=N
     truoc: {"kid", "v"} đoạn ĐỨNG NGAY TRƯỚC (cảnh trước) — 12/10 user: hai đoạn liền nhau không cùng một video và
     không gần như giống nhau (cosine > GIONG_TOI_DA). Hàm cập nhật truoc theo đoạn cuối của cảnh."""
     truoc = truoc if truoc is not None else {}
-    nghi = sorted(x for x in nghi if 0.5 < x < float(canh["dai"]) - 0.5)   # chỗ nghỉ TRONG cảnh (giây tính từ đầu cảnh)
+    # chỗ nghỉ TRONG cảnh (giây tính từ đầu cảnh); quãng (nghỉ X) chèn ở cuối cảnh KHÔNG phải chỗ đổi hình — hình cảnh
+    # trước kéo dài qua đó (14/10 user)
+    nghi = sorted(x for x in nghi if 0.5 < x < float(canh["dai"]) - float(canh.get("nghi_sau") or 0) - 0.5)
     mo_hinh = mo_hinh or MO_HINH_MAC_DINH
     import chon_doan
     import sach_hinh
@@ -283,7 +302,7 @@ def goi_y(du_an, ids=None, chi_canh_trong=True, mo_hinh=None, luu=True):
     from common import doc_json, ghi_json, thu_muc_du_an
     out = thu_muc_du_an(du_an)[1]
     canh = doc_json(os.path.join(out, "tu_khoa.json"), []) or []
-    kho = dung_tay.doc_kho(du_an)
+    kho = {k: m for k, m in dung_tay.doc_kho(du_an).items() if _ngang(m)}   # 14/10 user: bỏ hình dọc / vuông
     mo_hinh = mo_hinh or MO_HINH_MAC_DINH
     vids, anhs = _chi_muc(kho, mo_hinh), _anh(kho, mo_hinh)
     if not vids and not anhs:

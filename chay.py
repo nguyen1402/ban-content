@@ -64,7 +64,7 @@ def main():
     def nhanh_tu_khoa():                                    # NHÁNH B: ChatGPT tóm tắt + từ khoá + địa điểm
         try:
             tien_do("tu_khoa", "dang")
-            ctx = tach_canh.lam_ten_va_tom_tat(text, os.path.join(CACHE, "ten.json"))
+            ctx = tach_canh.lam_ten_va_tom_tat(tach_canh.bo_moc_nghi(text), os.path.join(CACHE, "ten.json"))
             tu_khoa.lam_tu_khoa(canh, ctx, os.path.join(CACHE, "tu_khoa.json"))
             n_dd = sum(1 for c in canh if c["tu_khoa"].get("dia_diem"))
             tien_do("tu_khoa", "xong", f"{sum(1 for c in canh if c['tu_khoa'].get('video'))} cảnh · "

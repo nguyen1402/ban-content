@@ -514,6 +514,9 @@ def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
         script.add_track(draft.TrackType.video, track_name="hieu_ung", relative_index=1)  # trên track hình
     if kh.get("bang_giay"):
         script.add_track(draft.TrackType.video, track_name="bang_giay", relative_index=4)  # trên cùng: khối bảng giấy
+    man_den = [c for c in canh if float(c.get("nghi_sau") or 0) > 0]
+    if man_den:                                             # 14/10 user: chỗ (nghỉ X) -> chuyển cảnh ĐEN MÀN, track trên cùng
+        script.add_track(draft.TrackType.video, track_name="man_den", relative_index=9)
     if kh.get("tieng_dong") and TIENG_DONG_BAT:
         script.add_track(draft.TrackType.audio, track_name="tieng_dong")
     if kh.get("lop_phu"):
@@ -565,6 +568,24 @@ def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
         if d < int(s["dai"] * SEC):
             seg.add_fade(0, int(min(0.15 * SEC, d // 2)))
         script.add_segment(seg, track_name="sfx")
+    if man_den:
+        from PIL import Image
+        den = os.path.join(OUT, "_man_den.png")
+        if not os.path.isfile(den):
+            Image.new("RGB", (1920, 1080), (0, 0, 0)).save(den)
+        KPd = draft.KeyframeProperty
+        for c in man_den:
+            x = float(c["nghi_sau"])
+            het = float(c["bat_dau"]) + float(c["dai"])            # hết cảnh = lúc cảnh sau bắt đầu
+            bd, d = het - x - 0.3, x + 0.6                      # mờ dần về đen trong quãng nghỉ, sáng lại đầu cảnh sau
+            di = int(d * SEC)
+            seg = draft.VideoSegment(draft.VideoMaterial(den), trange(int(max(0.0, bd) * SEC), di))
+            seg.add_keyframe(KPd.alpha, 0, 0.0)
+            seg.add_keyframe(KPd.alpha, int((0.3 + x * 0.5) * SEC), 1.0)
+            seg.add_keyframe(KPd.alpha, int((0.3 + x) * SEC), 1.0)
+            seg.add_keyframe(KPd.alpha, di - 1000, 0.0)
+            script.add_segment(seg, track_name="man_den")
+        log(f"    màn đen chuyển cảnh: {len(man_den)} chỗ nghỉ")
     ds_td = sorted(kh.get("tieng_dong") or [], key=lambda z: z["t"]) if TIENG_DONG_BAT else []
     for k, s in enumerate(ds_td):                            # tiếng động diễn cảnh (13/10 user)
         toi_da = (ds_td[k + 1]["t"] - s["t"] - 0.05) if k + 1 < len(ds_td) else s["dai"]
@@ -666,6 +687,8 @@ def main():
     ap.add_argument("--giu-ke-hoach", action="store_true", help="dùng ra/ke_hoach.json đã có (đã sửa tay)")
     ap.add_argument("--du-an", default=None, help="tên dự án (mặc định: dự án chạy gần nhất)")
     ap.add_argument("--chi-lap-ke-hoach", action="store_true")
+    ap.add_argument("--co-ban-do-canh", action="store_true",
+                    help="kiểu cũ: thay đoạn đầu MỌI cảnh địa điểm bằng bản đồ vệ tinh (mặc định tắt từ 14/10)")
     ap.add_argument("--khong-ban-do", action="store_true", help="dự án mới: không thay cảnh địa điểm bằng bản đồ vệ tinh")
     ap.add_argument("--co-nhac", action="store_true", help="bật lại tự thêm nhạc nền")
     ap.add_argument("--co-chu", action="store_true", help="bật lại chữ nhấn mạnh")
@@ -693,7 +716,9 @@ def main():
     if not os.path.isfile(os.path.join(OUT, "ket_qua.json")) and os.path.isfile(os.path.join(OUT, "dung.json")):
         import du_an_moi                                    # dự án kiểu mới (trình dựng tay / nút 🤖)
         from common import DU_AN
-        canh, giong_chung, tong = du_an_moi.tai(DU_AN, ban_do=not a.khong_ban_do)
+        # 14/10 user: không gò mọi địa điểm vào vệ tinh phóng từ trên cao -> mặc định KHÔNG tự thay; ChatGPT (điều phối)
+        # chọn: vệ tinh khi lời dừng lâu ở nơi đó, bản đồ AI vẽ khi chỉ nhắc nhanh. Bật lại kiểu cũ: --co-ban-do-canh
+        canh, giong_chung, tong = du_an_moi.tai(DU_AN, ban_do=a.co_ban_do_canh and not a.khong_ban_do)
     else:
         canh = json.load(open(os.path.join(OUT, "ket_qua.json"), encoding="utf-8"))
         tong = dong_thoi_gian(canh) / SEC

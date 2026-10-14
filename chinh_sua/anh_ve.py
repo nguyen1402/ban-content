@@ -128,8 +128,10 @@ def ve_prompt(prompt, thu, ten, tep=None, timeout=150):
 def ve(mo_ta, thu, ten, timeout=120):
     """mo_ta: mô tả tiếng Anh vật cần vẽ -> đường dẫn ảnh đã lưu (nền trắng) hoặc None."""
     prompt = (f"Generate an image of {mo_ta}. Realistic, highly detailed (photorealistic, or a realistic 3D scientific "
-              f"render for microscopic or abstract things). ONE single subject, centered, fully visible, isolated on a "
-              f"plain pure white background. No text, no letters, no numbers, no labels, no arrows, no border, no frame; "
+              f"render for microscopic or abstract things). ONE single COMPLETE subject (all parts present, nothing cut "
+              f"off by the image border), centered with white margin around it, isolated on a plain pure white background, "
+              f"no background scene, NOTHING under it (no rock, slab, pedestal, platform, base or ground) unless the "
+              f"subject itself is a flat thing. No text, no letters, no numbers, no labels, no arrows, no border, no frame; "
               f"any screen or display must be blank.")
     os.makedirs(thu, exist_ok=True)
     for a in _xep_tai_khoan():

@@ -262,6 +262,8 @@ def xuat(canh, out):
                    "text": c["text"], "noi_dung": k.get("noi_dung", ""), "video": k.get("video", []),
                    "video_vi": k.get("video_vi", []), "anh": k.get("anh", []),
                    "ban_do": [tim_ban_do(d) for d in k.get("dia_diem", [])]})
+        if c.get("nghi_sau"):
+            ds[-1]["nghi_sau"] = c["nghi_sau"]                  # quãng lặng chèn (giây) ở CUỐI cảnh
     ghi_json(os.path.join(out, "tu_khoa.json"), ds)
     with open(os.path.join(out, "tu_khoa.md"), "w", encoding="utf-8") as f:
         f.write("# Từ khoá tìm nguồn theo cảnh\n\n")

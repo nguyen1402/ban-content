@@ -39,6 +39,21 @@ def _sach(png, nhieu_manh=False):
     vien = np.concatenate([m[0], m[-1], m[:, 0], m[:, -1]]).mean()
     if vien > 0.6:
         return False, "dính kín mép (chưa tách khỏi nền)"
+    # 14/10 user: "hình ảnh bị cắt khuyết thiếu, thiếu chuyên nghiệp" — vật bị mép ảnh / khung cắt để lại một đường
+    # THẲNG dài trên mép khung bao (dáng vật tự nhiên chỉ chạm mép ở vài điểm) -> loại, vẽ lại.
+    def _chay_dai(v):
+        tot = cur = 0
+        for x in v:
+            cur = cur + 1 if x else 0
+            tot = max(tot, cur)
+        return tot
+    # vết cắt phẳng ở MỘT đầu (đầu cáp, đầu ống) là bình thường; >= 2 cạnh thẳng dài quá nửa cạnh = khối vuông / cảnh có khung
+    thang = sum(1 for canh_, d in ((m[0], m[2] if m.shape[0] > 2 else m[0]), (m[-1], m[-3] if m.shape[0] > 2 else m[-1]),
+                                   (m[:, 0], m[:, 2] if m.shape[1] > 2 else m[:, 0]),
+                                   (m[:, -1], m[:, -3] if m.shape[1] > 2 else m[:, -1]))
+                if _chay_dai(canh_ & d) > 0.5 * len(canh_))
+    if thang >= 2:
+        return False, "khối vuông có khung (không phải vật trọn vẹn)"
     return True, ""
 
 
@@ -131,7 +146,7 @@ def _lay(q, tranh=(), ve=None, truu_tuong=False):
     if ve and (not q or v0 is None):                        # không có từ khoá / ảnh thật đã thử mà không đạt -> vẽ
         truu_tuong = True
     if truu_tuong and ve:                                   # trừu tượng: VẼ luôn, không tìm ảnh thật
-        khoa = "ve|" + ve + ("|" + khoa if tranh else "")
+        khoa = "ve2|" + ve + ("|" + khoa if tranh else "")     # ve2: 14/10 vẽ không đế đá
         v = da.get(khoa)
         if isinstance(v, dict) and os.path.isfile(os.path.join(REMOTION, "public", v.get("src", ""))):
             return v
@@ -343,8 +358,13 @@ def _cat_hang(sheet_png, n, k):
     if not nhom:
         return None
     ra = []
+    H0, W0 = m.shape
     for t, mm in enumerate(nhom):
         mm = _bo_vun_duoi(mm)
+        bien = [mm[:3].any(axis=0), mm[-3:].any(axis=0), mm[:, :3].any(axis=1), mm[:, -3:].any(axis=1)]
+        if any(b.sum() > 0.02 * len(b) for b in bien):   # 14/10: vật chạm mép ảnh -> bị mép cắt, không trọn vẹn
+            log(f"    ! bộ vai: mảnh {t + 1} chạm mép ảnh (bị cắt)")
+            return None
         ys, xs = np.nonzero(mm)
         if len(xs) == 0:
             return None
@@ -369,16 +389,64 @@ def _cat_hang(sheet_png, n, k):
     return ra
 
 
+def bo_canh_nhom(vai):
+    """14/10: cảnh nhiều vai -> chia thành nhiều ẢNH NHỎ (2-3 vai/ảnh; vai gốc + trạng thái "SAME as actor N" luôn chung
+    một ảnh) vì AI vẽ 4+ vai trên một ảnh hay dính nhau, cắt không tách được. -> [kết quả | None] theo đúng thứ tự vai
+    (None = ảnh nhóm đó hỏng, người gọi lấy ảnh riêng cho vai đó)."""
+    import re
+    vai = [y if isinstance(y, dict) else {} for y in vai]
+    n = len(vai)
+    if n <= 3:
+        r = bo_canh(vai)
+        return r if r else [None] * n
+    cha = list(range(n))
+
+    def goc(i):
+        while cha[i] != i:
+            i = cha[i]
+        return i
+    for i, y in enumerate(vai):
+        m = re.search(r"same as (?:actor |subject )?(\d)", str(y.get("ve") or ""), re.I)
+        if m and int(m.group(1)) < n:
+            cha[goc(i)] = goc(int(m.group(1)))
+    nhom = {}
+    for i in range(n):
+        nhom.setdefault(goc(i), []).append(i)
+    goi, cur = [], []
+    for g in sorted(nhom.values(), key=lambda z: z[0]):    # gom nhóm vào ảnh, mỗi ảnh tối đa 3 vai (ưu tiên 2)
+        if cur and len(cur) + len(g) > (3 if len(g) > 1 else 2):
+            goi.append(cur)
+            cur = []
+        cur = cur + g
+    if cur:
+        goi.append(cur)
+    ra = [None] * n
+    for ds in goi:
+        moi = {i: k for k, i in enumerate(ds)}
+        sub = []
+        for i in ds:                                         # đánh lại chỉ số "SAME as actor N" theo ảnh con
+            y = dict(vai[i])
+            y["ve"] = re.sub(r"(same as (?:actor |subject )?)(\d)",
+                             lambda mt: mt.group(1) + str(moi.get(int(mt.group(2)), int(mt.group(2)))), str(y.get("ve") or ""),
+                             flags=re.I)
+            sub.append(y)
+        r = bo_canh(sub)
+        if r:
+            for i, b in zip(ds, r):
+                ra[i] = b
+    return ra
+
+
 def bo_canh(vai):
     """vai: [{ten, anh, ve, truu_tuong}] (<= 3) -> [{src, url}] đủ từng vai (cùng thứ tự) hoặc None (để lùi về cách cũ)."""
     import json as _json
     import threading
     import anh_ve
-    vai = [y for y in vai if isinstance(y, dict)][:4]
+    vai = [y for y in vai if isinstance(y, dict)][:3]
     if not vai:
         return None
-    k = hashlib.md5(_json.dumps([(y.get("ten"), y.get("anh"), y.get("ve")) for y in vai], ensure_ascii=False)
-                    .encode("utf-8")).hexdigest()[:14]
+    k = hashlib.md5((_json.dumps([(y.get("ten"), y.get("anh"), y.get("ve")) for y in vai], ensure_ascii=False)
+                     + "|v4-khong-de").encode("utf-8")).hexdigest()[:14]    # 14/10: câu vẽ mới (vật trọn vẹn) -> vẽ lại
     khoa = "bo|" + k
     v = (doc_json(os.path.join(CACHE_CHUNG, "anh_tach.json"), {}) or {}).get(khoa)
     if isinstance(v, list) and all(os.path.isfile(os.path.join(REMOTION, "public", x)) for x in v):
@@ -403,11 +471,19 @@ def bo_canh(vai):
         mo_ta += (" A subject described as 'exactly the same as …' must look identical to that subject (same species, "
                   "colours, angle, size) except for the stated change.")
     n = len(vai)
-    prompt = (f"Create ONE wide image on a plain pure white background showing exactly {n} separate subject"
+    prompt = (f"Create ONE wide image on a plain pure white background showing exactly {n} separate, COMPLETE subject"
               f"{'s' if n > 1 else ''} in a single horizontal row, left to right in this order, with WIDE empty white space "
               f"between them (they must not touch or overlap), all in the same realistic, highly detailed style and "
               f"lighting (photorealistic, or a realistic 3D render for microscopic things), each fully visible and "
-              f"roughly the same size. {mo_ta}\n"
+              f"roughly the same size. Every subject is a WHOLE object shown in full — all parts present, nothing cut off "
+              f"by the image border, no background scene, no ground, no box or frame around it; a group (a swarm, a pile, a "
+              f"herd) is drawn as a loose cluster with clear outline, not a rectangular scene; animals, people and objects "
+              f"float on the white background with NOTHING under them — no rock, stone slab, pedestal, platform, base, "
+              f"soil or pavement (even if the description says they lie on the ground); only when the subject ITSELF is a "
+              f"FLAT thing (a road, a "
+              f"field, a floor, a wall) is drawn as a small 3D cut-out chunk with irregular broken edges, like a diorama "
+              f"piece; a LONG thing (a cable, a pipe, a river, a road) is drawn as a short segment with BOTH ends visible "
+              f"inside the image. {mo_ta}\n"
               + (("The attached reference photo" + ("s show" if len(mau) > 1 else " shows") + " the real appearance of "
                   + ", ".join(THU[t] for t, _ in mau) + " subject" + ("s" if len(mau) > 1 else "") + " (in that order) — "
                   "keep it faithful.\n") if mau else "")

@@ -25,7 +25,37 @@ def tach_cau(text):
     return [c.strip() for c in cau if c and c.strip()]
 
 
+#: 14/10 user: "(nghỉ 0.5)" trong kịch bản = chèn ĐÚNG quãng lặng X giây vào giọng đọc ở chỗ đó (không đọc thành tiếng);
+#: cảnh đứng trước kéo dài hình qua quãng nghỉ, bản hoàn thiện phủ màn đen chuyển cảnh.
+MOC_NGHI = re.compile(r"\(\s*nghỉ\s*([0-9]+(?:[.,][0-9]+)?)\s*(?:s|giây)?\s*\)", re.I)
+
+
+def bo_moc_nghi(text):
+    """Kịch bản bỏ hết dấu (nghỉ X) — dùng cho các bước chỉ cần lời (tóm tắt, tên…)."""
+    return re.sub(r"[ \t]+", " ", MOC_NGHI.sub(" ", text)).strip()
+
+
 def tach_canh(text, cps=KY_TU_MOI_GIAY):
+    """Như _tach_canh, cộng dấu (nghỉ X): ngắt cảnh đúng chỗ dấu, cảnh đứng trước mang nghi_sau = X (giây)."""
+    phan = MOC_NGHI.split(text)                              # [đoạn, X, đoạn, X, đoạn…]
+    ra = []
+    for k in range(0, len(phan), 2):
+        cs = _tach_canh(phan[k], cps)
+        if k + 1 < len(phan):
+            x = float(phan[k + 1].replace(",", "."))
+            if cs:
+                cs[-1]["nghi_sau"] = round(x, 2)
+            elif ra:
+                ra[-1]["nghi_sau"] = round(ra[-1].get("nghi_sau", 0) + x, 2)
+        ra += cs
+    t = 0.0
+    for i, c in enumerate(ra, 1):
+        c["id"], c["bat_dau"] = i, round(t, 2)
+        t += c["dai"] + c.get("nghi_sau", 0)
+    return ra
+
+
+def _tach_canh(text, cps=KY_TU_MOI_GIAY):
     """Gộp câu liền nhau tới khi đủ ~CANH_MIN ký tự; câu quá dài thì cắt ở dấu phẩy."""
     cau = []
     for c in tach_cau(text):
@@ -354,7 +384,8 @@ def chay_buoc1(path, gioi_han=0, cps=KY_TU_MOI_GIAY):
     canh = tach_canh(text, cps)
     if gioi_han:
         canh = canh[:gioi_han]
-    log(f"[1] {len(canh)} cảnh, ~{sum(c['dai'] for c in canh):.0f}s")
-    ctx = lam_ten_va_tom_tat(text, duong_cache("ten.json"))
+    log(f"[1] {len(canh)} cảnh, ~{sum(c['dai'] for c in canh):.0f}s"
+        + (f", {sum(1 for c in canh if c.get('nghi_sau'))} chỗ nghỉ chèn" if any(c.get("nghi_sau") for c in canh) else ""))
+    ctx = lam_ten_va_tom_tat(bo_moc_nghi(text), duong_cache("ten.json"))
     log(f"    tên chuẩn: {ctx['ten']}")
     return lam_truy_van(canh, ctx, duong_cache("canh.json"))

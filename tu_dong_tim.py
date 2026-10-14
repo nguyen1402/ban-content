@@ -328,6 +328,7 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
         if not doan or phu_giay < float(c["dai"]) - 0.5:       # 12/10: ảnh chỉ bù chỗ TRỐNG (video mẫu ~1% ảnh)
             yeu.append(c)
     loi_anh = None
+    lay_cua = {}
     for k, c in enumerate(yeu):
         _tt(du_an, buoc="anh", xong=k, tong=len(yeu))
         q = ((c.get("anh") or []) + (c.get("video") or []))[:1]
@@ -346,9 +347,11 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
                      key=lambda i: -(d[i] + (0.02 if min(ds[i].get("rong", 0), ds[i].get("cao", 0)) >= 700 else 0)))
         lay = thu = 0
         for i in xep:
-            thu += 1
-            if d[i] < xep_hang.NGUONG_THAP or lay >= ANH_MOI_CANH or thu > 15:
+            if d[i] < xep_hang.NGUONG_THAP or lay >= ANH_MOI_CANH or thu >= 15:
                 break
+            if ds[i].get("rong") and ds[i].get("cao") and ds[i]["rong"] < 1.2 * ds[i]["cao"]:
+                continue                                     # 14/10 user: ảnh dọc / vuông -> khỏi tải
+            thu += 1
             try:
                 kid = dung_tay.tai_anh(du_an, ds[i]["url"], ds[i].get("tieu_de", ""))
             except Exception:                                # noqa: BLE001  (trang chặn tải ảnh gốc: lấy ảnh kế)
@@ -361,7 +364,17 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
                     continue                                 # ảnh có chữ / hoạt hình: không tính, lấy ảnh kế
             except Exception:                                # noqa: BLE001
                 pass
+            import goi_y as _gy
+            if not _gy._ngang(dung_tay.doc_kho(du_an)[kid]):  # noqa: SLF001  ảnh tải về là ảnh dọc: không tính
+                continue
             lay += 1
+        lay_cua[c["id"]] = lay
+    # 6c. 14/10 user: cảnh cần ảnh bù mà không tìm được ảnh NGANG hợp -> Gemini vẽ một ảnh chụp ngang 16:9
+    ve_bu = [c for c in yeu if not lay_cua.get(c["id"])]
+    for k, c in enumerate(ve_bu):
+        _tt(du_an, buoc="anh_ve", xong=k, tong=len(ve_bu))
+        if not _ve_anh_ngang(du_an, c):
+            log(f"    ! cảnh {c['id']}: Gemini không vẽ được ảnh bù")
     if yeu:
         _tt(du_an, buoc="goi_y", xong=0, tong=0)
         dung = dung_tay.doc_dung(du_an)
@@ -394,6 +407,56 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
     log(f"  tự động xong sau {(time.time() - t_bd) / 60:.1f} phút: {co_hinh}/{len(canh)} cảnh có hình")
     return {"co_hinh": co_hinh, "so_canh": len(canh), "anh_bu": len(yeu), "loi_anh": loi_anh, "nhap": nhap,
             "video": len(chon), "phut": round(tong_giay / 60, 1)}
+
+
+def _ve_anh_ngang(du_an, c):
+    """Gemini (cookie) vẽ một ẢNH CHỤP NGANG 16:9 cho cảnh -> id kho | None. Cache theo câu lệnh (vẽ lại không tốn)."""
+    import hashlib
+    import sys
+    from PIL import Image
+    from common import thu_muc_du_an
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "chinh_sua"))
+    import anh_ve
+    import dung_tay
+    noi_dung = (c.get("noi_dung") or c.get("text") or "").strip()
+    goi = ", ".join(((c.get("anh") or []) + (c.get("video") or []))[:2])
+    prompt = (f"Create a realistic high-resolution documentary PHOTOGRAPH in WIDE 16:9 LANDSCAPE (horizontal) format that "
+              f"fills the whole frame. Scene: {noi_dung} (keywords: {goi}). Natural light, real-world look, like stock "
+              f"footage. No text, no letters, no captions, no logos, no watermark, no borders, no collage.")
+    kid = "g_" + hashlib.md5(prompt.encode("utf-8")).hexdigest()[:12]
+    m = dung_tay.doc_kho(du_an).get(kid)
+    if m and m.get("trang_thai") == "xong" and os.path.isfile(m.get("file", "")):
+        return kid
+    thu = os.path.join(thu_muc_du_an(du_an)[1], "kho", "anh")
+    for lan in range(2):
+        f = anh_ve.ve_prompt(prompt if lan == 0 else prompt + " Absolutely NO writing anywhere.", thu, f"_{kid}_{lan}.png")
+        if not f:
+            return None
+        im = Image.open(f).convert("RGB")
+        w, h = im.size
+        im = im.crop((0, 0, int(w * 0.93), int(h * 0.93)))   # cắt dấu Gemini ở góc phải dưới
+        if im.size[0] < 1.2 * im.size[1]:                  # AI trả ảnh vuông/dọc: cắt giữa về 16:9
+            w2, h2 = im.size
+            hh = int(w2 * 9 / 16)
+            im = im.crop((0, (h2 - hh) // 2, w2, (h2 - hh) // 2 + hh))
+        dich = os.path.join(thu, kid + ".jpg")
+        im.save(dich, quality=95)
+        try:
+            os.remove(f)
+        except OSError:
+            pass
+        try:
+            import loc_chu
+            if loc_chu.co_chu_anh(dich):
+                continue
+        except Exception:                                    # noqa: BLE001
+            pass
+        dung_tay._cap_nhat_kho(du_an, kid, loai="anh", tieu_de=f"Gemini vẽ: {noi_dung[:60]}", file=dich,   # noqa: SLF001
+                               nguon="gemini", trang_thai="xong", pt=100.0, rong=im.size[0], cao=im.size[1],
+                               luc=time.time())
+        log(f"    cảnh {c['id']}: Gemini vẽ ảnh ngang {im.size[0]}x{im.size[1]}")
+        return kid
+    return None
 
 
 def chay_nen(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, sau=None):

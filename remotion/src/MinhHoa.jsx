@@ -254,8 +254,6 @@ const Vat = ({src, x, y, s, op, cao, rong = 900, xoay = 0, rung = 0, ten = ''}) 
   op <= 0.01 || !src ? null : (
     <div style={{position: 'absolute', left: x, top: y, transform: `translate(-50%, -50%) rotate(${xoay}deg) scale(${s})`,
       opacity: op, display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
-      {rung > 0 && <div style={{position: 'absolute', width: cao * 1.15, height: cao * 1.15, borderRadius: '50%',
-        border: `${10 * rung}px solid rgba(255,77,61,${rung})`, top: '50%', left: '50%', transform: 'translate(-50%,-50%)'}} />}
       <Img src={staticFile(src)} style={{maxHeight: cao, maxWidth: rong, objectFit: 'contain', filter: NET}} />
       {ten && <div style={{marginTop: 12, color: '#fff', fontFamily: FONT, fontSize: 38, fontWeight: 800, whiteSpace: 'nowrap',
         maxWidth: rong, overflow: 'hidden', textOverflow: 'ellipsis', background: 'rgba(0,0,0,0.55)', padding: '4px 16px',
@@ -264,11 +262,28 @@ const Vat = ({src, x, y, s, op, cao, rong = 900, xoay = 0, rung = 0, ten = ''}) 
   )
 );
 
-const DienCanh = ({vai, hanh_dong}) => {
+// 14/10 user: khuôn con số (đếm lên + "?" đi liền), so sánh (cột theo tỉ lệ), cơ chế (kính lúp), hành động, trước->sau
+const soDem = (chu, p) => {                                // "3 triệu con" -> đếm 0 -> 3; "12.000 lán" -> 0 -> 12.000; "90%"
+  const m = String(chu).match(/^([\d.,]+)(.*)$/);
+  if (!m) return chu;
+  const raw = m[1];
+  const vn = /^\d{1,3}(\.\d{3})+$/.test(raw);            // 12.000 = mười hai nghìn (dấu chấm phân nghìn kiểu Việt)
+  const v = vn ? parseFloat(raw.replace(/\./g, '')) : parseFloat(raw.replace(',', '.'));
+  if (!isFinite(v)) return chu;
+  const cur = v * p;
+  const thap = (raw.split(/[.,]/)[1] || '').length;
+  const txt = vn ? Math.round(cur).toLocaleString('de-DE') : (thap && !vn ? cur.toFixed(thap).replace('.', ',') : String(Math.round(cur)));
+  return txt + m[2];
+};
+
+const DienCanh = ({vai, hanh_dong, bo_cuc = '', khuon = '', so = '', hoi = false, t_so = 0.6, gia_tri = [], nhan_gt = []}) => {
   const f = useCurrentFrame();
   const {fps} = useVideoConfig();
   const bat = useBat();
   const now = f / fps;
+  const {durationInFrames: N_} = useVideoConfig();
+  // 14/10 user "nháy liên tục": hiện ra = mờ dần vào + trượt nhẹ lên (không phóng/nảy); không rung rinh liên tục
+  const hien = (t, d = 0.5) => mem(clamp((now - t) / d, 0, 1));
   const n = vai.length;
   const n3 = Math.min(3, Math.max(1, n));
   const vt = VT_DC[n3];
@@ -293,7 +308,13 @@ const DienCanh = ({vai, hanh_dong}) => {
   dau.forEach((i) => { if (cho[i] == null) cho[i] = O_TEN[tu_do.shift() || 'giua']; });
   vai.forEach((v, i) => { if (cho[i] == null) cho[i] = O_TEN[v.vi_tri] || 960; });
   cao = nDau <= 1 ? 480 : nDau === 2 ? 420 : nDau === 3 ? 350 : 300;   // cỡ theo số vai ĐANG đứng, không tính vai vào sau
-  const rongO = nDau <= 1 ? 900 : nDau === 2 ? 620 : nDau === 3 ? 500 : 400;
+  let rongO = nDau <= 1 ? 900 : nDau === 2 ? 620 : nDau === 3 ? 500 : 400;
+  const coSo = khuon === 'con_so' && !!so;
+  if (n === 1 && !coSo) { cao = 700; rongO = 1300; }       // 14/10 user: vật đứng MỘT MÌNH thì to ra
+  if (bo_cuc === 'liet_ke') {                               // 14/10 user: liệt kê = các mục chia CỘT đều, cùng cỡ
+    cao = n <= 2 ? 440 : n === 3 ? 400 : n === 4 ? 320 : 260;
+    rongO = (W / Math.max(1, n)) * 0.82;
+  }
   // 13/10 user: "không tấn công mà cứ đè vật thể lên nhau" -> tiến lại thì chỉ tới SÁT CẠNH (khoảng cách tâm KC theo bề
   // rộng ô), không chồng lên; chỉ tan_cong (lao vào rồi lùi), an, ket_hop, mang_di mới được chạm/chồng.
   const KC = rongO * 0.8;
@@ -302,12 +323,73 @@ const DienCanh = ({vai, hanh_dong}) => {
     const tx = b.x + dau_ * KC;
     return Math.abs(tx - a.x) < 40 ? a.x : a.x + (tx - a.x) * ty;
   };
+  // 14/10 user: LIỆT KÊ — mục VỪA được nhắc to ở giữa phía trước; mục nhắc trước thu nhỏ, lùi ra hàng sau (trên), mờ đi.
+  const lietKe = bo_cuc === 'liet_ke';
+  const lanNhac = vai.map((v, i) => {
+    const ts = [];
+    if (v.vao != null) ts.push(v.vao);
+    hanh_dong.forEach((h) => { if (h.ai === i || h.toi === i) ts.push(h.t); });
+    return ts.length ? Math.min(...ts) : null;
+  });
+  // trạng thái "sau" (đích bien_thanh) thừa hưởng LƯỢT của vật "trước"; vật "trước" đã đổi xong thì không giữ chỗ nữa
+  const nguon = {}, doiLuc = {};
+  hanh_dong.forEach((h) => { if (h.lam === 'bien_thanh' && h.toi != null) { nguon[h.toi] = h.ai; doiLuc[h.ai] = h.t; } });
+  const luot = (i) => (nguon[i] != null ? luot(nguon[i]) : lanNhac[i]);
+  const viTriLK = (t) => {                                  // vị trí từng vai theo thứ tự đã được nhắc tới thời điểm t
+    const da = vai.map((v, i) => i)
+      .filter((i) => lanNhac[i] != null && lanNhac[i] <= t && !(doiLuc[i] != null && doiLuc[i] <= t))
+      .sort((a, b) => luot(a) - luot(b) || lanNhac[a] - lanNhac[b]);
+    const r = {};
+    const cu = da.slice(0, -1);
+    // hàng sau: dạt sang HAI BÊN phía trên (chừa giữa cho mục chính), nhỏ 0,45; mục chính thấp hơn ở giữa
+    const ben = [[-560, 230], [560, 230], [-820, 330], [820, 330], [-300, 170], [300, 170]];
+    cu.slice().reverse().forEach((i, k) => { const [dx, y] = ben[Math.min(k, ben.length - 1)]; r[i] = {x: W / 2 + dx, y, s: 0.45, op: 0.7}; });
+    if (da.length) r[da[da.length - 1]] = {x: W / 2, y: 620, s: 1.15, op: 1};
+    hanh_dong.forEach((h) => {                             // bản "trước" đang biến: đứng CHUNG chỗ với bản "sau" (hoà tan tại chỗ)
+      if (h.lam === 'bien_thanh' && h.toi != null && h.t <= t && r[h.toi]) r[h.ai] = {...r[h.toi]};
+    });
+    return r;
+  };
+  let lkNay = null, lkTruoc = null, lkE = 1;
+  if (lietKe) {
+    // mốc bố cục đổi = lúc có vật mới được nhắc; trượt mượt 0,7 s từ bố cục NGAY TRƯỚC mốc đó sang bố cục mới
+    const moc = [...new Set(lanNhac.filter((t) => t != null && t <= now))].sort((a, b) => a - b);
+    const tNay = moc.length ? moc[moc.length - 1] : now;
+    lkNay = viTriLK(now);
+    lkTruoc = moc.length > 1 ? viTriLK(tNay - 0.001) : lkNay;
+    lkE = mem(clamp((now - tNay) / 0.7, 0, 1));
+  }
   const st = vai.map((v, i) => {
     // 13/10: vai hiện đúng lúc giọng nhắc tới (v.vao, giây) — không hiện sẵn từ đầu cảnh rồi đứng im
-    const vao = an.has(i) || v.vao == null ? 0 : bat(v.vao);
-    return {x: cho[i], y: 540 + Math.sin(now * 2.1 + i) * 8, s: 0.5 + 0.5 * vao, op: clamp(vao * 1.5, 0, 1),
-      xoay: Math.sin(now * 1.6 + i * 2) * 2.5, rung: 0};
+    const vao = an.has(i) || v.vao == null ? 0 : hien(v.vao);
+    const base = {x: cho[i], y: 540 + (an.has(i) ? 0 : 30 * (1 - vao)), s: 0.94 + 0.06 * vao, op: vao, xoay: 0, rung: 0};
+    if (lietKe && lkNay[i]) {
+      const A = lkTruoc[i] || lkNay[i], B = lkNay[i];
+      if (an.has(i)) { base.s = 1; base.op = 1; }
+      base.x = A.x + (B.x - A.x) * lkE; base.y = A.y + (B.y - A.y) * lkE;
+      base.s *= A.s + (B.s - A.s) * lkE; base.op *= A.op + (B.op - A.op) * lkE;
+    }
+    return base;
   });
+  if (lietKe) {                                              // cột đều nhau, hiện mờ dần + trượt nhẹ lên, đứng yên
+    st.forEach((a, i) => {
+      const q = hien(vai[i].vao ?? 0.3);
+      a.x = W * (i + 0.5) / n; a.y = 500 + 30 * (1 - q); a.s = 0.94 + 0.06 * q; a.op = q; a.xoay = 0;
+    });
+  }
+  const coChe = khuon === 'co_che';
+  const KL = {x: 1290, y: 500, r: 300};                   // kính lúp của khuôn cơ chế
+  if (coChe) {
+    st.forEach((a, i) => {
+      if (i === 0) { a.x = 560; a.y = 540; return; }
+      const trong = vai.length - 1;
+      a.x = KL.x + (trong > 1 ? ((i - 1) / (trong - 1) - 0.5) * 300 : 0); a.y = KL.y + 30; a.s *= 0.55;
+    });
+  } else if (coSo) {
+    st.forEach((a, i) => { if (i === 0) { a.x = W / 2; a.y = 360 + (a.y - 540); a.s *= 0.85; a.anTen = true; } });   // số nói thay tên
+  } else if (khuon === 'so_sanh') {
+    st.forEach((a, i) => { if (i < 2) { a.x = i === 0 ? 640 : 1280; a.y = 380; } });
+  }
   const them = [];
   let nhan = null;
   hanh_dong.forEach((h, k) => {
@@ -318,13 +400,14 @@ const DienCanh = ({vai, hanh_dong}) => {
     const b = h.toi != null ? st[h.toi] : null;
     const src = vai[h.ai].src;
     if (h.lam === 'xuat_hien') {
-      const q = bat(h.t);
-      a.op = clamp(q * 1.5, 0, 1); a.s = 0.4 + 0.6 * q;
+      const q = hien(h.t);
+      if (lietKe) { a.op *= q; a.s *= 0.94 + 0.06 * q; a.y += 30 * (1 - q); }   // liệt kê: giữ cỡ/độ mờ theo bố cục
+      else { a.op = q; a.s = 0.94 + 0.06 * q; a.y += 30 * (1 - q); }
     } else if (h.lam === 'bien_thanh' && b) {
-      const q = bat(h.t + 0.25);
-      b.x = a.x; b.y = a.y; b.op = clamp(q * 1.4, 0, 1); b.s = 0.5 + 0.5 * q;
-      a.op *= 1 - p; a.s *= 1 - 0.35 * p; a.xoay += 25 * p;
-      if (p < 1) them.push({k: 'sang' + k, sang: true, x: a.x, y: a.y, r: 120 + 260 * p, op: 1 - p});
+      const q = hien(h.t, 0.7);                             // hoà tan tại chỗ: bản trước mờ dần, bản sau hiện dần (không chớp)
+      if (lietKe) { a.x = b.x; a.y = b.y; b.op *= q; a.s = b.s; }
+      else { b.x = a.x; b.y = a.y; b.s = a.s; b.op = q; }
+      a.op *= 1 - q;
     } else if (h.lam === 'tach_ra') {                       // vỡ / bị cắt thành mảnh nhỏ bắn ra
       a.op *= 1 - p; a.s *= 1 - 0.3 * p;
       for (let j = 0; j < 8; j++) {
@@ -334,8 +417,6 @@ const DienCanh = ({vai, hanh_dong}) => {
       }
     } else if (h.lam === 'ket_hop' && b) {                  // nhập vào nhau: hai vật tiến lại, loé sáng
       a.x += (b.x - a.x) * 0.42 * p; b.x += (a.x - b.x) * 0.3 * p; a.y += (b.y - a.y) * 0.42 * p;
-      if (p > 0.6 && p < 1) them.push({k: 'kh' + k, sang: true, x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, r: 80 + 200 * (p - 0.6) / 0.4,
-        op: 1 - (p - 0.6) / 0.4});
     } else if (h.lam === 'gam' && b) {                      // gặm dần: áp sát, mổ nhiều lần, mục tiêu rung nhẹ + vụn bay
       const lai = mem(clamp((now - h.t) / 0.5, 0, 1));
       const mo = now - h.t > 0.5 ? Math.abs(Math.sin((now - h.t) * 9)) : 0;
@@ -398,13 +479,93 @@ const DienCanh = ({vai, hanh_dong}) => {
       a.x += (b.x - a.x) * 0.5 * p; b.s *= 1 - p; b.op *= 1 - p; a.s *= 1 + 0.12 * Math.sin(p * Math.PI * 3);
     } else if (h.lam === 'mang_di' && b) {
       const q = mem(clamp((now - h.t - 0.5) / 1.4, 0, 1));
-      a.x += (b.x - a.x) * 0.6 * p; b.x = a.x + 70; b.y = a.y + 90; b.s *= 0.55;
+      a.x += (b.x - a.x) * 0.6 * p; b.x = a.x + 70; b.y = a.y + 90; b.s *= 0.55; b.anTen = true;   // vật bị mang: ẩn nhãn
       a.x += 900 * q; b.x += 900 * q;
     }
   });
+  // 13/10 user: TIÊU ĐIỂM THEO LỜI — vai VỪA được nhắc (vừa hiện ra, hoặc là ai/toi của nhịp vừa bắt đầu) to + rõ; vai đã
+  // nhắc từ trước nhỏ lại + mờ nhẹ. Chuyển mượt 0,4 s giữa hai lần nhắc. Chỉ khi trên khung có >= 2 vai.
+  // ĐÀN: vai "dan" (nhiều con cùng làm) vẽ thêm một bầy bản sao nhỏ quanh nó, bám theo nó
+  vai.forEach((v, i) => {
+    const a = st[i];
+    if (!v.dan || a.op <= 0.05 || true) return;            // 14/10 user: bỏ bầy bản sao xoay quanh (ảnh đã vẽ cả đàn)
+    const trongKL = coChe && i > 0;                       // cơ chế: bầy nằm GỌN trong kính lúp, nhỏ hơn
+    for (let j = 0; j < 7; j++) {
+      const g = j * 0.9 + now * 0.25, rr = (trongKL ? 55 : 120) + (trongKL ? 18 : 30) * (j % 3);
+      let x = a.x + Math.cos(g) * rr * 1.3, y = a.y + 40 + Math.sin(g) * rr * 0.55;
+      if (trongKL) {
+        const dx = x - KL.x, dy = y - KL.y, d = Math.hypot(dx, dy), lim = KL.r - 60;
+        if (d > lim) { x = KL.x + dx / d * lim; y = KL.y + dy / d * lim; }
+      }
+      them.push({k: `dan${i}_${j}`, src: v.src, x, y, s: (trongKL ? 0.3 : 0.42) * a.s});
+    }
+  });
+  const suKien = [];
+  vai.forEach((v, i) => { if (v.vao != null && !an.has(i)) suKien.push({t: v.vao, ds: [i]}); });
+  hanh_dong.forEach((h) => suKien.push({t: h.t, ds: [h.ai, h.toi].filter((x) => x != null)}));
+  suKien.sort((x, y) => x.t - y.t);
+  const kHien = suKien.filter((e) => e.t <= now);
+  const hienTren = st.filter((a) => a.op > 0.3).length;
+  if (!lietKe && kHien.length && hienTren >= 2) {
+    const cur = kHien[kHien.length - 1];
+    const tr = kHien.length > 1 ? kHien[kHien.length - 2] : null;
+    const e = mem(clamp((now - cur.t) / 0.7, 0, 1));
+    st.forEach((a, i) => {
+      const truoc = tr ? (tr.ds.includes(i) ? 1.12 : 0.78) : 1.0;
+      const nay = cur.ds.includes(i) ? 1.12 : 0.78;
+      const k = truoc + (nay - truoc) * e;
+      a.s *= k;
+      a.op *= 0.7 + 0.3 * clamp((k - 0.78) / 0.34, 0, 1);  // vai lùi về sau mờ còn ~70%
+    });
+  }
+  // 13/10: TRÁNH ĐƯỜNG — vai KHÔNG thuộc nhịp hiện tại bị vai khác lấn chỗ (bay tới đáp cạnh vai kia, ngang qua chỗ nó)
+  // thì dạt xuống dưới đủ khoảng trống; lượng dạt tính liên tục theo độ lấn nên chuyển động mượt. Cặp được phép chạm
+  // (tan_cong, an, ket_hop, mang_di) không đẩy nhau.
+  const nhipNay = [...hanh_dong].filter((h) => h.t <= now).pop();
+  const dangCham = nhipNay && ['tan_cong', 'an', 'ket_hop', 'mang_di'].includes(nhipNay.lam) && now - nhipNay.t < 1.6
+    ? new Set([nhipNay.ai, nhipNay.toi]) : new Set();
+  const trongNhip = new Set(nhipNay ? [nhipNay.ai, nhipNay.toi].filter((x) => x != null) : []);
+  st.forEach((a, i) => {
+    if (lietKe || a.op <= 0.3 || trongNhip.has(i)) return;
+    let day = 0;
+    st.forEach((b, j) => {
+      if (j === i || b.op <= 0.3 || (dangCham.has(i) && dangCham.has(j))) return;
+      const lan = KC * 0.9 - Math.abs(a.x - b.x);             // lấn bao nhiêu px theo chiều ngang
+      if (lan > 0 && trongNhip.has(j)) day = Math.max(day, mem(Math.min(1, lan / (KC * 0.45))));
+    });
+    a.y -= day * cao * 1.05;                                // dạt LÊN khoảng trống phía trên (dưới là dải nhãn)
+    a.s *= 1 - 0.15 * day;
+    a.y = Math.max(a.y, cao * a.s / 2 + 20);               // không bị đẩy lọt khỏi mép trên khung
+  });
+  if (coChe) {                                              // vai trong kính lúp không ra khỏi vòng
+    st.forEach((a, i) => {
+      if (i === 0) return;
+      const dx = a.x - KL.x, dy = a.y - KL.y, d = Math.hypot(dx, dy), lim = KL.r - 90;
+      if (d > lim) { a.x = KL.x + dx / d * lim; a.y = KL.y + dy / d * lim; }
+    });
+  }
+  st.forEach((a) => { if (a.rung > 0) a.x += Math.sin(now * 28) * 7 * a.rung; });   // bị tác động: lắc nhẹ, không vòng chớp
+  // NHÃN KHÔNG ĐÈ NHAU: hai vai đứng quá sát -> ẩn nhãn của vai nhỏ hơn
+  st.forEach((a, i) => st.forEach((b, j) => {
+    if (i < j && a.op > 0.3 && b.op > 0.3 && Math.abs(a.x - b.x) < 260 && Math.abs(a.y - b.y) < 150) {
+      (a.s < b.s ? a : b).anTen = true;
+    }
+  }));
   const nhanA = nhan ? mem(clamp((now - nhan.t) / 0.35, 0, 1)) : 0;
+  const klA = coChe ? mem(clamp((now - (Math.min(...hanh_dong.map((h) => h.t)) - 0.4)) / 0.5, 0, 1)) : 0;
+  const soA = khuon === 'con_so' ? hien(Math.min(t_so, ...hanh_dong.map((h) => h.t), vai[0]?.vao ?? 1e9)) : 0;   // số + ảnh hiện cùng lúc          // 14/10 user: số hiện thẳng giá trị cuối, không đếm, không "?"
+  const maxGT = Math.max(1e-9, ...(gia_tri || []).map((v) => Math.abs(v)));
+  const zoom = 1 + 0.03 * clamp(f / Math.max(1, N_ - 1), 0, 1);
   return (
-    <AbsoluteFill>
+    <AbsoluteFill style={{transform: `scale(${zoom})`}}>
+      {coChe && klA > 0 && (
+        <svg width={W} height={H} style={{position: 'absolute'}} opacity={klA}>
+          <line x1={720} y1={470} x2={KL.x - KL.r * 0.97} y2={KL.y - 60} stroke="#fff" strokeWidth="4" strokeDasharray="12 10" />
+          <line x1={720} y1={610} x2={KL.x - KL.r * 0.97} y2={KL.y + 60} stroke="#fff" strokeWidth="4" strokeDasharray="12 10" />
+          <circle cx={KL.x} cy={KL.y} r={KL.r * (0.6 + 0.4 * klA)} fill="rgba(12,18,24,0.88)" stroke="#fff" strokeWidth="8" />
+          <circle cx={KL.x} cy={KL.y} r={KL.r * (0.6 + 0.4 * klA) + 10} fill="none" stroke={CAM} strokeWidth="4" />
+        </svg>
+      )}
       {them.map((e) => (e.vun
         ? <div key={e.k} style={{position: 'absolute', left: e.x - 7, top: e.y - 7, width: 14, height: 14, borderRadius: 4,
             background: '#f3efe6', opacity: e.op, boxShadow: '0 2px 6px rgba(0,0,0,0.5)'}} />
@@ -412,29 +573,98 @@ const DienCanh = ({vai, hanh_dong}) => {
         ? <div key={e.k} style={{position: 'absolute', left: e.x - e.r, top: e.y - e.r, width: 2 * e.r, height: 2 * e.r,
             borderRadius: '50%', border: `6px solid rgba(255,214,120,${e.op})`, boxShadow: `0 0 40px rgba(255,200,90,${e.op})`}} />
         : <Vat key={e.k} src={e.src} x={e.x} y={e.y} s={e.s} op={1} cao={cao} rong={rongO} />))}
-      {vai.map((v, i) => i < 4 && <Vat key={i} src={v.src} x={st[i].x} y={st[i].y} s={st[i].s} op={st[i].op} cao={cao}
-        rong={rongO} xoay={st[i].xoay} rung={st[i].rung} ten={v.ten} />)}
-      {nhan && (
-        <div style={{position: 'absolute', bottom: 90, width: W, display: 'flex', justifyContent: 'center', opacity: nhanA,
-          transform: `translateY(${(1 - nhanA) * 24}px)`}}>
-          <div key={nhan.chu} style={{background: 'rgba(255,255,255,0.95)', color: '#1d1a16', fontFamily: FONT, fontSize: 54,
-            fontWeight: 800, padding: '14px 40px', borderRadius: 50, borderLeft: `14px solid ${CAM}`,
-            boxShadow: '0 10px 28px rgba(0,0,0,0.55)'}}>{nhan.chu}</div>
+      {vai.map((v, i) => i < 6 && <Vat key={i} src={v.src} x={st[i].x} y={st[i].y} s={st[i].s} op={st[i].op} cao={cao}
+        rong={rongO} xoay={st[i].xoay} rung={st[i].rung} ten={st[i].anTen ? '' : v.ten} />)}
+      {/* 14/10 user: bỏ dải chữ giai đoạn ở đáy khung diễn cảnh */}
+      {khuon === 'con_so' && so && soA > 0 && (
+        <div style={{position: 'absolute', top: 680, width: W, textAlign: 'center', fontFamily: FONT, fontWeight: 900,
+          fontSize: 132, color: '#ffd400', letterSpacing: 2, opacity: soA,
+          transform: `translateY(${20 * (1 - soA)}px)`,
+          textShadow: '0 0 4px #000, 0 6px 28px rgba(0,0,0,0.9)'}}>
+          {so}
+        </div>
+      )}
+      {khuon === 'so_sanh' && gia_tri.length === 2 && [0, 1].map((i) => {
+        const a = st[i];
+        if (!a || a.op < 0.05) return null;
+        const t0 = Math.min(...hanh_dong.filter((h) => h.ai === i || h.toi === i).map((h) => h.t), vai[i]?.vao ?? 0.3);
+        const g = mem(clamp((now - t0 - 0.3) / 0.9, 0, 1));
+        const cao_ = 300 * Math.abs(gia_tri[i]) / maxGT * g;
+        return (
+          <div key={'cot' + i} style={{position: 'absolute', left: a.x - 70, top: 1020 - cao_, width: 140, height: cao_,
+            background: i === 0 ? CAM : '#5aa9ff', borderRadius: '10px 10px 0 0', boxShadow: '0 6px 20px rgba(0,0,0,0.5)'}}>
+            <div style={{position: 'absolute', top: -64, width: 300, left: -80, textAlign: 'center', color: '#fff', fontFamily: FONT,
+              fontSize: 46, fontWeight: 900, textShadow: '0 3px 12px #000', opacity: g}}>{nhan_gt[i] || ''}</div>
+          </div>
+        );
+      })}
+    </AbsoluteFill>
+  );
+};
+
+
+// ---------------------------------------------------------------- BẢN ĐỒ AI VẼ (14/10 user): địa điểm nhắc nhanh
+// Ảnh bản đồ phủ khung + máy quay chậm (4 kiểu theo nơi), ghim thả xuống ở giữa (AI vẽ nơi đó ở giữa), vòng sáng lan,
+// nhãn tên tiếng Việt (mình tự viết — AI không viết chữ Việt đúng).
+const TAM_BDV = 0.5 / 0.83;                                // ảnh bản đồ đã cắt mép phải/dưới -> tâm vùng ở ~60% khung
+const BanDoVe = ({anh, ten, bien_the = 0}) => {
+  const CX = W * TAM_BDV, CY = H * TAM_BDV;
+  const f = useCurrentFrame();
+  const {fps, durationInFrames: N} = useVideoConfig();
+  const p = f / Math.max(1, N - 1);
+  const cam = [
+    {s: [1.0, 1.14], x: [0, 0], y: [0, 0], r: [0, 0]},
+    {s: [1.18, 1.02], x: [0, 0], y: [0, 0], r: [0, 0]},
+    {s: [1.12, 1.12], x: [-50, 50], y: [0, -10], r: [0, 0]},
+    {s: [1.06, 1.16], x: [20, -20], y: [15, -15], r: [-1.2, 0.6]},
+  ][bien_the % 4];
+  const L = (v) => v[0] + (v[1] - v[0]) * mem(p);
+  const ghim = spring({frame: f - Math.round(0.45 * fps), fps, config: {damping: 11, stiffness: 120}});
+  const nhanA = mem(clamp((f / fps - 0.9) / 0.4, 0, 1));
+  const song = ((f / fps) % 1.6) / 1.6;
+  return (
+    <AbsoluteFill style={{background: '#0d1217', overflow: 'hidden'}}>
+      <AbsoluteFill style={{transformOrigin: `${CX}px ${CY}px`,
+        transform: `translate(${L(cam.x) * 0.5}px, ${L(cam.y) * 0.5}px) scale(${L(cam.s)}) rotate(${L(cam.r)}deg)`}}>
+        <Img src={staticFile(anh)} style={{width: W, height: H, objectFit: 'cover'}} />
+      </AbsoluteFill>
+      <AbsoluteFill style={{background: 'radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, rgba(0,0,0,0.55) 100%)'}} />
+      <svg width={W} height={H} style={{position: 'absolute'}}>
+        {ghim > 0.05 && [0, 0.5].map((d, i) => {
+          const q = (song + d) % 1;
+          return <circle key={i} cx={CX} cy={CY} r={30 + 170 * q} fill="none" stroke="#ffd400" strokeWidth={5 * (1 - q)}
+            opacity={(1 - q) * clamp(ghim, 0, 1)} />;
+        })}
+        <g transform={`translate(${CX}, ${CY - 260 * (1 - clamp(ghim, 0, 1.2))})`} opacity={clamp(ghim * 2, 0, 1)}>
+          <ellipse cx={0} cy={6} rx={22} ry={7} fill="rgba(0,0,0,0.45)" />
+          <path d="M0,0 C-10,-22 -30,-34 -30,-58 A30,30 0 1 1 30,-58 C30,-34 10,-22 0,0 Z" fill="#ff4d3d" stroke="#fff" strokeWidth="5" />
+          <circle cx={0} cy={-58} r={11} fill="#fff" />
+        </g>
+      </svg>
+      {ten && (
+        <div style={{position: 'absolute', left: Math.min(CX + 46, W - 520), top: CY - 120, opacity: nhanA,
+          transform: `translateX(${(1 - nhanA) * 30}px)`, display: 'flex', alignItems: 'center'}}>
+          <div style={{width: 40 * nhanA, height: 4, background: '#ffd400', marginRight: 10}} />
+          <div style={{background: 'rgba(255,255,255,0.95)', color: '#1d1a16', fontFamily: FONT, fontSize: 56, fontWeight: 900,
+            padding: '10px 30px', borderRadius: 14, borderLeft: `12px solid ${CAM}`, boxShadow: '0 10px 30px rgba(0,0,0,0.55)',
+            whiteSpace: 'nowrap'}}>{ten}</div>
         </div>
       )}
     </AbsoluteFill>
   );
 };
 
-export const MinhHoa = ({nen_mo = true, giay = 6, nen = [], kieu = 'quy_trinh', tieu_de = '', chu_the = '', bieu_tuong = '', muc = [], vai = [],
+export const MinhHoa = ({khuon = '', so = '', hoi = false, t_so = 0.6, gia_tri = [], nhan_gt = [], bo_cuc = '', anh = '', ten = '', bien_the = 0, nen_mo = true, giay = 6, nen = [], kieu = 'quy_trinh', tieu_de = '', chu_the = '', bieu_tuong = '', muc = [], vai = [],
   hanh_dong = []}) => (
   <AbsoluteFill style={{fontFamily: FONT, overflow: 'hidden'}}>
-    <Nen nen={nen} mo={nen_mo} />
-    <TieuDe chu={kieu === 'cau_tao' || kieu === 'dien_canh' ? '' : tieu_de} />
+    {kieu !== 'ban_do_ve' && <Nen nen={nen} mo={nen_mo} />}
+    <TieuDe chu={kieu === 'cau_tao' || kieu === 'dien_canh' || kieu === 'ban_do_ve' ? '' : tieu_de} />
     {kieu === 'cau_tao' && <CauTao chu_the={chu_the} bieu_tuong={bieu_tuong} muc={muc} />}
     {kieu === 'quy_trinh' && <QuyTrinh muc={muc} />}
     {kieu === 'vong_doi' && <VongDoi muc={muc} giay={giay} />}
     {kieu === 'mo_phong' && <MoPhong vai={vai} hanh_dong={hanh_dong} />}
-    {kieu === 'dien_canh' && <DienCanh vai={vai} hanh_dong={hanh_dong} />}
+    {kieu === 'dien_canh' && <DienCanh vai={vai} hanh_dong={hanh_dong} bo_cuc={bo_cuc} khuon={khuon} so={so} hoi={hoi}
+      t_so={t_so} gia_tri={gia_tri} nhan_gt={nhan_gt} />}
+    {kieu === 'ban_do_ve' && <BanDoVe anh={anh} ten={ten} bien_the={bien_the} />}
   </AbsoluteFill>
 );

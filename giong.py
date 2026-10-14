@@ -30,7 +30,7 @@ def _dat_moc(canh):
     t = 0.0
     for c in canh:                                       # dựng lại mốc thời gian theo giọng thật
         if c.get("giong_dai"):
-            c["dai"] = round(c["giong_dai"] + KHOANG_LANG, 2)
+            c["dai"] = round(c["giong_dai"] + KHOANG_LANG + float(c.get("nghi_sau") or 0), 2)   # (nghỉ X): lặng thêm X giây
         c["bat_dau"] = round(t, 2)
         t += c["dai"]
     log(f"    tổng thời lượng theo giọng: {t:.0f}s")

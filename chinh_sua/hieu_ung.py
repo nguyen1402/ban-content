@@ -172,8 +172,8 @@ def dat(script, ds, SEC=1_000_000):
             seg.add_keyframe(KP.alpha, d - 1000, 0.0)
         else:                                                # bản đồ / highlight: hiện mờ vào, mờ ra
             seg.add_keyframe(KP.alpha, 0, 0.0)
-            seg.add_keyframe(KP.alpha, int(0.25 * SEC), 1.0)
-            seg.add_keyframe(KP.alpha, max(d - int(0.3 * SEC), int(0.4 * SEC)), 1.0)
+            seg.add_keyframe(KP.alpha, int(0.5 * SEC), 1.0)        # 14/10 user "nháy": vào/ra 0,5 s cho nền tối dịu
+            seg.add_keyframe(KP.alpha, max(d - int(0.5 * SEC), int(0.6 * SEC)), 1.0)
             seg.add_keyframe(KP.alpha, d - 1000, 0.0)
         script.add_segment(seg, track_name="hieu_ung")
     return len(ds)

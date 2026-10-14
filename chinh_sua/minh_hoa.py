@@ -1,3 +1,4 @@
+import re
 # -*- coding: utf-8 -*-
 """Dựng các lớp minh hoạ do dieu_phoi.py chọn (13/10 user) -> clip đặt trên track 'hieu_ung' (toàn khung):
 
@@ -24,10 +25,87 @@ AM_HANH_DONG = {"xuat_hien": "pop", "an": "pop", "sinh_soi": "pop", "bay_toi": "
 #: (hoạt cảnh ~HOAT_CANH s) phải đứng yên thêm GIU_CUOI s rồi mới tắt; cảnh sau không được cắt đuôi ngắn hơn mức đó.
 HOAT_CANH = 1.0
 GIU_CUOI = 2.0
-KHOANG_NGAT = 4.0          # 13/10: hai hành động cách hơn 4 s -> tắt cảnh ở giữa, bật lại đúng lúc hành động sau
+KHOANG_NGAT = 4.0
+DI_TRUOC = 0.5             # 14/10 user: hình hiện TRƯỚC lời ~0,5 s (người xem nghe tới thì hình đã rõ)
+KHOANG_GIUA = 2.0          # 14/10 user: ít nhất 2 s footage thật giữa hai lớp minh hoạ (video có nhịp, không ngợp)
+
+
+def _ve_day_du(y, ds):
+    """Mô tả vẽ đứng riêng được: "SAME as actor N but X" -> "<mô tả vai N>, but X" (vẽ một mình thì không có actor N)."""
+    import re
+    ve = str(y.get("ve") or "").strip()
+    m = re.match(r"\s*same as (?:actor |subject )?(\d)\s*,?\s*(.*)$", ve, re.I | re.S)
+    if m and int(m.group(1)) < len(ds):
+        goc = str(ds[int(m.group(1))].get("ve") or "").strip().rstrip(".")
+        ve = f"{goc}, {m.group(2).strip()}" if goc else m.group(2).strip()
+    return ve
+
+
+def _toi_da_vai(x):
+    """Số vai tối đa: cảnh LIỆT KÊ tới 6 (mỗi mục một vai), cảnh thường 4."""
+    if str(x.get("bo_cuc") or "").lower() == "liet_ke":
+        return 6
+    return 3 if str(x.get("khuon") or "") == "hanh_dong" else 4
+
+
+def _vt(v):
+    """Chỗ đứng ChatGPT ghi (có thể có dấu: "giữa", "trái", "phải") -> trai/giua/phai hoặc ""."""
+    import unicodedata
+    t = unicodedata.normalize("NFD", str(v or "")).encode("ascii", "ignore").decode().lower().strip()
+    return t if t in ("trai", "giua", "phai") else ""          # 13/10: hai hành động cách hơn 4 s -> tắt cảnh ở giữa, bật lại đúng lúc hành động sau
 LAM = {"xuat_hien", "bien_thanh", "bay_toi", "tan_cong", "bao_vay", "lan_ra", "sinh_soi", "bo_chay", "an", "mang_di",
        "lon_len", "bien_mat", "tach_ra", "ket_hop", "gam", "keo_di", "thay_the", "thu_nho"}
 BAN_DO = ("khoanh_vung", "duong_di", "lan_rong")
+VE_BAN_DO = ("ban_do_ve",)   # 14/10 user: địa điểm nhắc NHANH -> bản đồ AI vẽ (đa phong cách) thay vì vệ tinh phóng từ trên cao
+
+
+def _ve_ban_do(x):
+    """Bản đồ AI vẽ cho một địa điểm -> "bando/<băm>.png" (trong remotion/public) hoặc None. Soát chữ: có chữ thì vẽ lại."""
+    import hashlib
+    import anh_ve
+    import loc_chu
+    from common import CACHE_CHUNG, doc_json, ghi_json
+    from PIL import Image
+    pub = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "remotion", "public", "bando")
+    os.makedirs(pub, exist_ok=True)
+    # 14/10 user: phong cách CỐ ĐỊNH "siêu thực ảnh chụp vệ tinh" (đa dạng nằm ở chuyển động máy quay, 4 kiểu)
+    noi = str(x.get("ve") or x.get("dia_danh") or "")
+    prompt = (f"Create a hyper-realistic satellite photograph (like a real high-resolution orbital image, natural colours, "
+              f"real terrain, coastlines, rivers, cities and clouds) of {noi}. The place {x.get('dia_danh', '')} is exactly at the "
+              f"CENTRE of the image and subtly highlighted (slightly brighter, a soft glowing border) while the surroundings "
+              f"stay natural and slightly darker. Wide 16:9 landscape, top-down view. Absolutely NO text anywhere: no place "
+              f"names, no labels, no letters, no numbers, no legend, no compass, no frame, no map graphics.")
+    k = hashlib.md5((prompt + "|cat83").encode("utf-8")).hexdigest()[:14]
+    so = os.path.join(CACHE_CHUNG, "ban_do_ve.json")
+    v = (doc_json(so, {}) or {}).get(k)
+    if v and os.path.isfile(os.path.join(pub, os.path.basename(v))):
+        return v
+    for lan in range(2):
+        f = anh_ve.ve_prompt(prompt if lan == 0 else prompt + " Remove ALL writing.", pub, f"_{k}_{lan}.png")
+        if not f:
+            return None
+        out = os.path.join(pub, f"{k}.png")
+        im = Image.open(f).convert("RGB")
+        # dấu ✦ Gemini tự đóng ở ~(91% ngang, 84% dọc): cắt 17% mép PHẢI + DƯỚI (giữ 16:9); tâm vùng (giữa ảnh gốc) nay ở
+        # 0,5/0,83 ≈ 60% khung -> MinhHoa.jsx BanDoVe đặt ghim tại TAM_BDV
+        w, h = im.size
+        im = im.crop((0, 0, int(w * 0.83), int(h * 0.83))).resize((w, h), Image.LANCZOS)
+        im.save(out)
+        os.remove(f)
+        thu = out[:-4] + "_thu.jpg"
+        im.save(thu, quality=90)
+        co_chu = loc_chu.co_chu_anh(thu)
+        for z in (thu, thu + ".chu3.json"):
+            if os.path.isfile(z):
+                os.remove(z)
+        if not co_chu:
+            d = doc_json(so, {}) or {}
+            d[k] = f"bando/{k}.png"
+            ghi_json(so, d)
+            return f"bando/{k}.png"
+        log(f"    ! bản đồ vẽ '{x.get('ten_vi')}' lần {lan + 1}: có chữ — vẽ lại")
+        os.remove(out)
+    return None
 
 
 def _tim(cau_ds, moc):
@@ -74,10 +152,11 @@ def _gio_dien_canh(x, ds_c, ke):
       (sớm hơn trong hai mốc, không trước lúc cảnh bật); vai là kết quả bien_thanh / chủ thể xuat_hien thì hiện ở hành động đó;
     - cảnh tắt sau hành động cuối 2-3,5 s (kéo tới hết câu nếu lời còn nói tiếp).
     -> {bd, dai, hd: [{ai, lam, toi, nhan, t(tuyệt đối)}], vao: [giờ tuyệt đối | None]} hoặc None."""
-    tim_o = ds_c + ([ke] if ke else [])
+    tim_o = ds_c                                             # 14/10 user: không lấn sang câu mới -> không tìm mốc ở câu kế
+    chan = (ke["t0"] - 0.05) if ke else max(c["t1"] for c in ds_c) + 0.4   # cảnh phải tắt trước khi câu kế bắt đầu
     vai = x.get("vai") or []
     hd = []
-    for y in (x.get("hanh_dong") or [])[:5]:
+    for y in (x.get("hanh_dong") or [])[:8 if str(x.get("bo_cuc") or "").lower() == "liet_ke" else 5]:   # liệt kê: mỗi mục trước+sau
         try:
             ai = int(y.get("ai"))
             toi = None if y.get("toi") in (None, "", "null") else int(y.get("toi"))
@@ -87,13 +166,35 @@ def _gio_dien_canh(x, ds_c, ke):
             continue
         if y["lam"] == "bien_thanh" and toi is None:
             continue
+        if y["lam"] == "bien_thanh" and "same as" not in str((vai[toi] or {}).get("ve") or "").lower():
+            y = dict(y, lam="xuat_hien")                     # 14/10: không biến thứ này thành THỨ KHÁC — thứ kia hiện thêm
+            ai, toi = toi, None
         t = _tim(tim_o, y.get("moc"))
         if t is None:
             continue
         hd.append({"ai": ai, "lam": y["lam"], "toi": toi, "nhan": str(y.get("nhan") or ""), "t": t})
     hd.sort(key=lambda h: h["t"])
-    for k in range(1, len(hd)):                               # hai hành động sát nhau: cách ít nhất 0,6 s
-        hd[k]["t"] = max(hd[k]["t"], hd[k - 1]["t"] + 0.6)
+    khuon = str(x.get("khuon") or "")
+    if not hd and khuon in ("con_so", "so_sanh"):              # khuôn con số / so sánh: không cần nhịp chuyển động
+        t = _tim(ds_c, x.get("moc_so") or x.get("moc"))
+        if t is not None:
+            hd = [{"ai": 0, "lam": "xuat_hien", "toi": None, "nhan": "", "t": t}]
+    # 14/10 user: nhịp quá sát (săn rồi chết ngay) -> nhịp sau chờ nhịp trước diễn xong (>= 1,2 s); không vượt cuối câu
+    goc_t = [h["t"] for h in hd]
+    for cach in (1.2, 1.0, 0.85, 0.7):                       # 14/10: câu dồn nhiều nhịp -> nhịp sát lại chứ không bỏ nhịp cuối
+        gon = []
+        for h, t in zip(hd, goc_t):
+            h["t"] = t
+            if gon:
+                h["t"] = max(h["t"], gon[-1]["t"] + cach)
+                if h["t"] > chan - 0.8:
+                    continue                                 # hết chỗ trong câu: bỏ nhịp này thay vì lấn câu sau
+            gon.append(h)
+        if len(gon) == len(hd):
+            break
+    hd = gon
+    for h in hd:                                             # 14/10 user: hình đi trước lời
+        h["t"] = round(h["t"] - DI_TRUOC, 2)
     if not hd:
         return []
     def _cau_cua(t):                                         # câu chứa giờ t (trong các câu của cảnh + câu kế)
@@ -108,13 +209,20 @@ def _gio_dien_canh(x, ds_c, ke):
             nhom[-1].append(h)
     het_cau = max(c["t1"] for c in ds_c) + 0.3
     ra = []
+    dau_cau = ds_c[0]["t0"] - 0.2
+    ten_som = [t for t in (_tim(tim_o, (v or {}).get("ten")) if isinstance(v, dict) else None for v in vai)
+               if t is not None and t >= dau_cau]
     for k, g in enumerate(nhom):
         bd = g[0]["t"] - 0.35
+        if k == 0 and ten_som:                               # 14/10: mở cảnh ở lần nhắc SỚM NHẤT (nhịp đầu hoặc tên vai
+            bd = min(bd, min(ten_som) - DI_TRUOC - 0.35)     # được đọc) — vai chỉ được nhắc tên vẫn hiện đúng lúc
+        bd = max(0.0, bd)                                    # đi trước lời nhưng không trước đầu video
         cuoi = g[-1]["t"]
         tran = nhom[k + 1][0]["t"] - 0.9 if k + 1 < len(nhom) else 1e9
         ket = next((c["t1"] for c in tim_o if c["t0"] - 0.3 <= cuoi <= c["t1"] + 0.3), cuoi)   # hết câu chứa nhịp cuối
         it_nhat = cuoi + HOAT_CANH + GIU_CUOI                # nhịp cuối hiện xong + đứng yên 2 s cho người xem kịp hiểu
         kt = max(min(tran, max(it_nhat, min(max(het_cau, ket + 0.3), cuoi + 5.0))), min(it_nhat, tran + 0.9))
+        kt = min(kt, chan)                                   # 14/10 user: tuyệt đối không lấn sang câu mới
         vao = []
         for i, v in enumerate(vai):
             dung = [h["t"] for h in g if h["ai"] == i or h["toi"] == i]
@@ -125,13 +233,19 @@ def _gio_dien_canh(x, ds_c, ke):
                 ten = None                                   # tên được nhắc ở nhóm khác
             if sau:
                 vao.append(None)
-            elif (v or {}).get("vi_tri") in ("trai", "giua", "phai") and k == 0:
-                vao.append(bd)                               # vai ChatGPT đặt sẵn chỗ: có mặt ngay khi cảnh mở
-            elif dung or ten is not None:
-                vao.append(max(bd, min([t - 0.35 for t in dung] + ([ten - 0.1] if ten is not None else []))))
+            elif dung or ten is not None:                    # 14/10: vi_tri CHỈ là chỗ đứng — vai hiện khi được nhắc / tham gia
+                vao.append(max(bd, min([t - 0.35 for t in dung] + ([ten - DI_TRUOC] if ten is not None else []))))
             else:
                 vao.append(None)                             # vai không dính tới nhóm này: không hiện
-        ra.append({"bd": round(bd, 2), "dai": round(max(2.4, kt - bd), 2), "hd": g, "vao": vao})
+        if khuon == "co_che" and vao:                        # cơ chế: vật NGOÀI hiện trước, kính lúp mở sau
+            co = [v for v in vao if v is not None]
+            vao[0] = min(co) if co else bd
+        if kt - bd < 1.6:
+            continue
+        t_so = _tim(ds_c, x.get("moc_so")) if khuon == "con_so" else None
+        if t_so is not None:
+            t_so -= DI_TRUOC
+        ra.append({"bd": round(bd, 2), "dai": round(kt - bd, 2), "hd": g, "vao": vao, "t_so": t_so})
     gop = []                                                 # hai phần cách nhau < 1 s: nối liền (không nháy tắt-bật)
     for r in ra:
         if gop and r["bd"] - (gop[-1]["bd"] + gop[-1]["dai"]) < 1.0:
@@ -152,7 +266,7 @@ def _render_so_do(jobs):
     os.makedirs(thu, exist_ok=True)
     ra, viec = {}, []
     for khoa, giay, pr in jobs:
-        out = os.path.join(thu, hashlib.md5((json.dumps(pr, ensure_ascii=False, sort_keys=True) + f"|{giay}|v12")
+        out = os.path.join(thu, hashlib.md5((json.dumps(pr, ensure_ascii=False, sort_keys=True) + f"|{giay}|v32")
                                             .encode()).hexdigest()[:16] + ".mp4")
         ra[khoa] = out
         if not (os.path.isfile(out) and os.path.getsize(out) > 5000):
@@ -172,7 +286,7 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
     ung = []
     for x in de_xuat:
         k = x.get("kieu")
-        if k not in SO_DO + BAN_DO:
+        if k not in SO_DO + BAN_DO + VE_BAN_DO:
             continue
         c = theo_i.get(x["cau"])
         if not c:
@@ -191,7 +305,13 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
         kt = ds_c[-1]["t1"] + 0.4
         if k in ("mo_phong", "dien_canh") and bd > MO_PHONG_DEN:
             continue
-        dai = round(max(4.5, min(8.0, kt - bd)) if k in BAN_DO else max(5.5, min(14.0, kt - bd)), 2)
+        dai = round(max(4.5, min(8.0, kt - bd)) if k in BAN_DO else max(3.8, min(6.5, kt - bd)) if k in VE_BAN_DO
+                    else max(5.5, min(14.0, kt - bd)), 2)
+        ke = theo_i.get(x.get("den_cau", x["cau"]) + 1)
+        if ke:                                               # 14/10 user: không lấn sang câu mới
+            dai = round(min(dai, ke["t0"] - 0.05 - bd), 2)
+        if dai < 2.0:
+            continue
         if any(bd < b_ + 0.3 and bd + dai > a_ - 0.3 for a_, b_ in vt):
             continue                                         # trùng cảnh bản đồ vệ tinh đã có trên track hình
         ung.append((bd, dai, k, x, ds_c))
@@ -201,17 +321,20 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
     def _xong(u):                                            # sớm nhất được tắt: nhịp cuối hiện xong + giữ GIU_CUOI s
         g = (u[3] or {}).get("_gio")
         return (g["hd"][-1]["t"] if g and g.get("hd") else u[0] + 1.0) + HOAT_CANH + GIU_CUOI
+    # 14/10 user: chừa >= KHOANG_GIUA s footage giữa hai lớp; khi tranh chỗ giữ lớp CÓ GIÁ TRỊ hơn (không phải lớp đến trước)
+    def _uu(u):
+        x_ = u[3] or {}
+        kh_ = str(x_.get("khuon") or "")
+        if u[2] == "dien_canh":
+            return 0 if kh_ in ("truoc_sau", "hanh_dong", "co_che", "so_sanh", "") else 1
+        return 2 if u[2] in VE_BAN_DO else 3
     nhan = []
-    for u in ung:
+    for u in sorted(ung, key=lambda z: (_uu(z), z[0])):
         u = list(u)
-        if nhan:
-            tr = nhan[-1]
-            if u[0] < tr[0] + tr[1] + 0.15:
-                if u[0] - 0.15 >= _xong(tr):
-                    tr[1] = round(u[0] - 0.15 - tr[0], 2)
-                else:
-                    continue
+        if any(u[0] < v[0] + v[1] + KHOANG_GIUA and v[0] < u[0] + u[1] + KHOANG_GIUA for v in nhan):
+            continue
         nhan.append(u)
+    nhan.sort(key=lambda z: z[0])
     # ---- bản đồ
     viec, ma = [], {}
     for n, (bd, dai, k, x, ds_c) in enumerate(nhan):
@@ -232,29 +355,63 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
     from concurrent.futures import ThreadPoolExecutor
 
     def _vai_canh(x):
-        ds = [y for y in (x.get("vai") or []) if isinstance(y, dict)][:4]
-        bo = anh_tach.bo_canh(ds) if BO_VAI_AI else None
-        if bo:                                               # 13/10 user: AI vẽ cả bộ vai một lượt
-            return [{"ten": str(y.get("ten") or ""), "src": b["src"],
-                     "vi_tri": y.get("vi_tri") if y.get("vi_tri") in ("trai", "giua", "phai") else ""} for y, b in zip(ds, bo)]
+        ds = [y for y in (x.get("vai") or []) if isinstance(y, dict)][:_toi_da_vai(x)]
+        bo = anh_tach.bo_canh_nhom(ds) if BO_VAI_AI else [None] * len(ds)
         vai, da_url = [], []
-        for y in (x.get("vai") or [])[:4]:
-            r = anh_tach.lay(str(y.get("anh") or ""), tranh=da_url, ve=str(y.get("ve") or "") or None,
-                             truu_tuong=bool(y.get("truu_tuong"))) if isinstance(y, dict) else None
+        for y, b in zip(ds, bo):
+            if b:                                            # 13/10 user: AI vẽ cả bộ vai (theo nhóm nhỏ)
+                vai.append({"ten": str(y.get("ten") or ""), "src": b["src"], "vi_tri": _vt(y.get("vi_tri")),
+                            "dan": bool(y.get("dan"))})
+                continue
+            r = None
+            ve = _ve_day_du(y, ds)
+            if BO_VAI_AI and ve:                             # 14/10: bộ hỏng -> AI vẽ RIÊNG vai này (ảnh web cắt nền hay ra rác)
+                r = anh_tach.lay("", ve=ve)
+            bien_the = re.match(r"\s*same as (?:actor |subject )?(\d)", str(y.get("ve") or ""), re.I)
+            if not r and bien_the:                           # trạng thái "sau" mà AI vẽ hỏng: ảnh web không cùng vật -> dùng
+                goc = int(bien_the.group(1))                 # lại ảnh vai gốc (đỡ hơn một mảnh rác lạ)
+                if goc < len(vai) and vai[goc]:
+                    vai.append(dict(vai[goc], ten=str(y.get("ten") or ""), vi_tri=_vt(y.get("vi_tri"))))
+                    continue
+            if not r:
+                r = anh_tach.lay(str(y.get("anh") or ""), tranh=da_url, ve=str(y.get("ve") or "") or None,
+                                 truu_tuong=bool(y.get("truu_tuong")))
             if r and r.get("url"):
                 da_url.append(r["url"])
-            vai.append({"ten": str(y.get("ten") or ""), "src": r["src"],
-                        "vi_tri": y.get("vi_tri") if y.get("vi_tri") in ("trai", "giua", "phai") else ""} if r else None)
+            vai.append({"ten": str(y.get("ten") or ""), "src": r["src"], "vi_tri": _vt(y.get("vi_tri")),
+                        "dan": bool(y.get("dan"))} if r else None)
         return vai
     dc = [u[3] for u in nhan if u[2] == "dien_canh"]
-    log(f"    lấy ảnh vai cho {len(dc)} diễn cảnh (ảnh thật tách nền / AI vẽ)…")
+    bdv = [u[3] for u in nhan if u[2] == "ban_do_ve"]
+    log(f"    lấy ảnh vai cho {len(dc)} diễn cảnh (ảnh thật tách nền / AI vẽ), vẽ {len(bdv)} bản đồ…")
     with ThreadPoolExecutor(3) as ex:
         san = list(ex.map(_vai_canh, dc))
+        for x, a in zip(bdv, ex.map(_ve_ban_do, bdv)):
+            x["_anh"] = a
     for x, v in zip(dc, san):
         x["_vai"] = v
+    import unicodedata
+    dau_tien = {}
+    for x in sorted(dc, key=lambda z: z["_gio"]["bd"]):     # 14/10: một vật một ảnh xuyên suốt video
+        for y, v in zip([y for y in (x.get("vai") or []) if isinstance(y, dict)], x["_vai"]):
+            if not v or "same as" in str(y.get("ve") or "").lower():
+                continue
+            kt_ = unicodedata.normalize("NFC", str(y.get("ten") or "")).lower().strip()
+            if kt_ in dau_tien:
+                v["src"] = dau_tien[kt_]
+            else:
+                dau_tien[kt_] = v["src"]
     # ---- sơ đồ trên nền video tối
     jobs, ma_am = [], {}
     for n, (bd, dai, k, x, ds_c) in enumerate(nhan):
+        if k == "ban_do_ve":
+            if x.get("_anh"):
+                import hashlib
+                bt = int(hashlib.md5(str(x.get("dia_danh")).encode("utf-8")).hexdigest(), 16) % 4   # kiểu máy quay đổi theo nơi
+                jobs.append((n, dai, {"kieu": "ban_do_ve", "nen": [], "anh": x["_anh"], "ten": x.get("ten_vi") or "",
+                                      "bien_the": bt}))
+                ma[n] = f"bản đồ vẽ (vệ tinh siêu thực): {x.get('ten_vi')}"
+            continue
         if k not in SO_DO:
             continue
         pr = {"kieu": k, "nen": bang_giay._clips(canh, bd, bd + dai)}                      # noqa: SLF001
@@ -263,14 +420,54 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
             g = x["_gio"]
             hd = [dict(h, t=round(h["t"] - bd, 2)) for h in g["hd"]
                   if h["ai"] < len(vai) and vai[h["ai"]] and (h["toi"] is None or (h["toi"] < len(vai) and vai[h["toi"]]))]
-            if not any(h["lam"] != "xuat_hien" for h in hd) and not any(
+            khuon = str(x.get("khuon") or "")
+            lk = str(x.get("bo_cuc") or "").lower() == "liet_ke"
+            if not lk and khuon not in ("con_so", "so_sanh") and not any(h["lam"] != "xuat_hien" for h in hd) and not any(
                     h["lam"] != "xuat_hien" for h in (x.get("hanh_dong") or []) if isinstance(h, dict)):
                 log(f"    ! diễn cảnh câu {x['cau']}: không còn hành động chuyển động (chỉ xuất hiện / thiếu ảnh / mốc không khớp lời) — bỏ")
                 continue
             for k2, v in enumerate(vai):
                 if v:
                     v["vao"] = None if k2 >= len(g["vao"]) or g["vao"][k2] is None else round(max(0.0, g["vao"][k2] - bd), 2)
-            pr.update(vai=[v or {"ten": "", "src": ""} for v in vai], hanh_dong=hd)
+            if lk:                                           # 14/10 user: LIỆT KÊ = mọi mục CÙNG hiện, chia cột, chỉ trạng thái "sau"
+                den = {h["ai"]: h["toi"] for h in hd if h["lam"] == "bien_thanh" and h["toi"] is not None}
+                dich = set(den.values())
+                moc_i = {}
+                for i in range(len(vai)):
+                    ts = [h["t"] for h in hd if h["ai"] == i or h["toi"] == i]
+                    if vai[i] and vai[i].get("vao") is not None:
+                        ts.append(vai[i]["vao"])
+                    if ts:
+                        moc_i[i] = min(ts)
+                muc = []
+                for i in sorted(moc_i, key=moc_i.get):
+                    if i in dich:
+                        continue
+                    j, da = i, {i}
+                    while j in den and den[j] not in da:     # theo chuỗi biến thành tới trạng thái cuối
+                        j = den[j]
+                        da.add(j)
+                    if vai[j] or vai[i]:
+                        muc.append(dict(vai[j] or vai[i]))
+                if len(muc) < 2:
+                    log(f"    ! diễn cảnh câu {x['cau']}: liệt kê còn < 2 mục có ảnh — bỏ")
+                    continue
+                t0 = max(0.1, min(moc_i.values()) if moc_i else 0.3)
+                for k2, v in enumerate(muc):
+                    v["vao"] = round(t0 + 0.12 * k2, 2)
+                vai, hd = muc, []
+            pr.update(vai=[v or {"ten": "", "src": ""} for v in vai], hanh_dong=hd,
+                      bo_cuc="liet_ke" if lk else "", khuon=khuon)
+            if khuon == "con_so":
+                ts = g.get("t_so")
+                pr.update(so=str(x.get("so") or ""), hoi=False,   # 14/10 user: không gắn "?" vào con số
+                          t_so=round(max(0.3, (ts - bd) if ts is not None else 0.6), 2))
+            elif khuon == "so_sanh":
+                try:
+                    gt = [float(str(z).replace(",", ".")) for z in (x.get("gia_tri") or [])][:2]
+                except ValueError:
+                    gt = []
+                pr.update(gia_tri=gt if len(gt) == 2 else [], nhan_gt=[str(z) for z in (x.get("nhan_gt") or [])][:2])
             am, cuoi_am = [], -9.0
             for h in hd:                                     # tiếng động đúng lúc hành động (cách nhau >= 0,5 s)
                 t_am = round(bd + h["t"] + (0.25 if h["lam"] == "bien_thanh" else 0.0), 2)
