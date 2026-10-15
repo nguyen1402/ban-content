@@ -27,6 +27,18 @@ TT = {}                      # dự án -> trạng thái chạy nền {dang, xon
 _KHOA = threading.Lock()
 
 
+# 14/10 user: "video dùng lại nhiều lần mà cách sát nhau" (đo chuot_newyor: 87 video cho 287 đoạn, 121 lần cùng video
+# trong vòng 30 s, có chỗ cách 3 s) -> giãn cách + giới hạn lượt; hết video mới thì ẢNH (Gemini vẽ riêng chỗ đó) lấp.
+CACH_LAP = 60.0             # cùng một video / ảnh cách nhau ít nhất bấy nhiêu giây trên timeline
+CACH_LAP_LUI = 25.0         # hết video mới VÀ không có ảnh lấp: nới còn bấy nhiêu (vẫn không sát nhau)
+LUOT_TOI_DA = 3             # mỗi video dùng tối đa 3 lần cả bài...
+GIAY_MOI_LUOT = 10.0        # ...và 1 lần cho mỗi 10 s độ dài của nó (clip 26 s -> 2 lần)
+LUOT_ANH = 2                # ảnh thường dùng tối đa 2 lần; ảnh Gemini vẽ riêng cho một cảnh (cho_canh) chỉ 1 lần
+KHOP_KEM = 0.05             # 15/10 user chọn 0,05 (Flow 0 điểm); 14/10 user (tàu Anh cập cảng 1770 -> clip "đường phố, xe hơi"): video tốt nhất dưới mức này
+#                             (điểm gốc SigLIP theo mô tả khung hình; đo chuot_newyor: 37/269 đoạn) -> chỗ THIẾU, Gemini vẽ
+DIA_DANH_DAU = False        # 14/10 user: KHÔNG ép ảnh địa danh lên đầu cảnh địa điểm (Google trả hồ Lake George cho
+#                             "New York City") — ảnh địa danh chấm như mọi ảnh khác
+
 BO_YOUTUBE_TU_DONG = True   # 12/10 user: không dùng video YouTube do máy tự tải (dính logo kênh); video tự tải tay vẫn dùng
 
 
@@ -154,12 +166,28 @@ def _chia(dai):
     return [(round(i * d, 2), round(d if i < n - 1 else dai - i * d, 2)) for i in range(n)]
 
 
-def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=None, nghi=()):
+def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=None, nghi=(), lan=None, t0=0.0,
+               thieu=None, rieng=None):
     """Danh sách đoạn gợi ý cho một cảnh. da_dung: {kho_id: [(bd, kt)]} — đoạn gốc đã gợi ý (tránh lặp).
     gan: video đang dùng ở các cảnh liền trước — được cộng THUONG_GAN (lấy đoạn KHÁC của chính video đó).
     truoc: {"kid", "v"} đoạn ĐỨNG NGAY TRƯỚC (cảnh trước) — 12/10 user: hai đoạn liền nhau không cùng một video và
     không gần như giống nhau (cosine > GIONG_TOI_DA). Hàm cập nhật truoc theo đoạn cuối của cảnh."""
     truoc = truoc if truoc is not None else {}
+    lan = lan if lan is not None else {}                    # kho_id -> [giây TUYỆT ĐỐI trên timeline đã dùng]
+    rieng = rieng or {}                                     # ảnh Gemini vẽ cho cảnh nào (chỉ cảnh đó được dùng)
+
+    def con_cho(kid, tong, cach, cap):
+        """14/10: video còn được dùng ở giờ hiện tại? (giãn cách `cach` s; cap: giới hạn lượt theo độ dài)"""
+        ts = lan.get(kid, [])
+        if cach and any(abs(t0 + pos - x) < cach for x in ts):
+            return False
+        return not cap or len(ts) < max(1, min(LUOT_TOI_DA, int(tong // GIAY_MOI_LUOT)))
+
+    def con_cho_anh(kid):
+        if rieng.get(kid) not in (None, canh["id"]):
+            return False
+        ts = lan.get(kid, [])
+        return len(ts) < (1 if rieng.get(kid) is not None else LUOT_ANH) and not any(abs(t0 + pos - x) < CACH_LAP for x in ts)
     # chỗ nghỉ TRONG cảnh (giây tính từ đầu cảnh); quãng (nghỉ X) chèn ở cuối cảnh KHÔNG phải chỗ đổi hình — hình cảnh
     # trước kéo dài qua đó (14/10 user)
     nghi = sorted(x for x in nghi if 0.5 < x < float(canh["dai"]) - float(canh.get("nghi_sau") or 0) - 0.5)
@@ -201,14 +229,16 @@ def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=N
                     d = rem - SHOT_MIN
             return round(d, 2) if d >= min(SHOT_MIN, rem) - 0.01 else None
 
-        def tim(tranh_lap):
+        def tim(tranh_lap, cach=CACH_LAP, cap=True):
             cand = []
             for kid, t, s, f, bien, tong, xau in S:
                 if len(s) < cs_n:
                     continue
-                cs = np.convolve(s, np.ones(cs_n) / cs_n, mode="valid")
                 if kid == truoc.get("kid"):
                     continue                                # 12/10 user: hai đoạn liền nhau không cùng một video
+                if not con_cho(kid, tong, cach, cap):
+                    continue                                # 14/10 user: vừa dùng gần đây / hết lượt
+                cs = np.convolve(s, np.ones(cs_n) / cs_n, mode="valid")
                 for i in np.argsort(-cs)[:20]:
                     vao = float(t[i])
                     cat_truoc = [b for b in bien if b <= vao]
@@ -241,7 +271,7 @@ def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=N
         dai_anh = rem if rem <= SHOT_MAX else min(3.5, rem - SHOT_MIN)
         tot_anh = None
         ten_dd = (canh.get("dia_danh_en") or "").lower() if canh.get("loai") == "dia_diem" else ""
-        if ten_dd and not doan:                             # cảnh địa điểm: đoạn ĐẦU là ảnh thật của chính nơi đó
+        if DIA_DANH_DAU and ten_dd and not doan:            # cảnh địa điểm: đoạn ĐẦU là ảnh thật của chính nơi đó
             for kid, v, dd in anhs:                         # (skill thay bằng bản đồ vệ tinh -> cho dài hơn)
                 if dd == ten_dd:
                     goc = float(v @ qv)
@@ -258,26 +288,38 @@ def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=N
                 doan.append({"loai": "anh", "kho_id": tot_anh[1], "vao": 0.0, "bd": bd, "dai": round(d_dd, 2),
                              "diem": round(tot_anh[2], 3)})
                 da_dung.setdefault(tot_anh[1], []).append((0.0, 0.0))
+                lan.setdefault(tot_anh[1], []).append(t0 + bd)
                 pos += d_dd
                 truoc.update(kid=tot_anh[1], v=None)
                 continue
         for kid, v, _dd in anhs:
+            if not con_cho_anh(kid):
+                continue
             goc = float(v @ qv)
             d_ = goc - 0.03 * len(da_dung.get(kid, []))   # ảnh đã gợi ý ở cảnh khác: kém ưu tiên
             if not any(x["kho_id"] == kid for x in doan) and (tot_anh is None or d_ > tot_anh[0]):
                 tot_anh = (d_, kid, goc)
-        if chon is None:                                    # không còn đoạn chưa dùng: cho lặp lại đoạn đã chiếu (trước khi dùng ảnh)
+        if chon is None:                                    # đoạn KHÁC (cả đoạn đã chiếu) của video còn lượt, vẫn giãn cách
             chon = chon_tu(tim(False))
+        if chon is None and tot_anh is None:                # 14/10: hết video mới + không ảnh lấp -> ghi chỗ THIẾU (Gemini
+            if thieu is not None:                           # vẽ bù rồi gợi ý lại), tạm nới giãn cách để không trống hình
+                thieu.append(round(pos, 2))
+            chon = chon_tu(tim(False, CACH_LAP_LUI, False)) or chon_tu(tim(False, 0, False))
+        if (thieu is not None and chon is not None and chon[3] < KHOP_KEM
+                and (tot_anh is None or tot_anh[2] < chon[3] + THUONG_ANH)):
+            thieu.append(round(pos, 2))                     # 14/10: video khớp KÉM, chưa ảnh nào hơn -> Gemini vẽ bù
         # 11/10 user: ảnh CHỈ bù chỗ thiếu; 12/10: video mẫu gần như không có ảnh tĩnh -> ảnh khi hết video dùng được
         if tot_anh and (chon is None or (chon[3] < VIDEO_DU_TOT and tot_anh[2] >= chon[3] + THUONG_ANH)):
             doan.append({"loai": "anh", "kho_id": tot_anh[1], "vao": 0.0, "bd": bd, "dai": round(dai_anh, 2),
                          "diem": round(tot_anh[2], 3)})
             da_dung.setdefault(tot_anh[1], []).append((0.0, 0.0))
+            lan.setdefault(tot_anh[1], []).append(t0 + bd)
             pos += dai_anh
             truoc.update(kid=tot_anh[1], v=None)
         elif chon:
             doan.append({"loai": "video", "kho_id": chon[1], "vao": chon[2], "bd": bd, "dai": chon[4], "diem": round(chon[3], 3)})
             da_dung.setdefault(chon[1], []).append((chon[2], chon[2] + chon[4]))
+            lan.setdefault(chon[1], []).append(t0 + bd)
             pos += chon[4]
             k0, k1 = int(chon[2] // BG), int(np.ceil((chon[2] + chon[4]) / BG))
             v = E_[chon[1]][k0:max(k0 + 1, k1)].mean(0)
@@ -302,19 +344,26 @@ def goi_y(du_an, ids=None, chi_canh_trong=True, mo_hinh=None, luu=True):
     from common import doc_json, ghi_json, thu_muc_du_an
     out = thu_muc_du_an(du_an)[1]
     canh = doc_json(os.path.join(out, "tu_khoa.json"), []) or []
-    kho = {k: m for k, m in dung_tay.doc_kho(du_an).items() if _ngang(m)}   # 14/10 user: bỏ hình dọc / vuông
+    kho = {k: m for k, m in dung_tay.doc_kho(du_an).items()
+           if _ngang(m) and not m.get("sai_chu_de")         # 14/10 user: bỏ hình dọc / vuông + clip sai con vật / vật chính
+           and not m.get("phong_xanh")}                     # + clip phông xanh
     mo_hinh = mo_hinh or MO_HINH_MAC_DINH
     vids, anhs = _chi_muc(kho, mo_hinh), _anh(kho, mo_hinh)
     if not vids and not anhs:
         raise ValueError("Kho dự án chưa có video/ảnh nào tải xong — tìm và tải vài video trước")
     dung = dung_tay.doc_dung(du_an)
     da_dung = {}
+    lan = {}                                                # kho_id -> giây tuyệt đối đã dùng (giãn cách 14/10)
+    bd_canh = {str(c["id"]): float(c.get("bat_dau") or 0) for c in canh}
     for cid, kh in (dung.items() if luu else []):             # đoạn người dùng đã dùng: tránh gợi ý trùng
         if kh.get("goi_y") and (ids is None or int(cid) in ids):
             continue                                        # gợi ý cũ sắp bị tính lại: không coi là "đã dùng" (lỗi 12/10)
         for d in kh.get("doan", []):
+            lan.setdefault(d["kho_id"], []).append(bd_canh.get(str(cid), 0.0) + float(d.get("bd") or 0))
             if d["loai"] == "video":
                 da_dung.setdefault(d["kho_id"], []).append((d["vao"], d["vao"] + d["dai"]))
+    rieng = {k: m["cho_canh"] for k, m in kho.items() if m.get("cho_canh") is not None}
+    thieu_ds = {}
     chon = [c for c in canh if ids is None or c["id"] in ids]
     n = 0
     ke_hoach = {}
@@ -326,8 +375,11 @@ def goi_y(du_an, ids=None, chi_canh_trong=True, mo_hinh=None, luu=True):
         kh = dung.get(str(c["id"]), {})
         if luu and chi_canh_trong and kh.get("doan") and not kh.get("goi_y"):
             continue
+        th = []
         doan = goi_y_canh(c, vids, anhs, da_dung, mo_hinh, gan, sach, truoc,
-                          [x - float(c.get("bat_dau") or 0) for x in nghi])
+                          [x - float(c.get("bat_dau") or 0) for x in nghi], lan=lan, t0=float(c.get("bat_dau") or 0),
+                          thieu=th, rieng=rieng)
+        thieu_ds[str(c["id"])] = len(th)
         gan_truoc.append({d["kho_id"] for d in doan if d["loai"] == "video"})
         gan = set().union(*gan_truoc[-2:])
         if not doan:
@@ -345,6 +397,13 @@ def goi_y(du_an, ids=None, chi_canh_trong=True, mo_hinh=None, luu=True):
         n += 1
         with _KHOA:
             TT[du_an] = dict(TT.get(du_an, {}), xong=k + 1, tong=len(chon), so_canh=n)
+    if luu:                                                 # chỗ hết video mới -> tu_dong_tim nhờ Gemini vẽ bù
+        p_th = os.path.join(out, "thieu_hinh.json")
+        cu = doc_json(p_th, {}) or {}
+        cu.update(thieu_ds)
+        ghi_json(p_th, {k: v for k, v in cu.items() if v})
+        if any(thieu_ds.values()):
+            log(f"  gợi ý: {sum(thieu_ds.values())} chỗ hết video mới (đã tạm dùng lại video cách >= {CACH_LAP_LUI:.0f} s)")
     return ke_hoach if not luu else n
 
 

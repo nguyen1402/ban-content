@@ -25,26 +25,19 @@ _P = """You are the editor of a Vietnamese documentary video. B-roll footage pla
 - "ban_do_ve": an AI-DRAWN ILLUSTRATED MAP for a place that is only MENTIONED QUICKLY (read fast, a few words) — fresher than the satellite zoom. Fields: "dia_danh" (English name with country), "ten_vi", "ve" (English: what the map shows — the place at the centre plus its surroundings, coastline, mountains, rivers or neighbouring land that make it recognisable). (It is drawn as a hyper-realistic satellite photograph.)
 - "duong_di": MOVEMENT / TRAVEL / SHIPPING / SPREAD from one named real place to another named real place far apart (neither inside the other). Fields: "tu", "den" (English names with country), "tu_vi", "den_vi", "phuong_tien": one of may_bay (airplane), tau_thuy (ship/boat), tau_hoa (train), xe (truck/car/road), di_bo (on foot), tu_lan (animal/insect/disease spreading by itself), khac.
 - "lan_rong": SPREAD from one origin to SEVERAL named real places. Fields: "goc" (English origin with country), "goc_vi", "noi": [{{"en": "...", "vi": "..."}}] (2-6 places), "phuong_tien" (as above).
-- "dien_canh": a short ANIMATED illustration with cut-out pictures (AI-drawn, realistic) over the footage. Use it ONLY where it really helps understanding: EMPHASIS (a striking number, a key question), EXPLANATION (a comparison, why something happens), MECHANISM (how something works inside), SIMULATION (an action or change the narration describes). Pick ONE template in "khuon":
-  * "truoc_sau" — something CHANGES state (collapses, burns, empties, dies, grows fat…): each changing thing is shown in its BEFORE state and switches (bien_thanh) to its AFTER state at the words that say it. When the sentence lists several changing things, "bo_cuc": "liet_ke" and do them one after another. Show ONLY the things the sentence names — never add an actor the narration does not mention.
-  * "con_so" — a striking NUMBER or a key QUESTION about an amount: ONE actor (a crowd with "dan": true when it is many) in the centre and a big counter. Extra fields: "so": the number text exactly as it should appear, short (e.g. "3 triệu con", "90%", "12.000 lán"), "moc_so": exact words where the number is said, "hoi": true when the sentence is a question (a "?" is shown right after the number).
-  * "so_sanh" — TWO things or amounts compared: two actors side by side with bars proportional to their values. Extra fields: "gia_tri": [<number for actor 0>, <number for actor 1>], "nhan_gt": ["<short label with unit, e.g. 15 dB>", "<e.g. 70 dB>"].
-  * "co_che" — what happens INSIDE something (in the body, in the gut, in a machine, under the ground): actor 0 is the outer thing shown whole; the other actors live inside a MAGNIFIER circle next to it and act there.
-  * "hanh_dong" — an ACTION between actors (hunt, attack, nibble, carry, flee…): at most 3 actors.
-  Fields (all templates):
-  "y_tuong": "<REQUIRED, write it FIRST: Vietnamese, 1-3 sentences describing what will be seen, in order>",
-  "khuon": "<one template name above>", "bo_cuc": "liet_ke" or "",
-  "vai": [{{"ten": "<Vietnamese 1-3 words>", "anh": "<English Google Images query for a REAL PHOTO of that one thing (reference); empty if none>", "ve": "<English description for the AI to DRAW it — realistic; a STATE VARIANT is written \"SAME as actor <index from 0> but …\">", "truu_tuong": <true if it cannot be photographed as one clear object>, "vi_tri": "trai" | "giua" | "phai", "dan": <true when MANY of it act together>}}] (1-3 actors; a list in "liet_ke" may have up to 6 including their after-states),
-  "hanh_dong": 1-5 beats (up to 8 in "liet_ke": one beat for each item and each change) [{{"ai": <actor index from 0>, "lam": one of xuat_hien, bien_thanh (SAME thing changes state into actor "toi"), bay_toi, tan_cong, gam, an, keo_di, thay_the, bao_vay, lan_ra, sinh_soi, bo_chay, mang_di, lon_len, thu_nho, bien_mat, tach_ra, ket_hop, "toi": <target index or null>, "moc": "<exact words>"}}].
-  Examples (other topics — adapt the IDEA, never copy): "floods, fires and strikes hit the town" -> truoc_sau, liet_ke: a calm river -> SAME river flooding; a house -> SAME house on fire; a factory -> SAME factory with picket signs, each at its words. "Why did 4 million bees vanish?" -> con_so: a swarm of bees, so "4 triệu con", hoi true. "A cheetah runs 110 km/h, a horse 70" -> so_sanh with gia_tri [110, 70]. "the virus enters the cell and copies itself" -> co_che: a cell (outer), inside the magnifier the virus bay_toi the nucleus then sinh_soi. "the hawk dives and seizes the snake" -> hanh_dong.
+- "dien_canh": ONE still illustration (AI-drawn, realistic, background removed) shown over the footage for a WHOLE idea: it appears ONCE when the idea starts and stays until the idea has been read — no animation, no step-by-step build-up, nothing moves. Use it ONLY where a picture really helps understanding (emphasis, explanation, mechanism, a chain of events). Pick "khuon":
+  * "tong_quat" (default) — ONE picture that sums up the WHOLE idea at once. An action or scene -> one realistic picture with the action ALREADY HAPPENING (a black rat squeezing through a crack in a wall; a brown rat digging a burrow through packed soil). A chain, cycle, process or cause -> effect -> ONE diagram made of realistic pictures connected by bold arrows (a cycle drawn in a circle). Something hidden underground or inside -> a 3D cut-away cross-section block showing it. Fields: "ve" (English, detailed description of that ONE picture), "tieu_de" (Vietnamese caption 3-8 words summing up the idea, numbers as digits).
+  * "liet_ke" — the narration LISTS 2-5 separate things: each is its own picture, all shown together side by side at once. Fields: "vai": [{{"ten": "<Vietnamese 1-4 words>", "ve": "<English: that ONE thing, already in the state the narration says, e.g. a road caving in, an underground cable chewed with sparks>"}}]. ONE item = ONE thing: never two things in one item, never the same thing twice. Show the things AFFECTED or named — not the doer again when the doer is the obvious subject of the video.
+  * "con_so" — a striking NUMBER: ONE picture plus the number. Fields: "ve" (English), "so" (the number written with DIGITS exactly as it should appear, short, keeping a qualifier word that is said: "Gần 90%", "3 triệu con", "12.000 lán" — NEVER spell numbers out in words), "moc_so" (exact words where the number is said).
+  Fields (all): "y_tuong" (REQUIRED, write it FIRST: Vietnamese 1-2 sentences — what the one picture shows), "khuon".
+  Examples (other topics — adapt the IDEA, never copy): "floods, fires and strikes hit the town" -> liet_ke: a river bursting its banks; a house on fire; factory workers holding picket signs. "Pesticide washes into rivers, fish absorb it, herons eat the fish and lay eggs with thin shells" -> tong_quat: a cycle diagram with arrows: a field being sprayed -> a river with fish -> a heron eating a fish -> cracked thin eggs in a nest; tieu_de "Thuốc trừ sâu đi vào chuỗi thức ăn". "Nearly 4 million bees vanished" -> con_so: a swarm of honeybees, so "Gần 4 triệu con". "The virus enters the cell and copies itself" -> tong_quat: a 3D cut-away of a cell with viruses entering and many copies inside.
 Rules:
 - Do NOT illustrate: negations ("it is not X"), opinions, morals, transitions, greetings, calls to subscribe, or ideas with no concrete picture. Leave those on the real footage. There is NO coverage target — fewer, clearer scenes are better.
 - Keep at least ~2 sentences of plain footage between two "dien_canh" when possible.
-- A scene stays inside its own sentence(s): give "den_cau" only when the NEXT sentence continues the SAME illustration; it must never spill into an unrelated sentence.
-- Every layer has "moc": 2-8 words COPIED EXACTLY from its sentence (same spelling, numbers as written) — the layer appears when the narrator says them. Give each beat its own "moc" at the words that describe THAT beat, in order; beats need time between them (not two beats on the same few words).
-- bien_thanh is ONLY for the SAME thing changing state; never turn one thing into a DIFFERENT thing. Actors appear in the ORDER the narration mentions them; an actor must not be on screen before its words are spoken.
-- Use the SAME "ten" for the same creature / object every time it appears in different scenes (it is drawn once and reused).
-- "anh" must return a photo of THAT thing alone. For things that cannot be photographed as ONE clear object (microscopic, molecular, abstract made concrete) set "truu_tuong": true and describe them well in "ve".
+- One "dien_canh" = one idea. Give "den_cau" (last sentence index) when the idea continues over the NEXT sentence(s); it must never spill into an unrelated sentence.
+- Every layer has "moc": 2-8 words COPIED EXACTLY from the sentence where it starts (same spelling, numbers as written).
+- Never ask for text, letters, numbers or labels INSIDE a picture ("ve") — captions are added separately.
+- Every "ve" describes a REAL PHOTOGRAPH (ultra-photorealistic, as if shot with a camera) — never call it an illustration, drawing, painting or cartoon.
 - Maps ONLY for real named geographic places.
 Return ONLY a JSON array: [{{"cau": <sentence index>, "kieu": "<kind>", "moc": "...", ...fields}}]
 
@@ -84,8 +77,35 @@ def hoi(cau, out, co_the=True):
             x = dict(x, cau=i, den_cau=max(i, min(den, i + 2)) if x["kieu"] in ("dien_canh", "cau_tao", "quy_trinh", "vong_doi", "mo_phong") else i)
             phu.update(range(i, x["den_cau"] + 1))
             ra.append(x)
+    _bu_tieu_de(ra, out)
     dem = {}
     for x in ra:
         dem[x["kieu"]] = dem.get(x["kieu"], 0) + 1
     log("    " + ", ".join(f"{k} {v}" for k, v in sorted(dem.items())))
     return ra
+
+
+def _bu_tieu_de(ra, out):
+    """14/10: ảnh tổng quát mà ChatGPT quên "tieu_de" (đo chuot_newyor: cả lô câu 1-20 thiếu) -> hỏi MỘT lượt cho mọi cảnh
+    thiếu, từ y_tuong + câu lời. Cache ra/<dự án>/tieu_de_bu.json."""
+    thieu = [x for x in ra if x.get("kieu") == "dien_canh" and x.get("khuon") == "tong_quat" and not x.get("tieu_de")]
+    if not thieu:
+        return
+    p_luu = os.path.join(out, "tieu_de_bu.json")
+    da = doc_json(p_luu, {}) or {}
+    khoa = lambda x: hashlib.md5(str(x.get("y_tuong") or x.get("ve") or "").encode("utf-8")).hexdigest()[:12]   # noqa: E731
+    can = [x for x in thieu if khoa(x) not in da]
+    if can:
+        t = hoi_nhieu(["For each numbered illustration idea below, write a short Vietnamese caption (3-8 words) that sums "
+                       "up the idea, numbers as digits. Return ONLY JSON: {\"1\": \"...\", \"2\": \"...\"}\n\n"
+                       + "\n".join(f"{n}. {x.get('y_tuong') or x.get('ve')}" for n, x in enumerate(can, 1))], timeout=120)[0]
+        j = rut_json(t or "")
+        if isinstance(j, dict):
+            for n, x in enumerate(can, 1):
+                c = str(j.get(str(n)) or "").strip()
+                if 2 <= len(c.split()) <= 12:
+                    da[khoa(x)] = c
+            ghi_json(p_luu, da)
+    for x in thieu:
+        if da.get(khoa(x)):
+            x["tieu_de"] = da[khoa(x)]

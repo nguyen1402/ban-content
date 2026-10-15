@@ -29,9 +29,12 @@ NGUONG_DUNG = 0.12          # điểm storyboard dưới mức này: video khôn
 NGUONG_ANH = 0.10           # sau gợi ý: đoạn điểm dưới mức này (hoặc trống) -> tìm ảnh bù
 ANH_MOI_CANH = 2
 DUNG_YOUTUBE = False        # 12/10 user: KHÔNG tự tải YouTube nữa (logo kênh) — chỉ kho miễn phí sạch
-STOCK_MOI_CANH = 3          # 12/10: video stock SẠCH (Pexels/Pixabay) — mỗi cảnh lấy tối đa bấy nhiêu clip khớp nhất
+STOCK_MOI_CANH = 4          # 12/10: video stock SẠCH (Pexels/Pixabay) — mỗi cảnh lấy tối đa bấy nhiêu clip MỚI khớp nhất
+#                             (14/10: clip đã chọn cho cảnh khác không tính -> kho đa dạng, đỡ lặp hình)
 NGUONG_STOCK = 0.12         # điểm ảnh thu nhỏ tối thiểu để tải clip stock
-STOCK_TOI_DA = 150           # trần số clip stock mỗi lần chạy (mỗi clip 10-30 s, 5-15 MB)
+STOCK_TOI_DA = 300           # trần số clip stock mỗi lần chạy (mỗi clip 10-30 s, 5-15 MB); 14/10: 150 -> 300 (đỡ lặp)
+TU_STOCK_MOI_NHOM = 3       # 14/10: mỗi nhóm ~1 phút tìm từ khoá video của 3 cảnh dài nhất (trước: 2) + biến thể + ảnh
+GEMINI_BU_TOI_DA = 200      # 14/10 user: chỗ hết video mới -> Gemini vẽ ảnh ngang (trần mỗi lần chạy; ~17 credit/ảnh)
 ANH_MOI_DIA_DANH = 4        # mỗi địa danh: 2 ảnh phong cảnh + 2 ảnh từ trên cao
 GIAY_MOI_NHOM = 60.0        # gom cảnh liền nhau thành nhóm ~1 phút voice; mỗi nhóm tìm TU_MOI_NHOM từ khoá
 TU_MOI_NHOM = 2
@@ -209,7 +212,8 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
     tu_s = []
     for g in nhom_canh(can):
         dai_g = sorted(g, key=lambda x: -float(x.get("dai") or 0))
-        tu_s += [(c.get("video") or [""])[0] for c in dai_g[:2]] + [(dai_g[0].get("anh") or [""])[0]]
+        tu_s += [(c.get("video") or [""])[0] for c in dai_g[:TU_STOCK_MOI_NHOM]]
+        tu_s += [((dai_g[0].get("video") or ["", ""]) + [""])[1], (dai_g[0].get("anh") or [""])[0]]
     tu_s = list(dict.fromkeys(q.strip() for q in tu_s if q and q.strip()))
     kq_s = {}
     for k, q in enumerate(tu_s):
@@ -218,15 +222,27 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
             kq_s.setdefault(x["id"], x)
     kho = dung_tay.doc_kho(du_an)
     ds_s = list(kq_s.values())                               # clip đã tải vẫn chấm (tai_file bỏ qua clip đã xong)
+    import loc_chu_de                                        # 14/10 user: clip sai con vật / vật chính -> không tải
+    _tt(du_an, buoc="loc_chu_de", xong=0, tong=len(ds_s))
+    try:
+        sai = loc_chu_de.sai_chu_de(du_an, {x["id"]: x.get("ten") or "" for x in ds_s})
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! lọc sai chủ đề lỗi: {str(e)[:120]}")
+        sai = set()
+    ds_s = [x for x in ds_s if x["id"] not in sai]
     _tt(du_an, buoc="cham_stock", xong=0, tong=len(ds_s))
     co, E = xep_hang.nhung_url([x["thumb"] for x in ds_s], bao=lambda x, n: _tt(du_an, xong=x, tong=n))
     chon_s = {}
     if co:
         S = E @ Q.T                                          # (clip, cảnh)
         for j in range(len(can)):
-            for i in np.argsort(-S[:, j])[:STOCK_MOI_CANH]:
-                if S[i, j] >= NGUONG_STOCK:
-                    chon_s[co[i]] = max(chon_s.get(co[i], -1), float(S[i, j]))
+            moi = 0
+            for i in np.argsort(-S[:, j])[:STOCK_MOI_CANH * 6]:
+                if S[i, j] < NGUONG_STOCK or moi >= STOCK_MOI_CANH:
+                    break
+                if co[i] not in chon_s:                      # 14/10: cảnh kề nhau hay chung top clip -> lấy clip MỚI
+                    moi += 1
+                chon_s[co[i]] = max(chon_s.get(co[i], -1), float(S[i, j]))
     chon_s = sorted(chon_s, key=lambda i: -chon_s[i])[:STOCK_TOI_DA]
     log(f"  stock sạch: {len(tu_s)} từ khoá → {len(ds_s)} clip, chọn tải {len(chon_s)}")
     if chon_s and not chi_chon:
@@ -290,8 +306,14 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
             if not ds:
                 continue
             d, chu_thumb = xep_hang.diem_anh([a["thumb"] or a["url"] for a in ds], qv, chu=True)
-            xep = sorted((i for i in range(len(ds)) if chu_thumb[i] is False and min(ds[i].get("rong", 0), ds[i].get("cao", 0)) >= 500),
-                         key=lambda i: -d[i])
+            try:                                             # 14/10 user: tiêu đề trang cho thấy là NƠI KHÁC -> bỏ
+                import loc_chu_de
+                dung_cho = loc_chu_de.dung_noi(du_an, ten, [a.get("tieu_de") or "" for a in ds])
+            except Exception as e:                           # noqa: BLE001
+                log(f"    ! kiểm ảnh địa danh lỗi: {str(e)[:100]}")
+                dung_cho = set(range(len(ds)))
+            xep = sorted((i for i in range(len(ds)) if chu_thumb[i] is False and i in dung_cho
+                          and min(ds[i].get("rong", 0), ds[i].get("cao", 0)) >= 500), key=lambda i: -d[i])
             lay_q = 0
             for i in xep[:10]:
                 if lay_q >= ANH_MOI_DIA_DANH // 2:
@@ -312,7 +334,14 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
             lay += lay_q
         log(f"    ảnh địa danh '{ten}': {lay}")
 
-    # 5. gợi ý đoạn (đoạn trỏ video gốc)
+    # 5. gợi ý đoạn (đoạn trỏ video gốc); 14/10: trước đó đánh dấu clip SAI chủ đề trong kho (goi_y bỏ qua)
+    _tt(du_an, buoc="loc_chu_de", xong=0, tong=0)
+    try:
+        import loc_chu_de
+        loc_chu_de.danh_dau_kho(du_an)
+        loc_chu_de.danh_dau_phong_xanh(du_an)
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! lọc sai chủ đề (kho) lỗi: {str(e)[:120]}")
     _tt(du_an, buoc="goi_y", xong=0, tong=0)
     if any(m.get("trang_thai") == "xong" for m in dung_tay.doc_kho(du_an).values()):
         goi_y.goi_y(du_an)
@@ -384,6 +413,31 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
         except ValueError:
             pass
 
+    # 6d. 14/10 user: chỗ HẾT VIDEO MỚI (goi_y ghi thieu_hinh.json, tạm dùng lại video cách >= 25 s) -> Gemini vẽ mỗi
+    #     chỗ một ảnh chụp ngang (góc máy khác nhau trong cùng cảnh), gắn cho đúng cảnh đó, rồi gợi ý lại các cảnh ấy
+    thieu = {int(k): int(v) for k, v in (doc_json(os.path.join(out, "thieu_hinh.json"), {}) or {}).items() if v}
+    theo_id = {c["id"]: c for c in can}
+    viec = [(theo_id[i], k) for i, n in sorted(thieu.items()) if i in theo_id for k in range(n)][:GEMINI_BU_TOI_DA]
+    if viec:
+        log(f"  {len(viec)} chỗ hết video mới -> Gemini vẽ ảnh ngang bù ({len({c['id'] for c, _ in viec})} cảnh)")
+        dem_v = [0]
+
+        def ve1(ck):
+            r = _ve_anh_ngang(du_an, ck[0], bien_the=ck[1])
+            with _KHOA:
+                dem_v[0] += 1
+            _tt(du_an, buoc="anh_ve", xong=dem_v[0], tong=len(viec))
+            return r
+        with ThreadPoolExecutor(3) as ex:
+            duoc = sum(1 for r in ex.map(ve1, viec) if r)
+        log(f"  Gemini vẽ bù được {duoc}/{len(viec)} ảnh")
+        if duoc:
+            _tt(du_an, buoc="goi_y", xong=0, tong=0)
+            try:
+                goi_y.goi_y(du_an, ids=sorted({c["id"] for c, _ in viec}))
+            except ValueError:
+                pass
+
     # 6b. ghi nguồn (Wikimedia CC BY bắt buộc ghi tác giả) cho các clip ĐANG DÙNG trong kế hoạch
     dung = dung_tay.doc_dung(du_an)
     kho = dung_tay.doc_kho(du_an)
@@ -409,7 +463,7 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
             "video": len(chon), "phut": round(tong_giay / 60, 1)}
 
 
-def _ve_anh_ngang(du_an, c):
+def _ve_anh_ngang(du_an, c, bien_the=0):
     """Gemini (cookie) vẽ một ẢNH CHỤP NGANG 16:9 cho cảnh -> id kho | None. Cache theo câu lệnh (vẽ lại không tốn)."""
     import hashlib
     import sys
@@ -422,19 +476,33 @@ def _ve_anh_ngang(du_an, c):
     goi = ", ".join(((c.get("anh") or []) + (c.get("video") or []))[:2])
     prompt = (f"Create a realistic high-resolution documentary PHOTOGRAPH in WIDE 16:9 LANDSCAPE (horizontal) format that "
               f"fills the whole frame. Scene: {noi_dung} (keywords: {goi}). Natural light, real-world look, like stock "
-              f"footage. No text, no letters, no captions, no logos, no watermark, no borders, no collage.")
+              f"footage. No text, no letters, no captions, no logos, no watermark, no borders, no collage."
+              + (f" Shot variation {bien_the + 1}: use a clearly different camera angle, distance and moment than a "
+                 f"standard shot of this scene." if bien_the else ""))
     kid = "g_" + hashlib.md5(prompt.encode("utf-8")).hexdigest()[:12]
     m = dung_tay.doc_kho(du_an).get(kid)
     if m and m.get("trang_thai") == "xong" and os.path.isfile(m.get("file", "")):
+        if m.get("cho_canh") is None:
+            dung_tay._cap_nhat_kho(du_an, kid, cho_canh=c["id"])   # noqa: SLF001
         return kid
     thu = os.path.join(thu_muc_du_an(du_an)[1], "kho", "anh")
-    for lan in range(2):
-        f = anh_ve.ve_prompt(prompt if lan == 0 else prompt + " Absolutely NO writing anywhere.", thu, f"_{kid}_{lan}.png")
+    # 14/10 user: hỏng thì vẽ lại bằng được; từ lượt 3 nhờ ChatGPT viết lại cảnh theo LÝ DO hỏng (tối đa 6 lượt)
+    canh_ve, ly_do = noi_dung, ""
+    for lan in range(6):
+        if lan >= 2 and lan % 2 == 0 and ly_do:
+            moi_ = _viet_lai_canh(canh_ve, ly_do)
+            if moi_:
+                canh_ve = moi_
+                log(f"    cảnh {c['id']}: ChatGPT viết lại cảnh (lỗi trước: {ly_do}) -> '{canh_ve[:70]}'")
+        p_ = prompt if canh_ve == noi_dung else prompt.replace(f"Scene: {noi_dung}", f"Scene: {canh_ve}")
+        f = anh_ve.ve_prompt(p_ if lan % 2 == 0 else p_ + " Absolutely NO writing anywhere.", thu, f"_{kid}_{lan}.png")
         if not f:
-            return None
+            ly_do = "từ chối / không trả ảnh"
+            log(f"    ! cảnh {c['id']}: ảnh vẽ bù lần {lan + 1}: {ly_do}")
+            continue
         im = Image.open(f).convert("RGB")
         w, h = im.size
-        im = im.crop((0, 0, int(w * 0.93), int(h * 0.93)))   # cắt dấu Gemini ở góc phải dưới
+        im = im.crop((0, 0, int(w * 0.86), int(h * 0.86)))   # (dấu ✦ đã xoá ở anh_ve; cắt mép giữ khung cũ)
         if im.size[0] < 1.2 * im.size[1]:                  # AI trả ảnh vuông/dọc: cắt giữa về 16:9
             w2, h2 = im.size
             hh = int(w2 * 9 / 16)
@@ -448,15 +516,32 @@ def _ve_anh_ngang(du_an, c):
         try:
             import loc_chu
             if loc_chu.co_chu_anh(dich):
+                ly_do = "có chữ"
+                log(f"    ! cảnh {c['id']}: ảnh vẽ bù lần {lan + 1}: {ly_do}")
                 continue
         except Exception:                                    # noqa: BLE001
             pass
         dung_tay._cap_nhat_kho(du_an, kid, loai="anh", tieu_de=f"Gemini vẽ: {noi_dung[:60]}", file=dich,   # noqa: SLF001
                                nguon="gemini", trang_thai="xong", pt=100.0, rong=im.size[0], cao=im.size[1],
-                               luc=time.time())
+                               luc=time.time(), cho_canh=c["id"])   # 14/10: ảnh vẽ riêng cho cảnh này (goi_y chỉ dùng ở đây)
         log(f"    cảnh {c['id']}: Gemini vẽ ảnh ngang {im.size[0]}x{im.size[1]}")
         return kid
     return None
+
+
+def _viet_lai_canh(canh, ly_do):
+    """ChatGPT viết lại mô tả CẢNH (ảnh chụp ngang phủ kín khung) cho cùng ý, tránh đúng lỗi vừa gặp. '' nếu không được."""
+    from common import hoi_llm
+    ly = {"có chữ": "text / letters / signs appeared in the picture",
+          "từ chối / không trả ảnh": "the image generator refused or returned no image"}.get(ly_do, ly_do)
+    t = hoi_llm("An AI image generator must make an ULTRA-PHOTOREALISTIC wide documentary photograph (16:9, filling the "
+                "frame) for the scene below, with NO text at all. The previous attempt failed: " + ly + ".\nRewrite the "
+                "scene description (English) for the SAME meaning so the next attempt succeeds: remove anything that tends "
+                "to carry writing (signs, newspapers, labels, screens, packaging, posters, street names, logos); avoid "
+                "anything violent or graphic a generator may refuse. Under 70 words. Return ONLY the new description."
+                "\n\nSCENE:\n" + str(canh), timeout=120)
+    t = (t or "").strip().strip('"').strip()
+    return t if 15 <= len(t) <= 800 else ""
 
 
 def chay_nen(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, sau=None):

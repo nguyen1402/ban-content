@@ -1,0 +1,58 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  body { font: 13px/1.45 "Segoe UI", Arial, sans-serif; width: 330px; margin: 0; padding: 12px;
+         background: #fff; color: #1b1b1b; }
+  h1 { font-size: 14px; margin: 0 0 8px; }
+  .hang { display: flex; align-items: center; gap: 6px; margin: 6px 0; }
+  .hang label { min-width: 74px; color: #444; }
+  input[type=text], input[type=number], select { flex: 1; padding: 4px 6px; border: 1px solid #ccc;
+         border-radius: 4px; font: inherit; }
+  input[type=number] { max-width: 78px; flex: none; }
+  button { padding: 6px 10px; border: 1px solid #bbb; border-radius: 5px; background: #f6f6f6;
+           cursor: pointer; font: inherit; }
+  button.chinh { background: #1a73e8; border-color: #1a73e8; color: #fff; font-weight: 600; }
+  button:hover { filter: brightness(0.97); }
+  #trangthai { margin: 8px 0 4px; padding: 7px 8px; border-radius: 5px; background: #f1f3f4; }
+  .ok { color: #1a7f37; } .loi { color: #c62828; }
+  .nho { color: #666; font-size: 11.5px; }
+  hr { border: 0; border-top: 1px solid #eee; margin: 10px 0; }
+</style>
+<h1>Cookie → Bán Content</h1>
+
+<div class="hang">
+  <label>Dịch vụ</label>
+  <select id="dichvu">
+    <option value="gemini">Gemini (gemini.google.com)</option>
+    <option value="chatgpt">ChatGPT (chatgpt.com)</option>
+  </select>
+</div>
+
+<div id="trangthai">Đang đọc cookie…</div>
+
+<div class="hang">
+  <label>Tên tài khoản</label>
+  <input type="text" id="label" placeholder="tự đặt theo cookie">
+</div>
+<div class="hang">
+  <label>Cổng app</label>
+  <input type="number" id="port" min="1" max="65535" value="8785">
+  <label style="min-width:auto"><input type="checkbox" id="autoPush" checked> tự gửi lại</label>
+</div>
+
+<div class="hang">
+  <button class="chinh" id="btnDay">Gửi vào app</button>
+  <button id="btnChep">Sao chép JSON</button>
+  <button id="btnMo">Mở trang</button>
+</div>
+
+<div id="ketqua" class="nho"></div>
+<hr>
+<div class="nho">
+  Mỗi dịch vụ có KHO và CỔNG riêng (Gemini 8785, ChatGPT 8786) — đổi ô “Dịch vụ” rồi
+  bấm <b>Gửi vào app</b> cho từng bên.
+  App phải đang bật “Nhận cookie” (nút ở tab Dịch, sau khi tích đúng nguồn) thì nút
+  <b>Gửi vào app</b> mới ăn. Không bật được thì bấm <b>Sao chép JSON</b> rồi dán vào ô
+  nhận cookie trong app.
+</div>
+<script src="popup.js"></script>

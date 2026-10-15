@@ -71,7 +71,7 @@ def _tu_anh_ve(mo_ta, khoa):
         out = os.path.join(PUB, f"{k}.png")
         thu = f[:-4] + "_tach.jpg"
         try:
-            cat_nen.tach_nen(f, out)
+            cat_nen.tach_nen(f, out, nen_trang=True)        # 14/10: giữ tán lá / lông (ISNet + màu nền trắng)
             ok, ly_do = _sach(out, nhieu_manh=True)
             if ok:
                 im = Image.open(out)
@@ -88,6 +88,104 @@ def _tu_anh_ve(mo_ta, khoa):
         finally:
             _xoa(f, thu, thu + ".chu3.json")
     return None
+
+
+def _anh_that(t):
+    """14/10 user "ảnh AI có tấm trông hoạt hình quá, muốn siêu chân thực": mô tả ChatGPT hay viết "a realistic
+    illustration of…" -> đổi chữ gợi tranh vẽ thành ảnh chụp."""
+    import re
+    return re.sub(r"\b(illustrations?|drawings?|paintings?|sketch(?:es)?|cartoons?|renderings?|renders?|artworks?)\b",
+                  "photograph", str(t or ""), flags=re.I)
+
+
+def anh_tong_quat(ve):
+    """14/10 user: MỘT ẢNH cho cả ý (cảnh đang diễn ra / sơ đồ vòng tuần hoàn bằng hình thật + mũi tên / khối cắt ngang
+    3D), AI vẽ trên nền trắng rồi TÁCH NỀN (giữ mọi mảnh: các hình + mũi tên). -> {"src"} | None. Cache theo mô tả."""
+    import anh_ve
+    import cat_nen
+    import loc_chu
+    from PIL import Image
+    if not ve:
+        return None
+    khoa = "tq|" + ve
+    da = doc_json(os.path.join(CACHE_CHUNG, "anh_tach.json"), {}) or {}
+    v = da.get(khoa)
+    if isinstance(v, dict) and os.path.isfile(os.path.join(REMOTION, "public", v.get("src", ""))):
+        return v
+    k = hashlib.md5(khoa.encode("utf-8")).hexdigest()[:14]
+
+    def _p(mo_ta):
+        return (f"Create ONE image of: {_anh_that(mo_ta)}\nULTRA-PHOTOREALISTIC: every element must look like a REAL PHOTOGRAPH taken with a professional camera — real textures, natural light, true-to-life colours and proportions. NOT an illustration, NOT a drawing, NOT a sketch, NOT a painting, NOT cartoon, NOT anime, NOT clay or 3D-render look. Like a professional stock CUT-OUT photo: the "
+                f"subjects photographed ISOLATED on a seamless pure white studio background — NO scene background, NO walls "
+                f"or sky behind them. A cut-away / cross-section looks like a real museum diorama photographed in a "
+                f"studio. Everything COMPLETE and fully inside the image with a wide white margin, "
+                f"on a plain pure white background — no background scene, no frame, no border, no ground shadow. A diagram "
+                f"is made of realistic pictures connected by bold simple arrows. Absolutely NO text anywhere: no words, no "
+                f"letters, no numbers, no labels, no captions.")
+    # 14/10 user: "cảnh hỏng thì vẽ lại bằng được; lỗi tạo ảnh thì hỏi ngược ChatGPT cho chuẩn hơn rồi tạo lại".
+    # Lượt 1-2: mô tả gốc; hỏng tiếp -> ChatGPT viết lại mô tả theo đúng LÝ DO hỏng rồi vẽ (tối đa LAN_VE_TQ lượt).
+    mo_ta, ly_do = ve, ""
+    for lan in range(LAN_VE_TQ):
+        if lan >= 2 and lan % 2 == 0 and ly_do:
+            moi_ = _viet_lai_mo_ta(mo_ta, ly_do)
+            if moi_:
+                mo_ta = moi_
+                log(f"    ảnh tổng quát: ChatGPT viết lại mô tả (lỗi trước: {ly_do}) -> '{mo_ta[:70]}'")
+        f = anh_ve.ve_prompt(_p(mo_ta) + (" Remember: NO writing at all." if lan % 2 else ""), PUB,
+                             f"_{k}_tq{lan}_{__import__('threading').get_ident()}.png")
+        if not f:
+            ly_do = "từ chối / không trả ảnh"
+            log(f"    ! ảnh tổng quát '{ve[:50]}' lần {lan + 1}: {ly_do}")
+            continue
+        out = os.path.join(PUB, f"tq_{k}.png")
+        thu = f[:-4] + "_tach.jpg"
+        try:
+            cat_nen.tach_nen(f, out, nen_trang=True)
+            ok, ly_do = _sach(out, nhieu_manh=True)
+            if ok and float((np.asarray(Image.open(out).getchannel("A")) > 128).mean()) > 0.85:
+                ok, ly_do = False, "dính kín mép (chưa tách khỏi nền)"   # 14/10: ảnh chụp KÍN KHUNG có phông (góc bo lọt _sach)
+            if ok:
+                im = Image.open(out)
+                nen = Image.new("RGB", im.size, (128, 128, 128))
+                nen.paste(im, (0, 0), im)
+                nen.save(thu, quality=92)
+                if not loc_chu.co_chu_anh(thu):
+                    if max(im.size) > 1400:
+                        im.thumbnail((1400, 1400), Image.LANCZOS)
+                        im.save(out)
+                    r = {"src": f"cat/tq_{k}.png"}
+                    _ghi_so(khoa, r)
+                    return r
+                ly_do = "có chữ"
+            log(f"    ! ảnh tổng quát '{ve[:50]}' lần {lan + 1}: {ly_do}")
+        finally:
+            _xoa(f, thu, thu + ".chu3.json")
+    return None
+
+
+LAN_VE_TQ = 6                # tối đa số lượt vẽ một ảnh tổng quát (~17 credit Gemini / lượt)
+_LY_DO_EN = {"có chữ": "text / letters / numbers appeared in the picture",
+             "từ chối / không trả ảnh": "the image generator refused or returned no image",
+             "dính kín mép (chưa tách khỏi nền)": "the picture filled the whole frame like a photo with a background, so "
+                                                  "it could not be cut out"}
+
+
+def _viet_lai_mo_ta(ve, ly_do):
+    """Nhờ ChatGPT (cookie) viết lại mô tả ảnh cho CÙNG ý, tránh đúng lỗi vừa gặp. '' nếu không hỏi được."""
+    from common import hoi_llm
+    ly = _LY_DO_EN.get(ly_do, f"the result was unusable ({ly_do})")
+    if ly_do == "giống tranh vẽ":
+        ly = "it looked like an illustration or cartoon instead of a real photograph"
+    t = hoi_llm("An AI image generator must draw the picture below as an ULTRA-PHOTOREALISTIC photograph, ISOLATED on a plain pure white background (it will be "
+                "cut out and placed over a video) and with NO text at all. The previous attempt failed: " + ly + ".\n"
+                "Rewrite the English description of the SAME idea so the next attempt succeeds: keep the meaning; remove "
+                "anything that tends to carry writing (signs, newspapers, labels, screens, packaging, books, posters, "
+                "street names); describe the subjects isolated on white with margin instead of a full scene with a "
+                "background; keep any diagram as realistic pictures joined by plain arrows; avoid anything violent or "
+                "graphic that a generator may refuse. Under 80 words. Return ONLY the new description.\n\nDESCRIPTION:\n"
+                + ve, timeout=120)
+    t = (t or "").strip().strip('"').strip()
+    return t if 15 <= len(t) <= 900 else ""
 
 
 _KHOA_SO = __import__("threading").Lock()
@@ -226,44 +324,9 @@ def _lay(q, tranh=(), ve=None, truu_tuong=False):
 
 # ================================================================ BỘ VAI MỘT LƯỢT (13/10 user)
 # "mọi vật thể cần remotion gửi ảnh mẫu cho AI để tạo đối tượng … AI tạo theo kiểu story ảnh, mang về cắt ra": mỗi diễn
-# cảnh nhờ Gemini vẽ TẤT CẢ vai trên MỘT ảnh nền trắng (hàng ngang, cách xa, cùng phong cách; đính kèm ảnh mẫu thật của
-# vai cụ thể) -> tách nền cả ảnh -> cắt theo khoảng trắng dọc giữa các vai. Không thiếu vai, không lệch phong cách.
-
-def _anh_mau(y, thu, k):
-    """Ảnh mẫu thật cho một vai (để AI vẽ đúng hình dạng): ảnh đã tách trong sổ, không có thì ảnh Google đầu bảng."""
-    if y.get("truu_tuong") or not (y.get("anh") or "").strip():
-        return None
-    v = (doc_json(os.path.join(CACHE_CHUNG, "anh_tach.json"), {}) or {}).get(y["anh"].strip())
-    f = os.path.join(REMOTION, "public", v["src"]) if isinstance(v, dict) and v.get("src") else None
-    if f and os.path.isfile(f) and not v.get("ve"):
-        from PIL import Image
-        im = Image.open(f)
-        nen = Image.new("RGB", im.size, (255, 255, 255))
-        nen.paste(im, (0, 0), im)
-        out = os.path.join(thu, f"_mau_{k}.jpg")
-        nen.save(out, quality=92)
-        return out
-    try:
-        import anh_google
-        ds = anh_google.google_anh(f"{y['anh']} isolated on white background", n=12)
-    except Exception:                                        # noqa: BLE001
-        return None
-    from PIL import Image
-    for a in ds[:4]:
-        if any(w in (a.get("url", "") + " " + a.get("trang", "")).lower() for w in KHO_WATERMARK):
-            continue
-        try:
-            raw = urllib.request.urlopen(urllib.request.Request(a["url"], headers=UA), timeout=20).read(15 << 20)
-            im = Image.open(io.BytesIO(raw)).convert("RGB")
-            if min(im.size) < 300:
-                continue
-            im.thumbnail((1024, 1024))
-            out = os.path.join(thu, f"_mau_{k}.jpg")
-            im.save(out, quality=90)
-            return out
-        except Exception:                                    # noqa: BLE001
-            continue
-    return None
+# cảnh nhờ AI vẽ TẤT CẢ vai trên MỘT ảnh nền trắng (hàng ngang, cách xa, cùng phong cách) -> tách nền cả ảnh -> cắt theo
+# khoảng trắng dọc giữa các vai. Không thiếu vai, không lệch phong cách.
+# 15/10 user: BỎ tìm ảnh mẫu tham chiếu (Google Images gửi kèm cho AI) — chỉ vẽ theo câu lệnh.
 
 
 def _nhom_cot(m, n):
@@ -353,6 +416,7 @@ def _cat_hang(sheet_png, n, k):
     img = Image.open(sheet_png).convert("RGB")
     a = cat_nen.mat_na(img)
     a = np.clip((a - 0.12) / 0.76, 0, 1)
+    a = cat_nen.hop_nen_trang(img, a)                     # 14/10 user: tán lá bị xoá -> gộp mặt nạ theo nền trắng
     m = a > 0.5
     nhom = _nhom_cot(m, n) or _nhom_khoi(m, n)
     if not nhom:
@@ -454,11 +518,6 @@ def bo_canh(vai):
     os.makedirs(PUB, exist_ok=True)
     tam = os.path.join(PUB, f"_bo_{k}_{threading.get_ident()}")
     os.makedirs(tam, exist_ok=True)
-    mau = []
-    for t, y in enumerate(vai):
-        f = _anh_mau(y, tam, t)
-        if f:
-            mau.append((t, f))
     import re
     THU = ["the first", "the second", "the third", "the fourth"]
 
@@ -474,7 +533,7 @@ def bo_canh(vai):
     prompt = (f"Create ONE wide image on a plain pure white background showing exactly {n} separate, COMPLETE subject"
               f"{'s' if n > 1 else ''} in a single horizontal row, left to right in this order, with WIDE empty white space "
               f"between them (they must not touch or overlap), all in the same realistic, highly detailed style and "
-              f"lighting (photorealistic, or a realistic 3D render for microscopic things), each fully visible and "
+              f"lighting — ULTRA-PHOTOREALISTIC: every element must look like a REAL PHOTOGRAPH taken with a professional camera — real textures, natural light, true-to-life colours and proportions. NOT an illustration, NOT a drawing, NOT a sketch, NOT a painting, NOT cartoon, NOT anime, NOT clay or 3D-render look. (only microscopic things may be a realistic scientific render), each fully visible and "
               f"roughly the same size. Every subject is a WHOLE object shown in full — all parts present, nothing cut off "
               f"by the image border, no background scene, no ground, no box or frame around it; a group (a swarm, a pile, a "
               f"herd) is drawn as a loose cluster with clear outline, not a rectangular scene; animals, people and objects "
@@ -484,15 +543,12 @@ def bo_canh(vai):
               f"field, a floor, a wall) is drawn as a small 3D cut-out chunk with irregular broken edges, like a diorama "
               f"piece; a LONG thing (a cable, a pipe, a river, a road) is drawn as a short segment with BOTH ends visible "
               f"inside the image. {mo_ta}\n"
-              + (("The attached reference photo" + ("s show" if len(mau) > 1 else " shows") + " the real appearance of "
-                  + ", ".join(THU[t] for t, _ in mau) + " subject" + ("s" if len(mau) > 1 else "") + " (in that order) — "
-                  "keep it faithful.\n") if mau else "")
               + "Absolutely NO text anywhere: no numbers, no letters, no captions or labels under the subjects, no arrows, "
                 "no ground shadow, no frame; any screen must be blank.")
     ra = None
     try:
         for lan in range(2):
-            f = anh_ve.ve_prompt(prompt, tam, f"bo_{lan}.png", tep=[x for _, x in mau])
+            f = anh_ve.ve_prompt(prompt, tam, f"bo_{lan}.png")
             if not f:
                 break
             ra = _cat_hang(f, n, f"{k}")

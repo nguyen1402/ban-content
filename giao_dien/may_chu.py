@@ -478,6 +478,186 @@ def _dang_ban(t):
     return ""
 
 
+# --------------------------------------------------------------------------- 🍪 cookie (kho RIÊNG của bán-content)
+# 14/10/2026 user: tách kho cookie khỏi CapCut TTS Studio -> %LOCALAPPDATA%\\BanContent, cổng 8785 (Gemini) / 8786
+# (ChatGPT), tiện ích riêng ở cookie_ext/. Bộ nhận bật cùng giao diện nên tiện ích tự gửi lại cookie mới mỗi 5 phút.
+_CK = {}                                                # dich_vu -> (module kho, CookieServer | None, lỗi)
+
+
+def _ck_mod(dv):
+    if os.path.join(ROOT, "tts") not in sys.path:
+        sys.path.insert(0, os.path.join(ROOT, "tts"))
+    if dv == "gemini":
+        import gemini_cookie_store as m
+    elif dv == "chatgpt":
+        import chatgpt_cookie_store as m
+    else:
+        raise HTTPError(400, "dịch vụ phải là gemini hoặc chatgpt")
+    return m
+
+
+def bat_nhan_cookie():
+    for dv in ("gemini", "chatgpt"):
+        m = _ck_mod(dv)
+        try:
+            srv = m.CookieServer()
+            srv.start()
+            _CK[dv] = (m, srv, "")
+            print(f"Nhận cookie {dv}: 127.0.0.1:{m.DEFAULT_PORT}", flush=True)
+        except Exception as e:                          # noqa: BLE001  cổng bận (bản giao diện khác đang nghe)
+            _CK[dv] = (m, None, str(e)[:160])
+
+
+_CK_KT = {}                                             # dịch vụ -> {dang, xong, tong, kq: {id: {ok, msg, credit}}, loi}
+
+
+@app.post("/api/cookie/kiem_tra")
+def cookie_kiem_tra():
+    """15/10 user: kiểm tra nhanh mọi tài khoản ĐÃ ĐẶT TÊN của một dịch vụ (hỏi thử một câu ngắn; Gemini kèm điểm vẽ
+    ảnh còn lại) — lỗi thì người dùng nạp cookie mới. Chạy nền, giao diện hỏi tiến độ qua /api/cookie."""
+    dv = (request.json or {}).get("dich_vu")
+    m = _ck_mod(dv)
+    if (_CK_KT.get(dv) or {}).get("dang"):
+        raise HTTPError(400, "đang kiểm tra")
+    ids = list(m.KHO.named_account_ids())
+    _CK_KT[dv] = {"dang": True, "xong": 0, "tong": len(ids), "kq": {}, "loi": "", "luc": time.time()}
+
+    def chay():
+        st = _CK_KT[dv]
+        try:
+            if dv == "gemini":
+                import gemini_web_client as cl
+            else:
+                import chatgpt_web_client as cl
+
+            def on(acc, r, xong, tong):
+                st["kq"][acc] = {"ok": bool(r.get("ok")), "kind": str(r.get("kind") or ""),
+                                 "msg": str(r.get("msg") or r.get("kind") or "")[:180]}
+                st["xong"] = xong
+            cl.check_all(ids, timeout=90, max_workers=4, on_result=on)
+            if dv == "gemini":                              # điểm vẽ ảnh còn lại (Gemini app trừ ~17 điểm/ảnh)
+                import asyncio
+                sys.path.insert(0, os.path.join(ROOT, "chinh_sua"))
+                import anh_ve
+                from concurrent.futures import ThreadPoolExecutor
+
+                def diem(acc):
+                    try:
+                        ck = (m.get_account(acc) or {}).get("cookies") or {}
+                        return acc, asyncio.run(asyncio.wait_for(anh_ve._do_credit(ck), 90))   # noqa: SLF001
+                    except Exception:                       # noqa: BLE001
+                        return acc, None
+                with ThreadPoolExecutor(4) as ex:
+                    for acc, c in ex.map(diem, [a for a, r in st["kq"].items() if r["ok"]]):
+                        st["kq"][acc]["credit"] = c
+        except Exception as e:                              # noqa: BLE001
+            st["loi"] = str(e)[:200]
+        finally:
+            st["dang"] = False
+    threading.Thread(target=chay, daemon=True).start()
+    return json_ok({"ok": True, "tong": len(ids)})
+
+
+@app.get("/api/cookie")
+def cookie_ds():
+    ra = {}
+    for dv in ("gemini", "chatgpt"):
+        m = _ck_mod(dv)
+        _, srv, loi = _CK.get(dv, (m, None, ""))
+        dat_ten = set(m.KHO.named_account_ids())
+        ra[dv] = {"kho": m.store_path(), "chung": "CapCutTTS" in m.store_path(), "cong": m.DEFAULT_PORT, "dang_nghe": bool(srv and srv.running), "loi": loi,
+                  "tai_khoan": [dict(a, dat_ten=a["id"] in dat_ten) for a in m.list_accounts()],
+                  "kiem_tra": _CK_KT.get(dv)}
+    return json_ok(ra)
+
+
+@app.post("/api/cookie/dan")
+def cookie_dan():
+    d = request.json or {}
+    m = _ck_mod(d.get("dich_vu"))
+    ten = (d.get("ten") or "").strip()
+    if not ten:
+        raise HTTPError(400, "Đặt tên tài khoản (vd acc1) — bán-content chỉ dùng tài khoản đã đặt tên")
+    try:
+        r = m.import_json(d.get("json") or "", label=ten)
+    except Exception as e:                              # noqa: BLE001
+        raise HTTPError(400, f"JSON cookie không hợp lệ: {str(e)[:160]}")
+    return json_ok({"ok": True, "ket_qua": r if isinstance(r, (str, int, dict, list)) else str(r)})
+
+
+@app.post("/api/cookie/xoa")
+def cookie_xoa():
+    d = request.json or {}
+    m = _ck_mod(d.get("dich_vu"))
+    m.delete_account(str(d.get("id") or ""))
+    return json_ok({"ok": True})
+
+
+# --------------------------------------------------------------------------- 🎨 Flow (hồ sơ Chrome riêng để vẽ ảnh 0 điểm)
+# 15/10/2026 user: nút tạo hồ sơ Chrome đặt tên -> tự đăng nhập Flow trong đó; bước vẽ ảnh mở ẩn hồ sơ, tạo, tải về.
+_FLOW_THU = {}                                          # tên hồ sơ -> {dang, kq, loi}
+
+
+@app.get("/api/flow")
+def flow_ds():
+    import flow_ve
+    return json_ok({"ho_so": flow_ve.ds_ho_so(), "thu": _FLOW_THU})
+
+
+@app.post("/api/flow/tao")
+def flow_tao():
+    import flow_ve
+    try:
+        flow_ve.tao_ho_so((request.json or {}).get("ten"))
+    except ValueError as e:
+        raise HTTPError(400, str(e))
+    return json_ok({"ok": True})
+
+
+@app.post("/api/flow/mo")
+def flow_mo():
+    import flow_ve
+    flow_ve.mo_dang_nhap(str((request.json or {}).get("ten") or ""))
+    return json_ok({"ok": True})
+
+
+@app.post("/api/flow/xoa")
+def flow_xoa():
+    import flow_ve
+    flow_ve.xoa_ho_so(str((request.json or {}).get("ten") or ""))
+    return json_ok({"ok": True})
+
+
+@app.post("/api/flow/thu")
+def flow_thu():
+    """Vẽ thử MỘT ảnh bằng hồ sơ (chạy nền) — kiểm tra đã đăng nhập + Flow còn 0 điểm."""
+    import flow_ve
+    ten = str((request.json or {}).get("ten") or "")
+    if _FLOW_THU.get(ten, {}).get("dang"):
+        raise HTTPError(400, "đang thử hồ sơ này")
+    _FLOW_THU[ten] = {"dang": True}
+
+    def chay():
+        thu = os.path.join(ROOT, "cache", "flow_thu")
+        d = flow_ve._doc_so()                                # noqa: SLF001  chỉ dùng đúng hồ sơ được thử
+        khac = {k: v for k, v in d.items() if k != ten}
+        try:
+            for k in khac:
+                flow_ve._cap_nhat(k, nghi_den=time.time() + 300)   # noqa: SLF001
+            f = flow_ve.ve("Ultra-photorealistic stock cut-out photo of a red apple, isolated on a seamless pure white "
+                           "studio background, no text", thu, f"thu_{flow_ve._slug(ten)}.png")   # noqa: SLF001
+            _FLOW_THU[ten] = {"dang": False, "kq": url_tep(f) if f else "",
+                              "loi": "" if f else (flow_ve._doc_so().get(ten, {}).get("loi") or "không tạo được ảnh")}   # noqa: SLF001
+        except Exception as e:                              # noqa: BLE001
+            _FLOW_THU[ten] = {"dang": False, "loi": str(e)[:200]}
+        finally:
+            for k, v in khac.items():
+                flow_ve._cap_nhat(k, nghi_den=v.get("nghi_den", 0))   # noqa: SLF001
+            flow_ve.dong(ten)
+    threading.Thread(target=chay, daemon=True).start()
+    return json_ok({"ok": True})
+
+
 @app.get("/api/don_du_an")
 def xem_don_du_an():
     t = slug(tham_so_q("du_an"))
@@ -1013,6 +1193,7 @@ def main():
         raise SystemExit(f"Không mở được cổng nào trong {PORT}-{PORT + 19}")
     url = f"http://127.0.0.1:{cong}/"
     print("Giao diện:", url, flush=True)
+    bat_nhan_cookie()
     if "--khong-mo" not in sys.argv:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     srv.serve_forever()

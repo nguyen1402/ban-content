@@ -56,8 +56,26 @@ dialog::backdrop{background:#000a}dialog video{width:100%;display:block;border-r
   <button class="p" id="moi">+ Dự án mới</button>
   <button class="p" id="mothumuc">Mở thư mục kết quả</button>
   <span class="sub" style="margin:0" id="trangthai_dau"></span>
+  <button class="p" id="nutck" title="Tài khoản Gemini / ChatGPT (cookie) — kho riêng của bán-content">🍪 Cookie</button>
+  <button class="p" id="nutflow" title="Hồ sơ Chrome để vẽ ảnh bằng Google Flow (Nano Banana, 0 điểm)">🎨 Flow</button>
 </header>
 <main>
+  <section class="card" id="ck" style="display:none">
+    <h2>🍪 Cookie Gemini &amp; ChatGPT <span class="sub" style="margin:0;font-weight:400">— máy có CapCut TTS Studio thì dùng chung kho của nó; không có thì dùng kho riêng</span></h2>
+    <p class="sub">Máy có CapCut TTS Studio: nạp như cũ (tiện ích CapCut + nút Nhận cookie). Máy KHÔNG có (chuyển máy): cài tiện ích <b>D:\CapCutTTS\bán-content\cookie_ext</b> (chrome://extensions → Chế độ nhà phát triển → Tải tiện ích đã giải nén) → đăng nhập gemini.google.com / chatgpt.com → bấm tiện ích, chọn Dịch vụ, <b>đặt tên tài khoản</b> (acc1, acc2…) → <b>Gửi vào app</b>. Gửi lại cùng tên = cập nhật. Chỉ tài khoản ĐÃ ĐẶT TÊN mới được dùng.</p>
+    <div id="ckds"></div>
+    <details style="margin-top:8px"><summary class="sub" style="cursor:pointer">Dán JSON tay (nút "Sao chép JSON" của tiện ích)</summary>
+      <div class="row" style="margin-top:6px"><select id="ckdv"><option value="gemini">Gemini</option><option value="chatgpt">ChatGPT</option></select>
+        <input type="text" id="ckten" placeholder="Tên tài khoản, vd acc1" style="max-width:200px"><button id="ckluu">Lưu</button></div>
+      <textarea id="ckjson" placeholder="Dán JSON cookie vào đây…" style="min-height:90px;margin-top:6px"></textarea>
+    </details>
+  </section>
+  <section class="card" id="flowk" style="display:none">
+    <h2>🎨 Google Flow — vẽ ảnh 0 điểm <span class="sub" style="margin:0;font-weight:400">— mỗi hồ sơ là một Chrome riêng; bước vẽ ảnh mở ẩn, tạo xong tự tắt</span></h2>
+    <p class="sub">Bấm <b>＋ Hồ sơ Chrome Flow</b>, đặt tên → cửa sổ Chrome mới mở ở flow.google.com → <b>đăng nhập tài khoản Google (gói Pro)</b> → đóng cửa sổ đó. Bấm <b>Thử</b> để kiểm tra. Có nhiều hồ sơ thì xoay vòng khi một tài khoản hết lượt. Không có hồ sơ nào / Flow lỗi → tự dùng Gemini (cookie, tốn điểm).</p>
+    <div class="row"><input type="text" id="flowten" placeholder="Tên hồ sơ, vd flow1" style="max-width:220px"><button id="flowtao">＋ Hồ sơ Chrome Flow</button></div>
+    <div id="flowds" style="margin-top:8px"></div>
+  </section>
   <section class="card" id="b1">
     <h2><span class="n">1</span> Kịch bản</h2>
     <p class="sub">Dán kịch bản tiếng Việt. Công cụ tách thành từng câu độc lập (xem bên dưới) trước khi đọc giọng.</p>
@@ -126,6 +144,48 @@ let du='',ketqua=[],hen=null;
 function tb(m){const e=$('#tb');e.textContent=m;e.classList.add('hien');setTimeout(()=>e.classList.remove('hien'),2600)}
 async function api(p,o){const r=await fetch(p,o);if(!r.ok){let t='';try{t=await r.text()}catch(e){}const m=t.match(/<pre>([\s\S]*?)<\/pre>/i);const div=document.createElement('div');div.innerHTML=m?m[1]:'';const msg=(m?div.textContent:t.replace(/<[^>]*>/g,' ')).replace(/\s+/g,' ').trim().slice(0,160);throw new Error(msg||('mã '+r.status))}return r.json()}
 const post=(p,d)=>api(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
+// 🍪 cookie: kho riêng của bán-content
+const escH=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function tuoi(g){g=Math.round(g);return g<90?g+' giây':g<5400?Math.round(g/60)+' phút':g<172800?Math.round(g/3600)+' giờ':Math.round(g/86400)+' ngày'}
+let ckHen=null;
+async function veCookie(){let d;try{d=await api('/api/cookie')}catch(e){$('#ckds').textContent='Lỗi: '+e.message;return}
+  let dangKT=false;
+  $('#ckds').innerHTML=['gemini','chatgpt'].map(dv=>{const k=d[dv],ten=dv==='gemini'?'Gemini':'ChatGPT';const kt=k.kiem_tra||null;if(kt&&kt.dang)dangKT=true;
+    const nghe=k.dang_nghe?'<span style="color:#2e7d32">● đang nhận (cổng '+k.cong+')</span>':'<span style="color:#c62828">● không nhận được (cổng '+k.cong+' bận'+(k.loi?': '+escH(k.loi):'')+')</span>';
+    // 15/10 user: kiểm tra nhanh — ✔ chạy được / ✖ lỗi (nạp cookie mới); Gemini kèm điểm vẽ ảnh còn lại
+    const ketqua=a=>{const r=kt&&kt.kq?kt.kq[a.id]:null;if(!r)return(kt&&kt.dang&&a.dat_ten)?'<span class="sub" style="margin:0">… đang kiểm</span>':'';
+      if(r.kind==='duplicate')return '<span class="sub" style="margin:0" title="'+escH(r.msg)+'">≈ trùng phiên với tài khoản khác (bỏ qua)</span>';
+      return r.ok?'<span style="color:#2e7d32" title="'+escH(r.msg)+'">✔ chạy được'+(r.credit!=null?' · còn '+r.credit+' điểm vẽ ảnh':'')+'</span>'
+        :'<span style="color:#c62828" title="'+escH(r.msg)+'">✖ lỗi — nạp cookie mới: '+escH(r.msg.slice(0,90))+'</span>'};
+    const ds=k.tai_khoan.length?k.tai_khoan.map(a=>'<div class="row" style="gap:8px;margin:2px 0"><b>'+escH(a.label)+'</b>'+(a.dat_ten?'':' <span class="sub" style="margin:0;color:#c62828">(chưa đặt tên — không dùng)</span>')+
+      '<span class="sub" style="margin:0">'+a.so_cookie+' cookie · cập nhật '+tuoi(a.tuoi_giay)+' trước</span>'+ketqua(a)+'<button data-ckxoa="'+dv+'|'+escH(a.id)+'" style="padding:2px 8px">Xoá</button></div>').join(''):'<div class="sub" style="margin:0">(kho trống)</div>';
+    const nutKT='<button data-ckkt="'+dv+'" style="padding:2px 10px"'+(kt&&kt.dang?' disabled':'')+'>'+(kt&&kt.dang?'Đang kiểm '+kt.xong+'/'+kt.tong+'…':'🔍 Kiểm tra')+'</button>'+(kt&&kt.loi?'<span style="color:#c62828">'+escH(kt.loi)+'</span>':'');
+    return '<div style="margin:6px 0 10px"><div class="row" style="gap:10px"><b>'+ten+'</b>'+nghe+nutKT+'</div><div class="sub" style="margin:2px 0">'+(k.chung?'Dùng CHUNG kho với CapCut TTS Studio — nạp bằng tiện ích/app CapCut như cũ. ':'Kho RIÊNG (máy không có CapCut TTS Studio) — nạp bằng tiện ích cookie_ext. ')+escH(k.kho)+'</div>'+ds+'</div>'}).join('');
+  clearTimeout(ckHen);if(dangKT&&$('#ck').style.display!=='none')ckHen=setTimeout(veCookie,2500)}
+// 🎨 Flow: hồ sơ Chrome riêng để vẽ ảnh
+let flowHen=null;
+async function veFlow(){let d;try{d=await api('/api/flow')}catch(e){$('#flowds').textContent='Lỗi: '+e.message;return}
+  const thu=d.thu||{};let dang=false;
+  $('#flowds').innerHTML=d.ho_so.length?d.ho_so.map(h=>{const t=thu[h.ten]||{};if(t.dang)dang=true;
+    const tt=h.dang_nghi?'<span style="color:#c62828">● tạm nghỉ: '+escH(h.loi||'')+'</span>':(h.loi?'<span style="color:#c62828">● '+escH(h.loi)+'</span>':'<span style="color:#2e7d32">● sẵn sàng</span>');
+    const kq=t.dang?'<span class="sub" style="margin:0">đang thử… (mở ẩn, tạo 1 ảnh, ~30-60 giây)</span>':(t.kq?'<a href="'+t.kq+'" target="_blank">✔ ảnh thử</a>':(t.loi?'<span style="color:#c62828">✖ '+escH(t.loi)+'</span>':''));
+    return '<div class="row" style="gap:8px;margin:4px 0"><b>'+escH(h.ten)+'</b>'+tt+'<span class="sub" style="margin:0">'+(h.so_anh||0)+' ảnh</span>'+
+      '<button data-fl="mo|'+escH(h.ten)+'" style="padding:2px 8px" title="Mở cửa sổ Chrome của hồ sơ để đăng nhập / giải xác minh">Mở</button>'+
+      '<button data-fl="thu|'+escH(h.ten)+'" style="padding:2px 8px">Thử</button>'+
+      '<button data-fl="xoa|'+escH(h.ten)+'" style="padding:2px 8px">Xoá</button>'+kq+'</div>'}).join(''):'<div class="sub" style="margin:0">(chưa có hồ sơ — đang dùng Gemini cookie, tốn điểm)</div>';
+  clearTimeout(flowHen);if(dang&&$('#flowk').style.display!=='none')flowHen=setTimeout(veFlow,3000)}
+$('#nutflow').onclick=()=>{const c=$('#flowk');const hien=c.style.display==='none';c.style.display=hien?'':'none';if(hien)veFlow()};
+$('#flowtao').onclick=async()=>{const ten=$('#flowten').value.trim();if(!ten)return tb('Đặt tên hồ sơ');
+  try{await post('/api/flow/tao',{ten});$('#flowten').value='';tb('Đã mở Chrome — đăng nhập Flow rồi đóng cửa sổ');veFlow()}catch(e){tb('Lỗi: '+e.message)}};
+$('#flowds').onclick=async e=>{const b=e.target.closest('[data-fl]');if(!b)return;const [vc,ten]=b.dataset.fl.split('|');
+  if(vc==='xoa'&&!confirm('Xoá hồ sơ Chrome Flow "'+ten+'" (cả phiên đăng nhập trong đó)?'))return;
+  try{await post('/api/flow/'+vc,{ten});if(vc==='mo')tb('Đã mở Chrome của hồ sơ — đăng nhập xong thì đóng cửa sổ');veFlow()}catch(er){tb('Lỗi: '+er.message)}};
+$('#nutck').onclick=()=>{const c=$('#ck');const hien=c.style.display==='none';c.style.display=hien?'':'none';if(hien)veCookie()};
+$('#ckds').onclick=async e=>{const kt=e.target.closest('[data-ckkt]');
+  if(kt){try{await post('/api/cookie/kiem_tra',{dich_vu:kt.dataset.ckkt});veCookie()}catch(er){tb('Lỗi: '+er.message)}return}
+  const b=e.target.closest('[data-ckxoa]');if(!b)return;const [dv,id]=b.dataset.ckxoa.split('|');
+  if(!confirm('Xoá tài khoản "'+id+'" khỏi kho '+dv+' của bán-content?'))return;try{await post('/api/cookie/xoa',{dich_vu:dv,id});veCookie()}catch(er){tb('Lỗi: '+er.message)}};
+$('#ckluu').onclick=async()=>{try{await post('/api/cookie/dan',{dich_vu:$('#ckdv').value,ten:$('#ckten').value,json:$('#ckjson').value});$('#ckjson').value='';tb('Đã lưu cookie');veCookie()}catch(e){tb('Lỗi: '+e.message)}};
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 async function napDuAn(chon){

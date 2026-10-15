@@ -16,7 +16,7 @@ khi cookie đổi. File kho vì thế luôn có bản mới; client chỉ cần 
 
 AN TOÀN: máy chủ chỉ nghe 127.0.0.1 (không ra mạng ngoài) và chỉ nhận POST có
 ``Origin: chrome-extension://…`` — trang web bình thường không đẩy rác vào được. File
-kho nằm ở %LOCALAPPDATA%\\CapCutTTS (NGOÀI repo) nên cookie không lọt vào git.
+kho nằm ở %LOCALAPPDATA%\\BanContent (NGOÀI repo) nên cookie không lọt vào git.
 
 25/08/2026 — phần THÂN của kho đã dọn sang ``cookie_store_base.Kho`` để dùng chung
 với kho cookie ChatGPT (``chatgpt_cookie_store.py``): hai bên chỉ khác tên file kho,
@@ -28,21 +28,21 @@ import sys
 
 from cookie_store_base import Kho, CookieServer as _CookieServer, cli, slug, store_dir
 
-DEFAULT_PORT = 8765
+DEFAULT_PORT = 8785                                     # 14/10: CapCut TTS Studio giữ 8765
 
 # Cookie bắt buộc phải có thì phiên mới dùng được.
 COOKIE_BAT_BUOC = "__Secure-1PSID"
 
 KHO = Kho(
     ten_file="gemini_cookies.json",
-    env_path="GEMINI_COOKIE_STORE",
+    env_path="BC_GEMINI_COOKIE_STORE",
     cookie_bat_buoc=COOKIE_BAT_BUOC,
     port=DEFAULT_PORT,
     trang_dang_nhap="gemini.google.com",
     co_cookie=(("co_1psid", "__Secure-1PSID"),
                ("co_1psidts", "__Secure-1PSIDTS")),
     ten_luong="gemini-cookie-server",
-    ten_tien_ich="gemini_cookie_ext",
+    ten_tien_ich="cookie_ext",
 )
 
 

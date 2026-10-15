@@ -7,7 +7,7 @@ hai bên GIỐNG HỆT nhau. Chỉ khác đúng bốn thứ:
 
     * tên file kho          (gemini_cookies.json / chatgpt_cookies.json)
     * cookie BẮT BUỘC       (__Secure-1PSID / __Secure-next-auth.session-token)
-    * cổng nghe             (8765 / 8766)
+    * cổng nghe             (8785 / 8786 — bán-content; CapCut TTS Studio giữ 8765 / 8766)
     * trang phải đăng nhập  (để câu báo lỗi nói đúng chỗ người dùng cần mở)
 
 Nên phần chung nằm ở lớp ``Kho`` trong file này; hai module
@@ -17,7 +17,7 @@ vào một thể hiện ``Kho``. Mọi tên hàm/hành vi công khai của bản
 
 AN TOÀN (giữ nguyên như bản Gemini): máy chủ chỉ nghe 127.0.0.1 (không ra mạng
 ngoài) và chỉ nhận POST có ``Origin: chrome-extension://…`` — trang web bình thường
-không đẩy rác vào được. File kho nằm ở %LOCALAPPDATA%\\CapCutTTS (NGOÀI repo) nên
+không đẩy rác vào được. File kho nằm ở %LOCALAPPDATA%\\BanContent (NGOÀI repo) nên
 cookie không lọt vào git.
 """
 
@@ -31,14 +31,22 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 
 def store_dir():
-    """Thư mục kho (ngoài repo). Đặt biến môi trường CAPCUT_TTS_DATA để đổi chỗ."""
-    if os.environ.get("CAPCUT_TTS_DATA"):
-        d = os.environ["CAPCUT_TTS_DATA"]
+    """Thư mục kho (ngoài repo). 14/10/2026 user: bán-content dùng kho RIÊNG %LOCALAPPDATA%\\BanContent — độc lập với
+    CapCut TTS Studio (kho %LOCALAPPDATA%\\CapCutTTS). Đặt biến môi trường BAN_CONTENT_DATA để đổi chỗ."""
+    if os.environ.get("BAN_CONTENT_DATA"):
+        d = os.environ["BAN_CONTENT_DATA"]
     else:
         base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-        d = os.path.join(base, "CapCutTTS")
+        d = os.path.join(base, "BanContent")
     os.makedirs(d, exist_ok=True)
     return d
+
+
+def kho_chung_capcut(ten_file):
+    """Đường dẫn kho cookie của CapCut TTS Studio nếu máy này có (dùng chung), không có -> None."""
+    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    p = os.path.join(base, "CapCutTTS", ten_file)
+    return p if os.path.isfile(p) else None
 
 
 # Tài khoản RIÊNG của một tab (vd tab 🛡 Đăng YouTube an toàn: cookie người dùng dán tay,
@@ -101,7 +109,15 @@ class Kho:
     def store_path(self):
         # Đọc biến môi trường ở MỖI lượt gọi (không cache): test đổi biến sau khi
         # import module vẫn phải trỏ đúng file tạm.
-        return os.environ.get(self.env_path) or os.path.join(store_dir(), self.ten_file)
+        if os.environ.get(self.env_path):
+            return os.environ[self.env_path]
+        # 14/10/2026 user: "hiện tại cứ cho nó 1 chỗ nạp chung, phòng hờ sau chuyển máy" -> máy CÓ kho của CapCut TTS
+        # Studio thì dùng CHUNG kho đó (nạp một chỗ); máy không có (chuyển máy, chỉ cài bán-content) mới dùng kho RIÊNG
+        # %LOCALAPPDATA%\BanContent + tiện ích cookie_ext. BAN_CONTENT_DATA đặt thì luôn dùng kho riêng.
+        chung = kho_chung_capcut(self.ten_file)
+        if chung and not os.environ.get("BAN_CONTENT_DATA"):
+            return chung
+        return os.path.join(store_dir(), self.ten_file)
 
     def load_store(self):
         """Đọc kho; hỏng/chưa có -> kho rỗng (không ném lỗi ra ngoài)."""
@@ -422,7 +438,7 @@ def tao_handler(kho):
     không dùng biến toàn cục để hai máy chủ (Gemini/ChatGPT) không giẫm lên nhau."""
 
     class _Handler(BaseHTTPRequestHandler):
-        server_version = "CapCutTTSCookie/1.0"
+        server_version = "BanContentCookie/1.0"
         on_log = None                     # gán từ ngoài: hàm log(str)
         _kho = kho
 

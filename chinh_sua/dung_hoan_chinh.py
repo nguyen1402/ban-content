@@ -46,7 +46,8 @@ HIEU_UNG_BAT = True
 DIEU_PHOI_BAT = True
 #: 13/10 user nghe thử rồi BỎ NGAY tiếng động diễn cảnh ("nghe không hợp"). Mã còn đó; bật lại = True.
 TIENG_DONG_BAT = False
-BANG_GIAY_BAT = False      # 12/10 user xem bản thử rồi BỎ ("không muốn vẽ kiểu đấy") — bật lại bằng --co-bang-giay
+DEN_THEM = 1.0             # 15/10 user: đen màn ở chỗ (nghỉ X) kéo dài thêm bấy nhiêu giây MỖI BÊN (tối dần / sáng lại)
+BANG_GIAY_BAT = False     # 12/10 user xem bản thử rồi BỎ ("không muốn vẽ kiểu đấy") — bật lại bằng --co-bang-giay
 KE_HOACH = os.path.join(OUT, "ke_hoach.json")
 
 MILD = ["Mờ dần", "Rõ dần", "Trượt sang trái", "Trượt sang phải"]
@@ -574,15 +575,18 @@ def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
         if not os.path.isfile(den):
             Image.new("RGB", (1920, 1080), (0, 0, 0)).save(den)
         KPd = draft.KeyframeProperty
+        mep = 0.3 + DEN_THEM                                    # 15/10 user: mỗi bên thêm 1 s (che chỗ chuyển cảnh mượt hơn)
         for c in man_den:
             x = float(c["nghi_sau"])
             het = float(c["bat_dau"]) + float(c["dai"])            # hết cảnh = lúc cảnh sau bắt đầu
-            bd, d = het - x - 0.3, x + 0.6                      # mờ dần về đen trong quãng nghỉ, sáng lại đầu cảnh sau
+            bd, d = het - x - mep, x + 2 * mep                  # tối dần trước quãng nghỉ, đen hẳn trong quãng nghỉ, sáng lại sau
+            lech = max(0.0, -bd)                                 # chỗ nghỉ sát đầu video: bỏ phần trước giây 0
+            bd, d = bd + lech, d - lech
             di = int(d * SEC)
-            seg = draft.VideoSegment(draft.VideoMaterial(den), trange(int(max(0.0, bd) * SEC), di))
-            seg.add_keyframe(KPd.alpha, 0, 0.0)
-            seg.add_keyframe(KPd.alpha, int((0.3 + x * 0.5) * SEC), 1.0)
-            seg.add_keyframe(KPd.alpha, int((0.3 + x) * SEC), 1.0)
+            seg = draft.VideoSegment(draft.VideoMaterial(den), trange(int(bd * SEC), di))
+            seg.add_keyframe(KPd.alpha, 0, 0.0 if lech < mep else 1.0)
+            seg.add_keyframe(KPd.alpha, int(max(0.0, mep + x * 0.5 - lech) * SEC), 1.0)
+            seg.add_keyframe(KPd.alpha, int(max(0.0, mep + x - lech) * SEC), 1.0)
             seg.add_keyframe(KPd.alpha, di - 1000, 0.0)
             script.add_segment(seg, track_name="man_den")
         log(f"    màn đen chuyển cảnh: {len(man_den)} chỗ nghỉ")

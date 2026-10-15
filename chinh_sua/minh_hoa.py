@@ -41,6 +41,73 @@ def _ve_day_du(y, ds):
     return ve
 
 
+TOAN_Y = ("tong_quat", "liet_ke", "con_so")   # 14/10 user: hiện MỘT lần đến hết ý (không nhịp từng bước)
+
+
+def _chuan_hoa(x):
+    """Kế hoạch kiểu MỚI (14/10: một ảnh cho cả ý) -> cấu trúc vai/hanh_dong cũ để phần giờ / dựng dùng chung."""
+    kh = str(x.get("khuon") or "")
+    if str(x.get("bo_cuc") or "").lower() == "liet_ke" and kh not in TOAN_Y:
+        return x                                             # kế hoạch cũ (trước->sau liệt kê) giữ nguyên
+    if kh == "liet_ke":
+        return dict(x, bo_cuc="liet_ke", hanh_dong=[],
+                    vai=[dict(y, vi_tri="", dan=False) for y in (x.get("vai") or []) if isinstance(y, dict)][:5])
+    if kh in ("tong_quat", "con_so") and x.get("ve"):
+        return dict(x, bo_cuc="", hanh_dong=[], vai=[{"ten": "", "ve": str(x["ve"])}])
+    return x
+
+
+_CHU_SO = {"không": 0, "một": 1, "mốt": 1, "hai": 2, "ba": 3, "bốn": 4, "tư": 4, "năm": 5, "lăm": 5, "nhăm": 5, "sáu": 6,
+           "bảy": 7, "bẩy": 7, "tám": 8, "chín": 9}
+_DON_VI = {"nghìn": 1000, "ngàn": 1000, "triệu": 10 ** 6, "tỷ": 10 ** 9, "tỉ": 10 ** 9}
+
+
+def so_chu_so(s):
+    """14/10 user ("Gần chín mươi phần trăm" -> "Gần 90%"): số đọc bằng chữ -> chữ số; giữ chữ trước/sau. Không đổi
+    được -> '' (khi đó chỉ hiện ảnh, không hiện số)."""
+    import re
+    s = str(s or "").strip()
+    if not s or re.search(r"\d", s):
+        return s
+    tu = s.split()
+    so_tu = set(_CHU_SO) | set(_DON_VI) | {"mười", "mươi", "trăm", "linh", "lẻ"}
+    i = next((k for k, w in enumerate(tu) if w.lower() in so_tu), None)
+    if i is None:
+        return ""
+    j = i
+    while j < len(tu) and tu[j].lower() in so_tu:
+        j += 1
+    tong, nhom, cho, dv_cuoi = 0, 0, 0, None
+    for w in (x.lower() for x in tu[i:j]):
+        if w == "mươi":
+            nhom += (cho or 1) * 10
+            cho = 0
+        elif w == "mười":
+            nhom += 10
+        elif w == "trăm":
+            nhom += (cho or 1) * 100
+            cho = 0
+        elif w in ("linh", "lẻ"):
+            continue
+        elif w in _DON_VI:
+            nhom += cho
+            tong += (nhom or 1) * _DON_VI[w]
+            nhom, cho, dv_cuoi = 0, 0, w
+        else:
+            cho = _CHU_SO[w]
+    tong += nhom + cho
+    if not tong and "không" not in (x.lower() for x in tu[i:j]):
+        return ""
+    if dv_cuoi in ("triệu", "tỷ", "tỉ") and tong % _DON_VI[dv_cuoi] == 0:
+        so = f"{tong // _DON_VI[dv_cuoi]} {dv_cuoi}"          # "ba triệu" -> "3 triệu" (đúng kiểu đọc)
+    else:
+        so = f"{tong:,}".replace(",", ".")
+    sau = tu[j:]
+    if len(sau) >= 2 and sau[0].lower() == "phần" and sau[1].lower() == "trăm":
+        so, sau = so + "%", sau[2:]
+    return " ".join(tu[:i] + [so] + sau)
+
+
 def _toi_da_vai(x):
     """Số vai tối đa: cảnh LIỆT KÊ tới 6 (mỗi mục một vai), cảnh thường 4."""
     if str(x.get("bo_cuc") or "").lower() == "liet_ke":
@@ -175,8 +242,10 @@ def _gio_dien_canh(x, ds_c, ke):
         hd.append({"ai": ai, "lam": y["lam"], "toi": toi, "nhan": str(y.get("nhan") or ""), "t": t})
     hd.sort(key=lambda h: h["t"])
     khuon = str(x.get("khuon") or "")
-    if not hd and khuon in ("con_so", "so_sanh"):              # khuôn con số / so sánh: không cần nhịp chuyển động
-        t = _tim(ds_c, x.get("moc_so") or x.get("moc"))
+    if not hd and khuon in ("con_so", "so_sanh") + TOAN_Y:     # khuôn con số / cả ý: không cần nhịp chuyển động
+        t = _tim(ds_c, x.get("moc") if khuon in ("tong_quat", "liet_ke") else (x.get("moc_so") or x.get("moc")))
+        if t is None and khuon in ("tong_quat", "liet_ke"):
+            t = ds_c[0]["t0"]                                # 14/10: cả ý -> mốc không khớp thì từ đầu câu
         if t is not None:
             hd = [{"ai": 0, "lam": "xuat_hien", "toi": None, "nhan": "", "t": t}]
     # 14/10 user: nhịp quá sát (săn rồi chết ngay) -> nhịp sau chờ nhịp trước diễn xong (>= 1,2 s); không vượt cuối câu
@@ -223,6 +292,8 @@ def _gio_dien_canh(x, ds_c, ke):
         it_nhat = cuoi + HOAT_CANH + GIU_CUOI                # nhịp cuối hiện xong + đứng yên 2 s cho người xem kịp hiểu
         kt = max(min(tran, max(it_nhat, min(max(het_cau, ket + 0.3), cuoi + 5.0))), min(it_nhat, tran + 0.9))
         kt = min(kt, chan)                                   # 14/10 user: tuyệt đối không lấn sang câu mới
+        if khuon in TOAN_Y:                                  # 14/10 user: hiện một lần, đứng tới HẾT Ý (hết các câu của cảnh)
+            kt = max(kt, min(het_cau, chan))
         vao = []
         for i, v in enumerate(vai):
             dung = [h["t"] for h in g if h["ai"] == i or h["toi"] == i]
@@ -266,7 +337,7 @@ def _render_so_do(jobs):
     os.makedirs(thu, exist_ok=True)
     ra, viec = {}, []
     for khoa, giay, pr in jobs:
-        out = os.path.join(thu, hashlib.md5((json.dumps(pr, ensure_ascii=False, sort_keys=True) + f"|{giay}|v32")
+        out = os.path.join(thu, hashlib.md5((json.dumps(pr, ensure_ascii=False, sort_keys=True) + f"|{giay}|v35")
                                             .encode()).hexdigest()[:16] + ".mp4")
         ra[khoa] = out
         if not (os.path.isfile(out) and os.path.getsize(out) > 5000):
@@ -293,6 +364,7 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
             continue
         ds_c = [theo_i[j] for j in range(x["cau"], x.get("den_cau", x["cau"]) + 1) if j in theo_i]
         if k == "dien_canh":
+            x = _chuan_hoa(x)
             for g in _gio_dien_canh(x, ds_c, theo_i.get(x.get("den_cau", x["cau"]) + 1)):
                 if g["bd"] > MO_PHONG_DEN:
                     continue
@@ -326,7 +398,7 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
         x_ = u[3] or {}
         kh_ = str(x_.get("khuon") or "")
         if u[2] == "dien_canh":
-            return 0 if kh_ in ("truoc_sau", "hanh_dong", "co_che", "so_sanh", "") else 1
+            return 0 if kh_ in ("tong_quat", "liet_ke", "truoc_sau", "hanh_dong", "co_che", "so_sanh", "") else 1
         return 2 if u[2] in VE_BAN_DO else 3
     nhan = []
     for u in sorted(ung, key=lambda z: (_uu(z), z[0])):
@@ -355,6 +427,9 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
     from concurrent.futures import ThreadPoolExecutor
 
     def _vai_canh(x):
+        if str(x.get("khuon") or "") in ("tong_quat", "con_so") and x.get("ve"):
+            r = anh_tach.anh_tong_quat(str(x["ve"])) if BO_VAI_AI else None   # 14/10 user: MỘT ảnh cho cả ý
+            return [{"ten": "", "src": r["src"], "vi_tri": "giua", "dan": False}] if r else [None]
         ds = [y for y in (x.get("vai") or []) if isinstance(y, dict)][:_toi_da_vai(x)]
         bo = anh_tach.bo_canh_nhom(ds) if BO_VAI_AI else [None] * len(ds)
         vai, da_url = [], []
@@ -397,6 +472,8 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
             if not v or "same as" in str(y.get("ve") or "").lower():
                 continue
             kt_ = unicodedata.normalize("NFC", str(y.get("ten") or "")).lower().strip()
+            if not kt_:
+                continue                                     # ảnh tổng quát không tên: không dùng chung
             if kt_ in dau_tien:
                 v["src"] = dau_tien[kt_]
             else:
@@ -422,7 +499,10 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
                   if h["ai"] < len(vai) and vai[h["ai"]] and (h["toi"] is None or (h["toi"] < len(vai) and vai[h["toi"]]))]
             khuon = str(x.get("khuon") or "")
             lk = str(x.get("bo_cuc") or "").lower() == "liet_ke"
-            if not lk and khuon not in ("con_so", "so_sanh") and not any(h["lam"] != "xuat_hien" for h in hd) and not any(
+            if not any(vai):
+                log(f"    ! diễn cảnh câu {x['cau']}: không có ảnh — bỏ")
+                continue
+            if not lk and khuon not in ("con_so", "so_sanh") + TOAN_Y and not any(h["lam"] != "xuat_hien" for h in hd) and not any(
                     h["lam"] != "xuat_hien" for h in (x.get("hanh_dong") or []) if isinstance(h, dict)):
                 log(f"    ! diễn cảnh câu {x['cau']}: không còn hành động chuyển động (chỉ xuất hiện / thiếu ảnh / mốc không khớp lời) — bỏ")
                 continue
@@ -440,7 +520,7 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
                     if ts:
                         moc_i[i] = min(ts)
                 muc = []
-                for i in sorted(moc_i, key=moc_i.get):
+                for i in sorted(moc_i, key=moc_i.get) + [i for i in range(len(vai)) if i not in moc_i]:
                     if i in dich:
                         continue
                     j, da = i, {i}
@@ -454,13 +534,15 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
                     continue
                 t0 = max(0.1, min(moc_i.values()) if moc_i else 0.3)
                 for k2, v in enumerate(muc):
-                    v["vao"] = round(t0 + 0.12 * k2, 2)
+                    v["vao"] = round(t0, 2)                  # 14/10 user: liệt kê hiện HẾT cùng lúc
                 vai, hd = muc, []
             pr.update(vai=[v or {"ten": "", "src": ""} for v in vai], hanh_dong=hd,
                       bo_cuc="liet_ke" if lk else "", khuon=khuon)
+            if khuon == "tong_quat":                         # 14/10 user: dòng tiêu đề tiếng Việt dưới ảnh tổng quát
+                pr.update(chu_tq=str(x.get("tieu_de") or "").strip())
             if khuon == "con_so":
                 ts = g.get("t_so")
-                pr.update(so=str(x.get("so") or ""), hoi=False,   # 14/10 user: không gắn "?" vào con số
+                pr.update(so=so_chu_so(x.get("so")), hoi=False,   # 14/10 user: không gắn "?" vào con số
                           t_so=round(max(0.3, (ts - bd) if ts is not None else 0.6), 2))
             elif khuon == "so_sanh":
                 try:

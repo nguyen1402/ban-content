@@ -107,12 +107,14 @@ _TK = {"ds": None, "i": 0}
 
 def _tai_khoan():
     """Id tài khoản ChatGPT (cookie) trong kho dùng chung của máy, mới cập nhật xếp trước.
-    Kho nằm NGOÀI repo (thư mục CapCutTTS trong LOCALAPPDATA); repo này chỉ đọc."""
+    Máy có CapCut TTS Studio: dùng chung kho của nó; không có: kho riêng %LOCALAPPDATA%\\BanContent (thẻ 🍪 Cookie).
+    14/10: CHỈ tài khoản ĐÃ ĐẶT TÊN (log từng dùng 'acc-yXAm7Bw' tên tự sinh, cookie hết hạn)."""
     if _TK["ds"] is None:
         sys.path.insert(0, os.path.join(ROOT, "tts"))
         import chatgpt_cookie_store as kho
         ds = sorted(kho.list_accounts(), key=lambda a: a.get("tuoi_giay", 1e12))
-        _TK["ds"] = [a["id"] for a in ds if a.get("co_session")]
+        ten = set(kho.KHO.named_account_ids())
+        _TK["ds"] = [a["id"] for a in ds if a.get("co_session") and a["id"] in ten]
     return _TK["ds"]
 
 
@@ -122,12 +124,46 @@ def gon_loi(e, n=90):
     return re.sub(r"\s+", " ", t).strip()[:n]
 
 
+_GM = {"i": 0, "da_bao": False}
+
+
+def hoi_gemini(prompt, timeout=240):
+    """15/10 user: "nếu toàn bộ ChatGPT lỗi thì dùng Gemini để hỏi". Một lượt hỏi Gemini web (cookie, chỉ tài khoản ĐÃ
+    ĐẶT TÊN, xoay vòng; chế độ trò chuyện tạm) -> text ('' nếu mọi tài khoản đều hỏng)."""
+    sys.path.insert(0, os.path.join(ROOT, "tts"))
+    try:
+        import gemini_cookie_store as kg
+        import gemini_web_client as gw
+        ds = kg.unique_account_ids(kg.named_account_ids())
+    except Exception as e:                                 # noqa: BLE001
+        log(f"    (gemini dự phòng không dùng được: {gon_loi(e)})")
+        return ""
+    if not _GM["da_bao"]:
+        log("    ChatGPT lỗi hết -> hỏi Gemini (cookie) thay")
+        _GM["da_bao"] = True
+    for _ in range(min(len(ds), 4)):
+        acc = ds[_GM["i"] % len(ds)]
+        _GM["i"] += 1
+        try:
+            kq = gw.ask(acc, prompt, timeout=timeout, retries=1)
+            if kq:
+                return kq
+        except Exception as e:                             # noqa: BLE001
+            log(f"    (gemini '{acc}' lỗi: {gon_loi(e)} → đổi tài khoản)")
+    return ""
+
+
+def _tat_chatgpt():
+    """BC_TAT_CHATGPT=1: giả lập mọi tài khoản ChatGPT đều hỏng (để thử đường Gemini dự phòng)."""
+    return bool(os.environ.get("BC_TAT_CHATGPT"))
+
+
 def hoi_llm(prompt, timeout=240):
     """Một lượt hỏi ChatGPT web bằng cookie; tài khoản lỗi thì xoay sang tài khoản kế.
-    Trả text ('' nếu thử hết mà không được)."""
+    Trả text; mọi tài khoản ChatGPT hỏng -> hỏi Gemini (15/10 user); vẫn hỏng -> ''."""
     sys.path.insert(0, os.path.join(ROOT, "tts"))
     import chatgpt_web_client as cw
-    ds = _tai_khoan()
+    ds = [] if _tat_chatgpt() else _tai_khoan()
     for _ in range(min(len(ds), 5)):
         acc = ds[_TK["i"] % len(ds)]
         try:
@@ -137,7 +173,7 @@ def hoi_llm(prompt, timeout=240):
         except Exception as e:                             # noqa: BLE001
             log(f"    (chatgpt '{acc}' lỗi: {gon_loi(e)} → đổi tài khoản)")
         _TK["i"] += 1
-    return ""
+    return hoi_gemini(prompt, timeout=timeout)
 
 
 def hoi_nhieu(prompts, timeout=240, on_xong=None):
@@ -151,9 +187,11 @@ def hoi_nhieu(prompts, timeout=240, on_xong=None):
     sys.path.insert(0, os.path.join(ROOT, "tts"))
     import chatgpt_web_client as cw
     import chatgpt_cookie_store as kho
-    ds = _tai_khoan()
+    ds = [] if _tat_chatgpt() else _tai_khoan()
     lan = [a for a in kho.unique_account_ids(ds)] if len(ds) > 1 else list(ds)
     ra = [""] * len(prompts)
+    if not lan and len(prompts) > 1:                      # không còn tài khoản ChatGPT nào: thẳng sang Gemini
+        return _bu_gemini(prompts, ra, timeout, on_xong)
     if len(prompts) <= 1 or len(lan) <= 1:
         for i, p in enumerate(prompts):
             ra[i] = hoi_llm(p, timeout=timeout)
@@ -200,8 +238,22 @@ def hoi_nhieu(prompts, timeout=240, on_xong=None):
             continue
         ra[i] = kq
         con[0] -= 1
-        if on_xong:
+        if on_xong and kq:
             on_xong(i, kq)
+    return _bu_gemini(prompts, ra, timeout, on_xong)
+
+
+def _bu_gemini(prompts, ra, timeout, on_xong):
+    """15/10 user: lô mà MỌI tài khoản ChatGPT đều hỏng -> hỏi Gemini (cookie) thay, song song 4 luồng."""
+    thieu = [i for i, t in enumerate(ra) if not t]
+    if thieu:
+        from concurrent.futures import ThreadPoolExecutor
+        log(f"    {len(thieu)}/{len(prompts)} lô ChatGPT không trả lời -> hỏi Gemini")
+        with ThreadPoolExecutor(min(4, len(thieu))) as ex:
+            for i, kq in zip(thieu, ex.map(lambda k: hoi_gemini(prompts[k], timeout=timeout), thieu)):
+                ra[i] = kq or ""
+                if on_xong:
+                    on_xong(i, ra[i])
     return ra
 
 

@@ -3,9 +3,9 @@
 
 Song sinh với ``gemini_cookie_store.py``, khác đúng bốn thứ (xem cookie_store_base.py):
 
-    kho     : %LOCALAPPDATA%\\CapCutTTS\\chatgpt_cookies.json
+    kho     : %LOCALAPPDATA%\\BanContent\\chatgpt_cookies.json
     cookie  : ``__Secure-next-auth.session-token``  (HttpOnly -> chỉ tiện ích đọc được)
-    cổng    : 8766  (Gemini giữ 8765, hai máy chủ chạy song song được)
+    cổng    : 8786  (Gemini 8785; CapCut TTS Studio giữ 8765/8766 — hai app chạy song song được)
     trang   : chatgpt.com
 
 Vì sao là một kho RIÊNG chứ không nhét chung: hạn mức, tài khoản và cách hỏng của hai
@@ -25,7 +25,7 @@ import sys
 
 from cookie_store_base import Kho, CookieServer as _CookieServer, cli, slug, store_dir
 
-DEFAULT_PORT = 8766
+DEFAULT_PORT = 8786                                     # 14/10: CapCut TTS Studio giữ 8766
 
 # Cookie bắt buộc phải có thì phiên mới dùng được.
 #
@@ -41,14 +41,14 @@ COOKIE_THEO_HOI_THOAI = (r"_[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
 
 KHO = Kho(
     ten_file="chatgpt_cookies.json",
-    env_path="CHATGPT_COOKIE_STORE",
+    env_path="BC_CHATGPT_COOKIE_STORE",
     cookie_bat_buoc=COOKIE_BAT_BUOC,
     port=DEFAULT_PORT,
     trang_dang_nhap="chatgpt.com",
     co_cookie=(("co_session", COOKIE_BAT_BUOC),
                ("co_cf", "cf_clearance")),
     ten_luong="chatgpt-cookie-server",
-    ten_tien_ich="gemini_cookie_ext",
+    ten_tien_ich="cookie_ext",
     # Token phiên NextAuth đổi liên tục (app hâm nóng ghi token mới) -> nhãn tự sinh
     # không dựng lại được từ cookie hiện tại; xem Kho.nhan_tu_sinh (02/10/2026).
     phien_xoay=True,
@@ -148,7 +148,7 @@ def import_json(text, label=None):
 
 
 class CookieServer(_CookieServer):
-    """Máy chủ nhận cookie ChatGPT (cổng 8766)."""
+    """Máy chủ nhận cookie ChatGPT (cổng 8786)."""
 
     def __init__(self, port=DEFAULT_PORT, on_log=None):
         super().__init__(KHO, port=port, on_log=on_log)

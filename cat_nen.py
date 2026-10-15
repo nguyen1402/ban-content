@@ -39,12 +39,30 @@ def mat_na(img):
     return np.asarray(Image.fromarray((p * 255).astype(np.uint8)).resize(img.size, Image.LANCZOS), np.float32) / 255.0
 
 
-def tach_nen(duong_vao, duong_ra, cat_vien=True):
-    """Ghi PNG RGBA: con vật rõ, nền trong suốt; cắt khít khung quanh đối tượng. Trả (rộng, cao, tỉ lệ diện tích đối tượng)."""
+def hop_nen_trang(img, a):
+    """14/10 user ("cây cao xoá bay sạch màu"): ISNet hay xoá phần MẢNH / THƯA / SÁNG (tán lá, lông, khói, lưới).
+    Ảnh AI vẽ luôn trên NỀN TRẮNG trơn -> gộp thêm mặt nạ theo màu (điểm khác trắng rõ = vật): tán lá được giữ nhờ màu,
+    phần vật màu trắng vẫn còn nhờ ISNet. Bỏ đốm lẻ nhỏ."""
+    from scipy import ndimage
+    x = np.asarray(img.convert("RGB"), np.float32)
+    d = (255.0 - x).max(axis=2)                              # độ "khác trắng" (bóng xám nhạt < 45 không tính)
+    wk = np.clip((d - 45.0) / 30.0, 0, 1)
+    nhan, n = ndimage.label(wk > 0.5)
+    if n:
+        co = ndimage.sum(np.ones_like(nhan), nhan, range(1, n + 1))
+        wk[np.isin(nhan, np.nonzero(co < 0.0004 * nhan.size)[0] + 1)] = 0
+    return np.maximum(a, wk)
+
+
+def tach_nen(duong_vao, duong_ra, cat_vien=True, nen_trang=False):
+    """Ghi PNG RGBA: con vật rõ, nền trong suốt; cắt khít khung quanh đối tượng. Trả (rộng, cao, tỉ lệ diện tích đối tượng).
+    nen_trang=True: ảnh vẽ trên nền trắng trơn -> gộp thêm mặt nạ theo màu (hop_nen_trang)."""
     from PIL import Image
     img = Image.open(duong_vao).convert("RGB")
     m = mat_na(img)
     m = np.clip((m - 0.12) / 0.76, 0, 1)                   # làm gắt mép một chút, bỏ quầng mờ
+    if nen_trang:
+        m = hop_nen_trang(img, m)
     rgba = np.dstack([np.asarray(img), (m * 255).astype(np.uint8)])
     out = Image.fromarray(rgba, "RGBA")
     if cat_vien:
