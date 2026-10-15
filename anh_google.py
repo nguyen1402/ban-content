@@ -108,7 +108,10 @@ def _mo_chrome(url):
     hs = os.path.join(os.environ.get("LOCALAPPDATA", os.path.expanduser("~")), "CapCutTTS", "bc_chrome", "google")
     os.makedirs(hs, exist_ok=True)
     subprocess.Popen([exe, f"--user-data-dir={hs}", f"--remote-debugging-port={CONG}", "--no-first-run",
-                      "--no-default-browser-check", "--window-size=1150,850", url])
+                      "--no-default-browser-check", "--window-size=1150,850",
+                      # 15/10: bộ tìm stock mở 10 tab cùng lúc — tab nền không bị Chrome hãm (trang tải đủ khi không hiện)
+                      "--disable-background-timer-throttling", "--disable-renderer-backgrounding",
+                      "--disable-backgrounding-occluded-windows", url])
     for _ in range(60):
         time.sleep(0.5)
         if _tab_trang(_ds_tab()):

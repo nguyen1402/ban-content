@@ -216,10 +216,14 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
         tu_s += [((dai_g[0].get("video") or ["", ""]) + [""])[1], (dai_g[0].get("anh") or [""])[0]]
     tu_s = list(dict.fromkeys(q.strip() for q in tu_s if q and q.strip()))
     kq_s = {}
-    for k, q in enumerate(tu_s):
-        _tt(du_an, buoc="tim_stock", xong=k, tong=len(tu_s))
-        for x in kho_video_free.tim(q):
+    _tt(du_an, buoc="tim_stock", xong=0, tong=len(tu_s))
+    t_tim = time.time()                                      # 15/10 user: 10 tab song song (trước: tuần tự 1 tab)
+    theo_tu = kho_video_free.tim_nhieu(tu_s, bao=lambda x, n: _tt(du_an, buoc="tim_stock", xong=x, tong=n))
+    for q in tu_s:                                           # giữ thứ tự từ khoá như cũ
+        for x in theo_tu.get(q) or []:
             kq_s.setdefault(x["id"], x)
+    log(f"  tìm stock: {len(tu_s)} từ khoá x {len(kho_video_free.NGUON_MAC_DINH)} nguồn trong "
+        f"{(time.time() - t_tim) / 60:.1f} phút ({kho_video_free.SO_TAB} tab)")
     kho = dung_tay.doc_kho(du_an)
     ds_s = list(kq_s.values())                               # clip đã tải vẫn chấm (tai_file bỏ qua clip đã xong)
     import loc_chu_de                                        # 14/10 user: clip sai con vật / vật chính -> không tải

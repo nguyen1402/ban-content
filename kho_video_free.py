@@ -10,24 +10,61 @@ bỏ tự tải YouTube vì dính logo kênh). Pexels/Pixabay/Mixkit/Coverr — 
 Kết quả: [{nguon, id, ten, trang, thumb, file, dai}] (chưa tải)."""
 import json
 import os
+import queue
 import re
+import threading
 import time
 import urllib.parse
+import urllib.request
 
 from common import CACHE_CHUNG, doc_json, ghi_json, log
 
 _CACHE = os.path.join(CACHE_CHUNG, "tim_video_free.json")
 
+SO_TAB = int(os.environ.get("BC_SO_TAB", "10"))   # 15/10 user: tìm stock bằng 10 tab song song (trước: 1 tab, tuần tự)
+_TOI_DA_TRANG = {"www.pexels.com": 3, "pixabay.com": 2, "mixkit.co": 3, "coverr.co": 3}   # mỗi trang tối đa bấy nhiêu tab
+#                                                  cùng lúc — Pixabay từng trả 429 khi bị gọi dồn
+_HO = queue.Queue()                                 # websocket URL các tab RIÊNG của bộ tìm stock (không đụng tab anh_google)
+_KHOA_HO = threading.Lock()
+_KHOA_CACHE = threading.Lock()
+_SEM = {}
+_DA_TAO = [0]
+
+
+def _tab_rieng():
+    """Một tab rảnh trong hồ (tạo dần tới SO_TAB tab trong cửa sổ Chrome tìm kiếm của anh_google)."""
+    import anh_google as g
+    try:
+        return _HO.get_nowait()
+    except queue.Empty:
+        pass
+    with _KHOA_HO:
+        if _DA_TAO[0] < SO_TAB:
+            with g._KHOA:                                    # noqa: SLF001  (mở Chrome một lần)
+                if not g._ds_tab():                          # noqa: SLF001
+                    g._mo_chrome("about:blank")              # noqa: SLF001
+            req = urllib.request.Request(f"http://127.0.0.1:{g.CONG}/json/new?about:blank", method="PUT")
+            t = json.load(urllib.request.urlopen(req, timeout=10))
+            _DA_TAO[0] += 1
+            return t["webSocketDebuggerUrl"]
+    return _HO.get()                                         # đủ SO_TAB tab: chờ tab rảnh
+
 
 def _mo_trang(url, cho=7.0, cuon=2):
-    """HTML của trang sau khi tải xong + cuộn vài lần (dùng chung tab Chrome với anh_google, tuần tự)."""
+    """HTML của trang sau khi tải xong + cuộn vài lần. 15/10 user: mỗi lượt một tab RIÊNG trong hồ SO_TAB tab (song
+    song), mỗi trang web tối đa _TOI_DA_TRANG tab cùng lúc."""
     import anh_google as g
-    with g._KHOA:                                            # noqa: SLF001
-        tab = g._tab_trang(g._ds_tab())                      # noqa: SLF001
-        if not tab:
-            g._mo_chrome(url)                                # noqa: SLF001
-            tab = g._tab_trang(g._ds_tab())                  # noqa: SLF001
-        ws = g._WS(tab["webSocketDebuggerUrl"])              # noqa: SLF001
+    trang = urllib.parse.urlparse(url).netloc
+    with _KHOA_HO:
+        sem = _SEM.setdefault(trang, threading.Semaphore(_TOI_DA_TRANG.get(trang, 2)))
+    with sem:
+        u = _tab_rieng()
+        try:
+            ws = g._WS(u)                                    # noqa: SLF001
+        except Exception:                                    # noqa: BLE001  tab bị đóng tay -> bỏ, lần sau tạo tab mới
+            with _KHOA_HO:
+                _DA_TAO[0] -= 1
+            raise
         try:
             ws.goi("Page.navigate", url=url)
             het = time.time() + cho
@@ -41,6 +78,7 @@ def _mo_trang(url, cho=7.0, cuon=2):
             return ws.js("document.documentElement.outerHTML") or ""
         finally:
             ws.dong()
+            _HO.put(u)
 
 
 def _ld(h):
@@ -208,22 +246,43 @@ _HAM = {"pexels": "tim_pexels", "pixabay": "tim_pixabay", "mixkit": "tim_mixkit"
         "wikimedia": "tim_wikimedia"}
 
 
-def tim(q, nguon=NGUON_MAC_DINH):
-    """Kết quả cả hai kho cho từ khoá q (cache 7 ngày)."""
-    da = doc_json(_CACHE, {}) or {}
-    ra = []
-    for n in nguon:
-        k = f"{n}|{q.strip().lower()}"
-        if k in da and time.time() - da[k]["luc"] < 7 * 86400:
-            ra += da[k]["ds"]
-            continue
-        try:
-            ds = globals()[_HAM[n]](q)
-        except Exception as e:                               # noqa: BLE001
-            log(f"    ! tìm {n} '{q[:40]}': {str(e)[:100]}")
-            ds = []
+def _mot(n, q):
+    """Kết quả MỘT nguồn cho từ khoá q (cache 7 ngày; ghi cache có khoá — gọi song song an toàn)."""
+    k = f"{n}|{q.strip().lower()}"
+    v = (doc_json(_CACHE, {}) or {}).get(k)
+    if v and time.time() - v["luc"] < 7 * 86400:
+        return v["ds"]
+    try:
+        ds = globals()[_HAM[n]](q)
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! tìm {n} '{q[:40]}': {str(e)[:100]}")
+        return []                                            # lỗi: không ghi cache (lần sau tìm lại)
+    with _KHOA_CACHE:
         da = doc_json(_CACHE, {}) or {}
         da[k] = {"luc": time.time(), "ds": ds}
         ghi_json(_CACHE, da)
-        ra += ds
+    return ds
+
+
+def tim(q, nguon=NGUON_MAC_DINH):
+    """Kết quả mọi nguồn cho từ khoá q (cache 7 ngày)."""
+    ra = []
+    for n in nguon:
+        ra += _mot(n, q)
+    return ra
+
+
+def tim_nhieu(ds_tu, nguon=NGUON_MAC_DINH, bao=None):
+    """15/10 user: tìm NHIỀU từ khoá SONG SONG (SO_TAB tab Chrome) -> {từ khoá: [kết quả]}. bao(xong, tong)."""
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    viec = [(q, n) for q in ds_tu for n in nguon]
+    ra = {q: [] for q in ds_tu}
+    xong = 0
+    with ThreadPoolExecutor(SO_TAB) as ex:
+        tuong_lai = {ex.submit(_mot, n, q): q for q, n in viec}
+        for f in as_completed(tuong_lai):
+            ra[tuong_lai[f]] += f.result() or []
+            xong += 1
+            if bao:
+                bao(xong, len(viec))
     return ra
