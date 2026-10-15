@@ -103,6 +103,22 @@ def ghi_json(path, obj):
 
 
 _TK = {"ds": None, "i": 0}
+_CHAN = set()                # 15/10 user: tài khoản ChatGPT bị Turnstile trong lượt chạy này -> không dùng nữa (Gemini thay)
+
+
+def _la_turnstile(e):
+    """Lỗi ChatGPT do bị đòi Turnstile (Cloudflare chặn máy) — cookie vẫn sống nhưng đường cookie không qua được."""
+    return "turnstile" in str(e).lower()
+
+
+def _gemini_ds():
+    """Tài khoản Gemini ĐÃ ĐẶT TÊN (không trùng phiên) — làn dự phòng khi ChatGPT bị chặn."""
+    sys.path.insert(0, os.path.join(ROOT, "tts"))
+    try:
+        import gemini_cookie_store as kg
+        return list(kg.unique_account_ids(kg.named_account_ids()))
+    except Exception:                                      # noqa: BLE001
+        return []
 
 
 def _tai_khoan():
@@ -115,7 +131,7 @@ def _tai_khoan():
         ds = sorted(kho.list_accounts(), key=lambda a: a.get("tuoi_giay", 1e12))
         ten = set(kho.KHO.named_account_ids())
         _TK["ds"] = [a["id"] for a in ds if a.get("co_session") and a["id"] in ten]
-    return _TK["ds"]
+    return [a for a in _TK["ds"] if a not in _CHAN]
 
 
 def gon_loi(e, n=90):
@@ -171,7 +187,11 @@ def hoi_llm(prompt, timeout=240):
             if kq:
                 return kq
         except Exception as e:                             # noqa: BLE001
-            log(f"    (chatgpt '{acc}' lỗi: {gon_loi(e)} → đổi tài khoản)")
+            if _la_turnstile(e):                           # 15/10 user: bị Turnstile -> nghỉ tài khoản này cả lượt chạy
+                _CHAN.add(acc)
+                log(f"    (chatgpt '{acc}' bị Turnstile — nghỉ trong lượt này)")
+            else:
+                log(f"    (chatgpt '{acc}' lỗi: {gon_loi(e)} → đổi tài khoản)")
         _TK["i"] += 1
     return hoi_gemini(prompt, timeout=timeout)
 
@@ -204,6 +224,44 @@ def hoi_nhieu(prompts, timeout=240, on_xong=None):
     xong_q = queue.Queue()
     con = [len(prompts)]                                  # số lô chưa có kết quả cuối (chỉ luồng chính đụng)
 
+    ths = []
+    gm = _gemini_ds()
+    khoa_gm = threading.Lock()
+
+    def mo_luong_gemini():
+        """15/10 user: một tài khoản ChatGPT bị Turnstile -> mở NGAY một luồng Gemini thay chỗ (cùng hàng đợi)."""
+        with khoa_gm:
+            if not gm:
+                return
+            g = gm[_GM["i"] % len(gm)]
+            _GM["i"] += 1
+        t = threading.Thread(target=luong_gemini, args=(g,), daemon=True)
+        ths.append(t)
+        t.start()
+
+    def luong_gemini(acc):
+        import gemini_web_client as gw
+        loi_lien_tiep = 0
+        while loi_lien_tiep < 3:
+            try:
+                i, lan_thu = viec.get_nowait()
+            except queue.Empty:
+                return
+            kq = ""
+            try:
+                kq = gw.ask(acc, prompts[i], timeout=timeout, retries=1) or ""
+            except Exception as e:                        # noqa: BLE001
+                log(f"    (gemini '{acc}' lỗi: {gon_loi(e)})")
+            if kq:
+                loi_lien_tiep = 0
+                xong_q.put((i, kq))
+            else:
+                loi_lien_tiep += 1
+                if lan_thu + 1 < 3:
+                    viec.put((i, lan_thu + 1))
+                else:
+                    xong_q.put((i, ""))
+
     def luong(acc):
         loi_lien_tiep = 0
         while loi_lien_tiep < 3:
@@ -215,6 +273,12 @@ def hoi_nhieu(prompts, timeout=240, on_xong=None):
             try:
                 kq = cw.ask(acc, prompts[i], timeout=timeout, retries=1) or ""
             except Exception as e:                        # noqa: BLE001
+                if _la_turnstile(e):                      # 15/10 user: bị Turnstile -> nghỉ hẳn tài khoản này, Gemini thay
+                    _CHAN.add(acc)
+                    log(f"    (chatgpt '{acc}' bị Turnstile — nghỉ trong lượt này, chuyển sang Gemini)")
+                    viec.put((i, lan_thu))                # lô không tính lần thử (lỗi do tài khoản, không do lô)
+                    mo_luong_gemini()
+                    return
                 log(f"    (chatgpt '{acc}' lỗi: {gon_loi(e)} — tài khoản khác làm thay)")
             if kq:
                 loi_lien_tiep = 0
@@ -226,14 +290,15 @@ def hoi_nhieu(prompts, timeout=240, on_xong=None):
                 else:
                     xong_q.put((i, ""))
         # luồng nghỉ: nếu còn lô mà mọi luồng đã nghỉ, luồng chính sẽ phát hiện ở dưới
-    ths = [threading.Thread(target=luong, args=(a,), daemon=True) for a in lan]
-    for t in ths:
+    for a in lan:
+        ths.append(threading.Thread(target=luong, args=(a,), daemon=True))
+    for t in list(ths):
         t.start()
     while con[0] > 0:
         try:
             i, kq = xong_q.get(timeout=2)
         except queue.Empty:
-            if not any(t.is_alive() for t in ths) and xong_q.empty():
+            if not any(t.is_alive() for t in list(ths)) and xong_q.empty():
                 break                                     # mọi cookie đã nghỉ mà còn lô -> bỏ phần còn lại
             continue
         ra[i] = kq
