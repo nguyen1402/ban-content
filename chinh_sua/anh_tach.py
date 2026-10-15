@@ -61,7 +61,6 @@ def _tu_anh_ve(mo_ta, khoa):
     """Vẽ bằng Gemini (anh_ve.py) rồi tách nền + kiểm sạch/chữ (KHÔNG lọc 'hoạt hình': ảnh vẽ là chủ ý)."""
     import anh_ve
     import cat_nen
-    import loc_chu
     from PIL import Image
     k = hashlib.md5(("ve|" + khoa).encode("utf-8")).hexdigest()[:14]
     for lan in range(2):
@@ -73,17 +72,12 @@ def _tu_anh_ve(mo_ta, khoa):
         try:
             cat_nen.tach_nen(f, out, nen_trang=True)        # 14/10: giữ tán lá / lông (ISNet + màu nền trắng)
             ok, ly_do = _sach(out, nhieu_manh=True)
-            if ok:
+            if ok:                                          # 15/10 user: ảnh AI vẽ CHẤP NHẬN có chữ — không soát chữ
                 im = Image.open(out)
-                nen = Image.new("RGB", im.size, (128, 128, 128))
-                nen.paste(im, (0, 0), im)
-                nen.save(thu, quality=92)
-                if not loc_chu.co_chu_anh(thu):
-                    if max(im.size) > 900:
-                        im.thumbnail((900, 900), Image.LANCZOS)
-                        im.save(out)
-                    return {"src": f"cat/{k}.png", "url": "ve:" + mo_ta, "ve": True}
-                ly_do = "chữ đè lên đối tượng"
+                if max(im.size) > 900:
+                    im.thumbnail((900, 900), Image.LANCZOS)
+                    im.save(out)
+                return {"src": f"cat/{k}.png", "url": "ve:" + mo_ta, "ve": True}
             log(f"    ! ảnh vẽ '{mo_ta[:50]}' lần {lan + 1}: {ly_do}")
         finally:
             _xoa(f, thu, thu + ".chu3.json")
@@ -103,7 +97,6 @@ def anh_tong_quat(ve):
     3D), AI vẽ trên nền trắng rồi TÁCH NỀN (giữ mọi mảnh: các hình + mũi tên). -> {"src"} | None. Cache theo mô tả."""
     import anh_ve
     import cat_nen
-    import loc_chu
     from PIL import Image
     if not ve:
         return None
@@ -144,19 +137,14 @@ def anh_tong_quat(ve):
             ok, ly_do = _sach(out, nhieu_manh=True)
             if ok and float((np.asarray(Image.open(out).getchannel("A")) > 128).mean()) > 0.85:
                 ok, ly_do = False, "dính kín mép (chưa tách khỏi nền)"   # 14/10: ảnh chụp KÍN KHUNG có phông (góc bo lọt _sach)
-            if ok:
+            if ok:                                          # 15/10 user: ảnh AI vẽ CHẤP NHẬN có chữ — không soát chữ
                 im = Image.open(out)
-                nen = Image.new("RGB", im.size, (128, 128, 128))
-                nen.paste(im, (0, 0), im)
-                nen.save(thu, quality=92)
-                if not loc_chu.co_chu_anh(thu):
-                    if max(im.size) > 1400:
-                        im.thumbnail((1400, 1400), Image.LANCZOS)
-                        im.save(out)
-                    r = {"src": f"cat/tq_{k}.png"}
-                    _ghi_so(khoa, r)
-                    return r
-                ly_do = "có chữ"
+                if max(im.size) > 1400:
+                    im.thumbnail((1400, 1400), Image.LANCZOS)
+                    im.save(out)
+                r = {"src": f"cat/tq_{k}.png"}
+                _ghi_so(khoa, r)
+                return r
             log(f"    ! ảnh tổng quát '{ve[:50]}' lần {lan + 1}: {ly_do}")
         finally:
             _xoa(f, thu, thu + ".chu3.json")
@@ -411,7 +399,6 @@ def _bo_vun_duoi(mm):
 def _cat_hang(sheet_png, n, k):
     """Tách nền ảnh bộ vai rồi cắt ra đúng n vai (trái -> phải) -> [đường dẫn PNG] hoặc None."""
     import cat_nen
-    import loc_chu
     from PIL import Image
     img = Image.open(sheet_png).convert("RGB")
     a = cat_nen.mat_na(img)
@@ -440,14 +427,8 @@ def _cat_hang(sheet_png, n, k):
         out = os.path.join(PUB, f"{k}_{t}.png")
         o.save(out)
         ok, ly_do = _sach(out, nhieu_manh=True)
-        thu = out[:-4] + "_tach.jpg"
-        nen = Image.new("RGB", o.size, (128, 128, 128))
-        nen.paste(o, (0, 0), o)
-        nen.save(thu, quality=92)
-        co_chu = loc_chu.co_chu_anh(thu)
-        _xoa(thu, thu + ".chu3.json")
-        if not ok or co_chu:
-            log(f"    ! bộ vai: mảnh {t + 1} {'có chữ' if co_chu else ly_do}")
+        if not ok:                                           # 15/10 user: ảnh AI vẽ CHẤP NHẬN có chữ — không soát chữ
+            log(f"    ! bộ vai: mảnh {t + 1} {ly_do}")
             return None
         ra.append(f"cat/{k}_{t}.png")
     return ra

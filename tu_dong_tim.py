@@ -517,14 +517,7 @@ def _ve_anh_ngang(du_an, c, bien_the=0):
             os.remove(f)
         except OSError:
             pass
-        try:
-            import loc_chu
-            if loc_chu.co_chu_anh(dich):
-                ly_do = "có chữ"
-                log(f"    ! cảnh {c['id']}: ảnh vẽ bù lần {lan + 1}: {ly_do}")
-                continue
-        except Exception:                                    # noqa: BLE001
-            pass
+        # 15/10 user: ảnh AI vẽ CHẤP NHẬN có chữ (biển báo, nhãn…) — không soát chữ, không vẽ lại vì chữ
         dung_tay._cap_nhat_kho(du_an, kid, loai="anh", tieu_de=f"Gemini vẽ: {noi_dung[:60]}", file=dich,   # noqa: SLF001
                                nguon="gemini", trang_thai="xong", pt=100.0, rong=im.size[0], cao=im.size[1],
                                luc=time.time(), cho_canh=c["id"])   # 14/10: ảnh vẽ riêng cho cảnh này (goi_y chỉ dùng ở đây)

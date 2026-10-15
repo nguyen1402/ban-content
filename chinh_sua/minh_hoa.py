@@ -127,10 +127,9 @@ VE_BAN_DO = ("ban_do_ve",)   # 14/10 user: địa điểm nhắc NHANH -> bản 
 
 
 def _ve_ban_do(x):
-    """Bản đồ AI vẽ cho một địa điểm -> "bando/<băm>.png" (trong remotion/public) hoặc None. Soát chữ: có chữ thì vẽ lại."""
+    """Bản đồ AI vẽ cho một địa điểm -> "bando/<băm>.png" (trong remotion/public) hoặc None (chấp nhận có chữ)."""
     import hashlib
     import anh_ve
-    import loc_chu
     from common import CACHE_CHUNG, doc_json, ghi_json
     from PIL import Image
     pub = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "remotion", "public", "bando")
@@ -159,19 +158,10 @@ def _ve_ban_do(x):
         im = im.crop((0, 0, int(w * 0.83), int(h * 0.83))).resize((w, h), Image.LANCZOS)
         im.save(out)
         os.remove(f)
-        thu = out[:-4] + "_thu.jpg"
-        im.save(thu, quality=90)
-        co_chu = loc_chu.co_chu_anh(thu)
-        for z in (thu, thu + ".chu3.json"):
-            if os.path.isfile(z):
-                os.remove(z)
-        if not co_chu:
-            d = doc_json(so, {}) or {}
-            d[k] = f"bando/{k}.png"
-            ghi_json(so, d)
-            return f"bando/{k}.png"
-        log(f"    ! bản đồ vẽ '{x.get('ten_vi')}' lần {lan + 1}: có chữ — vẽ lại")
-        os.remove(out)
+        d = doc_json(so, {}) or {}                           # 15/10 user: ảnh AI vẽ CHẤP NHẬN có chữ — không soát chữ
+        d[k] = f"bando/{k}.png"
+        ghi_json(so, d)
+        return f"bando/{k}.png"
     return None
 
 
