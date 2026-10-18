@@ -568,13 +568,35 @@ def cookie_ds():
         ra[dv] = {"kho": m.store_path(), "chung": "CapCutTTS" in m.store_path(), "cong": m.DEFAULT_PORT, "dang_nghe": bool(srv and srv.running), "loi": loi,
                   "tai_khoan": [dict(a, dat_ten=a["id"] in dat_ten) for a in m.list_accounts()],
                   "kiem_tra": _CK_KT.get(dv)}
+
+    # YouTube cookie
+    import common
+    ck_yt = common.yt_cookie_path()
+    co_yt = os.path.isfile(ck_yt) and os.path.getsize(ck_yt) > 10
+    so_dong = 0
+    if co_yt:
+        try:
+            with open(ck_yt, "r", encoding="utf-8", errors="ignore") as f:
+                so_dong = sum(1 for line in f if line.strip() and not line.startswith("#"))
+        except Exception:
+            pass
+    ra["youtube"] = {
+        "co_cookie": co_yt,
+        "duong_dan": ck_yt,
+        "so_dong": so_dong,
+        "kich_thuoc": os.path.getsize(ck_yt) if co_yt else 0,
+        "sua_cuoi": time.strftime("%H:%M %d/%m/%Y", time.localtime(os.path.getmtime(ck_yt))) if co_yt else ""
+    }
     return json_ok(ra)
 
 
 @app.post("/api/cookie/dan")
 def cookie_dan():
     d = request.json or {}
-    m = _ck_mod(d.get("dich_vu"))
+    dv = d.get("dich_vu")
+    if dv == "youtube":
+        return cookie_yt_dan()
+    m = _ck_mod(dv)
     ten = (d.get("ten") or "").strip()
     if not ten:
         raise HTTPError(400, "Đặt tên tài khoản (vd acc1) — bán-content chỉ dùng tài khoản đã đặt tên")
@@ -588,9 +610,78 @@ def cookie_dan():
 @app.post("/api/cookie/xoa")
 def cookie_xoa():
     d = request.json or {}
-    m = _ck_mod(d.get("dich_vu"))
+    dv = d.get("dich_vu")
+    if dv == "youtube":
+        return cookie_yt_xoa()
+    m = _ck_mod(dv)
     m.delete_account(str(d.get("id") or ""))
     return json_ok({"ok": True})
+
+
+@app.post("/api/cookie/youtube/dan")
+def cookie_yt_dan():
+    d = request.json or {}
+    raw = (d.get("noi_dung") or d.get("json") or "").strip()
+    if not raw:
+        raise HTTPError(400, "Nội dung cookie trống")
+    import common
+    netscape_text = raw
+    try:
+        j = json.loads(raw)
+        lines = ["# Netscape HTTP Cookie File", "# https://curl.se/docs/http-cookies.html", ""]
+        if isinstance(j, list):
+            for c in j:
+                if isinstance(c, dict) and c.get("name"):
+                    dom = c.get("domain") or ".youtube.com"
+                    flag = "TRUE" if dom.startswith(".") else "FALSE"
+                    path = c.get("path") or "/"
+                    sec = "TRUE" if c.get("secure") else "FALSE"
+                    exp = int(c.get("expirationDate") or c.get("expiry") or (time.time() + 365 * 86400))
+                    name = c["name"]
+                    val = c.get("value") or ""
+                    lines.append(f"{dom}\t{flag}\t{path}\t{sec}\t{exp}\t{name}\t{val}")
+            netscape_text = "\n".join(lines)
+        elif isinstance(j, dict):
+            exp = int(time.time() + 365 * 86400)
+            for k, v in j.items():
+                lines.append(f".youtube.com\tTRUE\t/\tTRUE\t{exp}\t{k}\t{v}")
+            netscape_text = "\n".join(lines)
+    except Exception:
+        pass
+
+    target = common.yt_cookie_path()
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    with open(target, "w", encoding="utf-8") as f:
+        f.write(netscape_text)
+    root_ck = os.path.join(common.ROOT, "cookies.txt")
+    try:
+        with open(root_ck, "w", encoding="utf-8") as f:
+            f.write(netscape_text)
+    except Exception:
+        pass
+    common.log(f"  [cookie] Đã lưu cookie YouTube vào {target} ({len(netscape_text)} bytes)")
+    return json_ok({"ok": True, "duong_dan": target})
+
+
+@app.post("/api/cookie/youtube/xoa")
+def cookie_yt_xoa():
+    import common
+    cac = [
+        common.yt_cookie_path(),
+        os.path.join(common.ROOT, "cookies.txt"),
+        os.path.join(common.ROOT, "youtube_cookies.txt"),
+        os.path.join(common.CACHE_CHUNG, "youtube_cookies.txt"),
+        os.path.join(common.CACHE_CHUNG, "cookies.txt"),
+    ]
+    xoa_dem = 0
+    for p in set(cac):
+        try:
+            if os.path.isfile(p):
+                os.remove(p)
+                xoa_dem += 1
+        except Exception:
+            pass
+    return json_ok({"ok": True, "da_xoa": xoa_dem})
 
 
 # --------------------------------------------------------------------------- 🎨 Flow (hồ sơ Chrome riêng để vẽ ảnh 0 điểm)
@@ -656,6 +747,117 @@ def flow_thu():
             flow_ve.dong(ten)
     threading.Thread(target=chay, daemon=True).start()
     return json_ok({"ok": True})
+
+
+# --------------------------------------------------------------------------- 🖼️ Flow Tạo hàng loạt ảnh
+@app.get("/api/flow/hang_loat/trang_thai")
+def flow_hang_loat_trang_thai():
+    import flow_hang_loat
+    runner = flow_hang_loat.lay_runner()
+    st = runner.lay_trang_thai()
+    # Thêm url xem ảnh cho các mục đã hoàn thành
+    for m in st.get("cac_muc", []):
+        if m.get("trang_thai") == "xong" and m.get("tep") and os.path.isfile(m["tep"]):
+            m["url"] = url_tep(m["tep"])
+    return json_ok(st)
+
+
+@app.post("/api/flow/hang_loat/bat_dau")
+def flow_hang_loat_bat_dau():
+    import flow_hang_loat
+    d = request.json or {}
+    prompts = str(d.get("prompts") or "").strip()
+    if not prompts:
+        raise HTTPError(400, "chưa nhập câu lệnh tạo ảnh")
+    du_an = slug(d.get("du_an") or "")
+    thu_muc = str(d.get("thu_muc") or "").strip()
+    if not thu_muc:
+        if du_an:
+            thu_muc = os.path.join(ROOT, "ra", du_an, "anh_flow")
+        else:
+            thu_muc = os.path.join(ROOT, "ra", "anh_flow")
+    elif not os.path.isabs(thu_muc):
+        thu_muc = os.path.join(ROOT, thu_muc)
+
+    ti_le = str(d.get("ti_le") or "16:9")
+    tien_to = str(d.get("tien_to") or "")
+    hau_to = str(d.get("hau_to") or "")
+
+    runner = flow_hang_loat.lay_runner()
+    try:
+        runner.bat_dau(prompts, thu_muc=thu_muc, ti_le=ti_le, tien_to=tien_to, hau_to=hau_to)
+    except Exception as e:
+        raise HTTPError(400, str(e))
+    return json_ok({"ok": True})
+
+
+@app.post("/api/flow/hang_loat/dung")
+def flow_hang_loat_dung():
+    import flow_hang_loat
+    runner = flow_hang_loat.lay_runner()
+    runner.dung()
+    return json_ok({"ok": True})
+
+
+@app.post("/api/flow/hang_loat/chay_lai_loi")
+def flow_hang_loat_chay_lai_loi():
+    import flow_hang_loat
+    runner = flow_hang_loat.lay_runner()
+    try:
+        runner.bat_dau("", "", chi_chay_lai_loi=True)
+    except Exception as e:
+        raise HTTPError(400, str(e))
+    return json_ok({"ok": True})
+
+
+@app.post("/api/flow/hang_loat/mo_thu_muc")
+def flow_hang_loat_mo_thu_muc():
+    import flow_hang_loat
+    runner = flow_hang_loat.lay_runner()
+    thu = runner.thu_muc
+    if not thu or not os.path.isdir(thu):
+        du_an = slug((request.json or {}).get("du_an") or "")
+        thu = os.path.join(ROOT, "ra", du_an, "anh_flow") if du_an else os.path.join(ROOT, "ra", "anh_flow")
+    os.makedirs(thu, exist_ok=True)
+    os.startfile(thu)
+    return json_ok({"ok": True})
+
+
+@app.get("/api/flow/hang_loat/goi_y_du_an")
+def flow_hang_loat_goi_y():
+    """Gợi ý danh sách câu tạo ảnh từ dự án đang chọn (kịch bản / mô tả cảnh)."""
+    du_an = slug(tham_so_q("du_an"))
+    if not du_an:
+        raise HTTPError(400, "chưa chọn dự án")
+
+    p_tk = os.path.join(ROOT, "ra", du_an, "tu_khoa.json")
+    cac_dong = []
+    if os.path.isfile(p_tk):
+        ds = common.doc_json(p_tk, []) or []
+        for x in ds:
+            cid = x.get("id", len(cac_dong) + 1)
+            canh_en = x.get("canh_en") or []
+            if canh_en and isinstance(canh_en, list) and canh_en[0]:
+                cau = canh_en[0]
+            elif x.get("noi_dung"):
+                cau = x.get("noi_dung")
+            else:
+                cau = x.get("text", "")
+            if cau:
+                cac_dong.append(f"canh_{cid:02d}: {cau}")
+    else:
+        p_kb = duong_kich_ban(du_an)
+        if os.path.isfile(p_kb):
+            text = doc_text(p_kb)
+            for cid, cau in enumerate(tach_cau(text), 1):
+                if cau.strip():
+                    cac_dong.append(f"cau_{cid:02d}: {cau.strip()}")
+
+    return json_ok({
+        "prompts": "\n".join(cac_dong),
+        "so_cau": len(cac_dong),
+        "du_an": du_an,
+    })
 
 
 @app.get("/api/don_du_an")
@@ -925,7 +1127,18 @@ def _log_ht(t):
     return os.path.join(common.thu_muc_du_an(t)[1], "hoan_thien.log")
 
 
-def _chay_hoan_thien(t, ten):
+def _in(dong):
+    """In ra console; console không in được ký tự (bảng mã cũ) thì bỏ dấu, không để luồng chép log chết."""
+    try:
+        print(dong, flush=True)
+    except (UnicodeEncodeError, OSError):
+        try:
+            print(dong.encode("ascii", "replace").decode(), flush=True)
+        except OSError:
+            pass
+
+
+def _chay_hoan_thien(t, ten, co_nhac=False, co_sfx=False):
     """Khởi chạy skill hoàn thiện ở nền -> tên bản nháp; ném RuntimeError nếu đang chạy."""
     p = procs_ht.get(t)
     if p and p.poll() is None:
@@ -933,10 +1146,29 @@ def _chay_hoan_thien(t, ten):
     log_f = open(_log_ht(t), "w", encoding="utf-8")
     # BC_DU_AN của máy chủ (dự án mặc định) thắng --du-an trong common.py -> phải đặt đúng dự án cho tiến trình con
     env = dict(os.environ, PYTHONIOENCODING="utf-8", BC_DU_AN=t)
-    procs_ht[t] = subprocess.Popen([sys.executable, "-X", "utf8", "dung_hoan_chinh.py", "--du-an", t, "--ten", ten],
-                                   cwd=os.path.join(ROOT, "chinh_sua"), stdout=log_f, stderr=subprocess.STDOUT, env=env,
-                                   creationflags=0x08000000 if os.name == "nt" else 0)
+    cmd = [sys.executable, "-X", "utf8", "dung_hoan_chinh.py", "--du-an", t, "--ten", ten]
+    if co_nhac:
+        cmd.append("--co-nhac")
+    if co_sfx:
+        cmd.append("--co-sfx")
+    procs_ht[t] = subprocess.Popen(cmd,
+                                   cwd=os.path.join(ROOT, "chinh_sua"), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                   env=env, creationflags=0x08000000 if os.name == "nt" else 0)
     procs_ht[t].ten_nhap = ten
+
+    def chep(p=procs_ht[t]):
+        """15/10 user: log ✨ vừa ghi file (giao diện đọc) vừa IN RA CONSOLE (lọc dòng nhiễu kỹ thuật)."""
+        nhieu = ("gemini_webapi", "Loading weights", "HF Hub", "HF_TOKEN", "[transformers]", "Skip loading CUDA",
+                 "This may result in", "warnings.warn", "UserWarning")
+        for b in iter(p.stdout.readline, b""):
+            dong = b.decode("utf-8", "replace")
+            log_f.write(dong)
+            log_f.flush()
+            if dong.strip() and not any(x in dong for x in nhieu):
+                _in(f"[✨ {t}] {dong.rstrip()}")
+        log_f.close()
+        _in(f"[✨ {t}] — kết thúc (mã {p.wait()})")
+    threading.Thread(target=chep, daemon=True).start()
     return ten
 
 
@@ -947,10 +1179,12 @@ def dung_hoan_thien():
     d = request.json or {}
     t = slug(d.get("du_an", ""))
     ten = (d.get("ten") or f"{t}_hoan_chinh").strip()
+    co_nhac = bool(d.get("co_nhac", False))
+    co_sfx = bool(d.get("co_sfx", False))
     if not t:
         raise HTTPError(400, "thiếu dự án")
     try:
-        return json_ok({"ok": True, "ten": _chay_hoan_thien(t, ten)})
+        return json_ok({"ok": True, "ten": _chay_hoan_thien(t, ten, co_nhac=co_nhac, co_sfx=co_sfx)})
     except RuntimeError as e:
         raise HTTPError(409, str(e))
 
@@ -980,24 +1214,126 @@ def dung_hoan_thien_tt():
 
 @app.post("/api/dung/tu_dong")
 def dung_tu_dong():
-    """Tự tìm + tải (ngân sách phút video) + khớp + ảnh bù + bản nháp — chạy nền."""
+    """Tự tìm + tải (ngân sách phút video) + khớp + ảnh bù + bản nháp — chạy nền.
+    Hỗ trợ che_do='chu_de' (mặc định) hoặc 'canh'."""
     import tu_dong_tim
     d = request.json or {}
     t = slug(d.get("du_an", ""))
+    che_do = (d.get("che_do") or "chu_de").strip().lower()
     try:
         ten_ht = (d.get("ten_ht") or f"{t}_hoan_chinh").strip()
         tu_dong_tim.chay_nen(t, float(d.get("ngan_sach") or tu_dong_tim.NGAN_SACH_PHUT),
                              (d.get("ten_nhap") or "").strip() or None,
-                             sau=(lambda: _chay_hoan_thien(t, ten_ht)) if d.get("hoan_thien") else None)
+                             sau=(lambda: _chay_hoan_thien(t, ten_ht)) if d.get("hoan_thien") else None,
+                             dung_stock=bool(d.get("dung_stock", True)),
+                             che_do=che_do)
     except ValueError as e:
         raise HTTPError(400, str(e))
-    return json_ok({"ok": True})
+    return json_ok({"ok": True, "che_do": che_do})
 
 
 @app.get("/api/dung/tu_dong_tt")
 def dung_tu_dong_tt():
     import tu_dong_tim
     return json_ok(tu_dong_tim.TT.get(slug(tham_so_q("du_an")), {}))
+
+
+@app.get("/api/chu_de")
+def lay_chu_de():
+    """Lấy danh sách chủ đề kịch bản (chia mới nếu chưa có)."""
+    import chu_de
+    t = slug(tham_so_q("du_an"))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    try:
+        ds = chu_de.doc_chu_de(t)
+    except Exception as e:
+        raise HTTPError(400, str(e))
+    return json_ok({"ok": True, "du_an": t, "chu_de": ds})
+
+
+@app.post("/api/chu_de/chia")
+def chia_lai_chu_de():
+    """Buộc chia lại chủ đề kịch bản từ Gemini / ChatGPT."""
+    import chu_de
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    try:
+        ds = chu_de.chia_chu_de(t, buoc_lai=True)
+    except Exception as e:
+        raise HTTPError(400, str(e))
+    return json_ok({"ok": True, "du_an": t, "chu_de": ds})
+
+
+@app.post("/api/chu_de/luu")
+def luu_chu_de():
+    """Lưu danh sách chủ đề sau khi người dùng sửa từ khoá trên giao diện."""
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    ds = d.get("chu_de")
+    if not t or not isinstance(ds, list):
+        raise HTTPError(400, "thiếu dữ liệu chủ đề")
+    _, out = common.thu_muc_du_an(t)
+    p = os.path.join(out, "chu_de.json")
+    cu = common.doc_json(p, {}) or {}
+    cu["chu_de"] = ds
+    cu["so_chu_de"] = len(ds)
+    common.ghi_json(p, cu)
+    return json_ok({"ok": True, "so_chu_de": len(ds)})
+
+
+@app.get("/api/duyet_nguon/ds")
+def duyet_nguon_ds():
+    """Lấy danh sách video và ảnh tư liệu lịch sử cho từng chủ đề để người dùng duyệt và chọn."""
+    import duyet_nguon
+    t = slug(tham_so_q("du_an"))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    nam_truoc = tham_so_q("nam_truoc") or None
+    bo_kenh_lon = tham_so_q("bo_kenh_lon") in ("1", "true")
+    lam_moi = tham_so_q("lam_moi") in ("1", "true")
+    try:
+        ds_cd = duyet_nguon.tim_video_theo_chu_de(t, nam_truoc=nam_truoc, bo_kenh_lon=bo_kenh_lon, lam_moi=lam_moi)
+        ds_ls = duyet_nguon.tim_anh_lich_su(t)
+        return json_ok({"ok": True, "du_an": t, "chu_de": ds_cd, "lich_su": ds_ls})
+    except Exception as e:
+        raise HTTPError(400, str(e))
+
+
+@app.post("/api/duyet_nguon/tai_va_ghep")
+def duyet_nguon_tai_va_ghep():
+    """Tải các video và ảnh tư liệu đã được người dùng tick chọn, sau đó ghép và tạo bản nháp CapCut."""
+    import duyet_nguon
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    chon_video = d.get("chon_video") or {}
+    chon_anh = d.get("chon_anh") or {}
+    ten_nhap = d.get("ten_nhap") or f"{t}_tu_chon"
+
+    def chay():
+        try:
+            duyet_nguon.tai_va_ghep_da_chon(t, chon_video, chon_anh, ten_nhap=ten_nhap)
+        except Exception as e:
+            common.log(f"  [duyệt nguồn] lỗi: {e}")
+            duyet_nguon._tt(t, buoc="loi", dang=False, loi=str(e))
+
+    threading.Thread(target=chay, daemon=True).start()
+    return json_ok({"ok": True, "dang_chay": True})
+
+
+@app.get("/api/duyet_nguon/tien_do")
+def duyet_nguon_tien_do():
+    """Xem tiến độ tải và ghép nguồn đã chọn."""
+    import duyet_nguon
+    t = slug(tham_so_q("du_an"))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    return json_ok(duyet_nguon.TT.get(t, {}))
+
 
 
 @app.post("/api/kho/tai_video")

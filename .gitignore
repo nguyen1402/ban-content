@@ -26,3 +26,9 @@ remotion/npm_install.log
 
 # ảnh tách nền / clip nền Remotion sinh ra khi chạy (13/10)
 remotion/public/
+
+# 18/10: cookie đăng nhập, bản thử, nhạc trong kho âm thanh (file nặng — chỉ đưa README)
+cookies.txt
+scratch/
+remotion/test_data_hud.json
+kho_am_thanh/**/*.mp3

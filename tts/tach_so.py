@@ -8,7 +8,8 @@ tốc độ, guidance; viết bằng chữ số cũng sai. Đọc RIÊNG từng 
 import re
 
 SO = {"không", "một", "mốt", "hai", "ba", "bốn", "tư", "năm", "lăm", "nhăm", "sáu", "bảy", "bẩy", "tám", "chín",
-      "mười", "mươi", "linh", "lẻ", "trăm", "nghìn", "ngàn", "vạn", "triệu", "tỷ", "tỉ", "rưỡi"}
+      "mười", "mươi", "linh", "lẻ", "trăm", "nghìn", "ngàn", "vạn", "triệu", "tỷ", "tỉ", "rưỡi",
+      "phẩy"}   # 18/10: "một phẩy năm triệu" viết rời -> OmniVoice nuốt "phẩy" 3/3 seed (fish câu 30); nối gạch: đủ 9/9
 DON_VI_LON = {"nghìn", "ngàn", "vạn", "triệu", "tỷ", "tỉ"}
 DAU_HIEU = {"mươi", "trăm"} | DON_VI_LON          # cụm có các chữ này mới là SỐ NHIỀU CHỮ (không phải "hai con")
 DAI_TOI_THIEU = 4                                  # cụm số từ 4 chữ trở lên mới tách

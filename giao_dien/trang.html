@@ -57,17 +57,18 @@ dialog::backdrop{background:#000a}dialog video{width:100%;display:block;border-r
   <button class="p" id="mothumuc">Mở thư mục kết quả</button>
   <span class="sub" style="margin:0" id="trangthai_dau"></span>
   <button class="p" id="nutck" title="Tài khoản Gemini / ChatGPT (cookie) — kho riêng của bán-content">🍪 Cookie</button>
-  <button class="p" id="nutflow" title="Hồ sơ Chrome để vẽ ảnh bằng Google Flow (Nano Banana, 0 điểm)">🎨 Flow</button>
+  <button class="p" id="nutflow" title="Hồ sơ Chrome để vẽ ảnh bằng Google Flow (Nano Banana, 0 điểm)">🎨 Hồ sơ Flow</button>
+  <button class="p" id="nutflow_hl" title="Nhập câu tạo ảnh rồi tạo hàng loạt ảnh thông qua script Flow">🖼️ Tạo hàng loạt ảnh Flow</button>
 </header>
 <main>
   <section class="card" id="ck" style="display:none">
-    <h2>🍪 Cookie Gemini &amp; ChatGPT <span class="sub" style="margin:0;font-weight:400">— máy có CapCut TTS Studio thì dùng chung kho của nó; không có thì dùng kho riêng</span></h2>
-    <p class="sub">Máy có CapCut TTS Studio: nạp như cũ (tiện ích CapCut + nút Nhận cookie). Máy KHÔNG có (chuyển máy): cài tiện ích <b>D:\CapCutTTS\bán-content\cookie_ext</b> (chrome://extensions → Chế độ nhà phát triển → Tải tiện ích đã giải nén) → đăng nhập gemini.google.com / chatgpt.com → bấm tiện ích, chọn Dịch vụ, <b>đặt tên tài khoản</b> (acc1, acc2…) → <b>Gửi vào app</b>. Gửi lại cùng tên = cập nhật. Chỉ tài khoản ĐÃ ĐẶT TÊN mới được dùng.</p>
+    <h2>🍪 Cookie Gemini, ChatGPT &amp; YouTube <span class="sub" style="margin:0;font-weight:400">— Gemini &amp; ChatGPT cho kịch bản; YouTube để tải video không bị chặn bot</span></h2>
+    <p class="sub">Gemini/ChatGPT: nạp qua tiện ích <b>cookie_ext</b> hoặc dán JSON. YouTube: nạp nội dung <b>cookies.txt</b> (xuất bằng tiện ích Chrome <i>Get cookies.txt LOCALLY</i>) hoặc dán JSON cookie để yt-dlp tải video mượt mà không bị "Sign in to confirm you're not a bot".</p>
     <div id="ckds"></div>
-    <details style="margin-top:8px"><summary class="sub" style="cursor:pointer">Dán JSON tay (nút "Sao chép JSON" của tiện ích)</summary>
-      <div class="row" style="margin-top:6px"><select id="ckdv"><option value="gemini">Gemini</option><option value="chatgpt">ChatGPT</option></select>
+    <details style="margin-top:8px"><summary class="sub" style="cursor:pointer">Dán JSON / cookies.txt bằng tay</summary>
+      <div class="row" style="margin-top:6px"><select id="ckdv"><option value="gemini">Gemini</option><option value="chatgpt">ChatGPT</option><option value="youtube">YouTube (tránh bot khi tải video)</option></select>
         <input type="text" id="ckten" placeholder="Tên tài khoản, vd acc1" style="max-width:200px"><button id="ckluu">Lưu</button></div>
-      <textarea id="ckjson" placeholder="Dán JSON cookie vào đây…" style="min-height:90px;margin-top:6px"></textarea>
+      <textarea id="ckjson" placeholder="Dán JSON cookie hoặc nội dung cookies.txt vào đây…" style="min-height:90px;margin-top:6px"></textarea>
     </details>
   </section>
   <section class="card" id="flowk" style="display:none">
@@ -75,6 +76,69 @@ dialog::backdrop{background:#000a}dialog video{width:100%;display:block;border-r
     <p class="sub">Bấm <b>＋ Hồ sơ Chrome Flow</b>, đặt tên → cửa sổ Chrome mới mở ở flow.google.com → <b>đăng nhập tài khoản Google (gói Pro)</b> → đóng cửa sổ đó. Bấm <b>Thử</b> để kiểm tra. Có nhiều hồ sơ thì xoay vòng khi một tài khoản hết lượt. Không có hồ sơ nào / Flow lỗi → tự dùng Gemini (cookie, tốn điểm).</p>
     <div class="row"><input type="text" id="flowten" placeholder="Tên hồ sơ, vd flow1" style="max-width:220px"><button id="flowtao">＋ Hồ sơ Chrome Flow</button></div>
     <div id="flowds" style="margin-top:8px"></div>
+
+    <div id="flow_hang_loat_sec" style="margin-top:18px;border-top:1px solid var(--line);padding-top:14px">
+      <h3 style="margin:0 0 4px;font-size:15px;display:flex;gap:8px;align-items:center">🖼️ Tạo hàng loạt ảnh bằng Flow (Chạy script tự động) <span class="sub" style="margin:0;font-weight:400">— nhập danh sách câu lệnh, Flow tự động xoay hồ sơ Chrome tạo ảnh 0 điểm</span></h3>
+      <p class="sub" style="margin-bottom:8px">Mỗi dòng một câu prompt (tiếng Việt hoặc tiếng Anh). Có thể nhập dạng <code>tên_file: câu prompt</code> hoặc đánh số <code>1. Câu prompt...</code>. Bấm <b>💡 Lấy từ kịch bản</b> để tự động nạp các cảnh của dự án hiện tại.</p>
+
+      <div class="row" style="margin-bottom:8px;gap:8px">
+        <button class="p" id="flow_nap_tep">📄 Nạp từ file (.txt)</button>
+        <input type="file" id="flow_tep_input" accept=".txt" hidden>
+        <button class="p" id="flow_lay_du_an" title="Lấy câu mô tả cảnh hoặc kịch bản từ dự án đang chọn">💡 Lấy từ kịch bản dự án</button>
+        <button class="p" id="flow_mau" title="Nạp 3 câu mẫu thử nghiệm">✨ Câu mẫu</button>
+        <button class="p" id="flow_xoa_trang">🗑 Xoá trắng</button>
+        <span class="sub" id="flow_dem_cau" style="margin:0;margin-left:auto;font-weight:600">0 câu</span>
+      </div>
+
+      <textarea id="flow_prompts" placeholder="Dán danh sách câu prompt vào đây (mỗi dòng một câu)...&#10;Ví dụ:&#10;01_con_meo: Một chú mèo tam thể ngồi ngắm mưa bên khung cửa sổ phong cách điện ảnh&#10;02_phi_thuyen: Tàu vũ trụ hiện đại bay xuyên qua tinh vân rực rỡ, góc nhìn rộng 8k&#10;Một khu rừng cổ thụ phát sáng huyền bí vào ban đêm" style="min-height:130px;font-family:monospace;font-size:13.5px"></textarea>
+
+      <div class="row" style="margin-top:10px;gap:10px">
+        <label>Tỉ lệ <select id="flow_tile">
+          <option value="16:9" selected>16:9 (Ngang - CapCut)</option>
+          <option value="9:16">9:16 (Dọc - Shorts/TikTok)</option>
+          <option value="1:1">1:1 (Vuông)</option>
+          <option value="4:3">4:3</option>
+          <option value="3:4">3:4</option>
+        </select></label>
+        <label>Phong cách <select id="flow_phongcach">
+          <option value="" selected>Tự do (theo câu prompt)</option>
+          <option value=", cinematic lighting, ultra-realistic photography, 8k, photorealistic, no text">Điện ảnh chân thực (Cinematic 8K)</option>
+          <option value=", anime digital art, vibrant colors, detailed, no text">Anime / Hoạt hình sắc nét</option>
+          <option value=", stock cut-out photo, isolated on seamless white background, no text">Tách vật thể nền trắng (Cut-out)</option>
+          <option value=", 3D cartoon render, Pixar style, vivid lighting, no text">3D Pixar hoạt hình</option>
+        </select></label>
+        <label class="grow">Hậu tố thêm <input type="text" id="flow_hauto" placeholder=", cinematic, 8k, no text" style="width:100%"></label>
+      </div>
+
+      <div class="row" style="margin-top:8px;gap:10px">
+        <label class="grow">Thư mục lưu ảnh <input type="text" id="flow_thumuc" placeholder="Mặc định: ra/<dự_án>/anh_flow" style="width:100%"></label>
+      </div>
+
+      <div class="row" style="margin-top:12px;gap:10px">
+        <button id="flow_chay" style="background:#2e7d32;color:#fff;font-weight:600;padding:9px 18px">▶ Bắt đầu tạo hàng loạt</button>
+        <button id="flow_dung" class="er" style="display:none;padding:9px 16px">■ Dừng</button>
+        <button id="flow_chaylai_loi" class="p" style="display:none">↻ Chạy lại các câu lỗi</button>
+        <button class="p" id="flow_mothu">📁 Mở thư mục ảnh</button>
+        <span class="sub" id="flow_thongke" style="margin:0"></span>
+      </div>
+
+      <div id="flow_tiendo_box" style="display:none;margin-top:12px">
+        <div style="height:10px;background:var(--line);border-radius:5px;overflow:hidden">
+          <div id="flow_thanh_pt" style="width:0%;height:100%;background:linear-gradient(90deg,var(--ac),var(--ok));transition:width .3s"></div>
+        </div>
+        <div class="row" style="margin-top:6px;justify-content:space-between">
+          <b id="flow_tt_chu" style="font-size:13.5px">Đang chuẩn bị...</b>
+          <span class="sub" id="flow_tt_chitiet" style="margin:0"></span>
+        </div>
+      </div>
+
+      <div id="flow_luoi" class="luoi" style="margin-top:14px"></div>
+
+      <details style="margin-top:12px" id="flow_log_box">
+        <summary class="sub" style="cursor:pointer">📜 Xem log script chạy thời gian thực</summary>
+        <pre id="flow_log" style="max-height:160px;margin-top:6px"></pre>
+      </details>
+    </div>
   </section>
   <section class="card" id="b1">
     <h2><span class="n">1</span> Kịch bản</h2>
@@ -134,7 +198,7 @@ dialog::backdrop{background:#000a}dialog video{width:100%;display:block;border-r
     <div id="tukhoa" style="margin-top:10px"></div>
   </section>
 </main>
-<dialog id="hop"><video id="xem" controls autoplay></video><div style="padding:10px 14px" class="row"><span id="chuthich" class="grow"></span><button class="p" onclick="hop.close()">Đóng</button></div></dialog>
+<dialog id="hop"><video id="xem" controls autoplay style="display:none"></video><img id="xem_img" style="display:none;width:100%;max-height:80vh;object-fit:contain;background:#000"><div style="padding:10px 14px" class="row"><span id="chuthich" class="grow"></span><a id="xem_tai" href="#" download class="p" style="padding:4px 10px;text-decoration:none;display:none">⬇ Tải ảnh</a><button class="p" onclick="hop.close()">Đóng</button></div></dialog>
 <div class="thongbao" id="tb"></div>
 <script>
 const $=s=>document.querySelector(s);
@@ -150,7 +214,7 @@ function tuoi(g){g=Math.round(g);return g<90?g+' giây':g<5400?Math.round(g/60)+
 let ckHen=null;
 async function veCookie(){let d;try{d=await api('/api/cookie')}catch(e){$('#ckds').textContent='Lỗi: '+e.message;return}
   let dangKT=false;
-  $('#ckds').innerHTML=['gemini','chatgpt'].map(dv=>{const k=d[dv],ten=dv==='gemini'?'Gemini':'ChatGPT';const kt=k.kiem_tra||null;if(kt&&kt.dang)dangKT=true;
+  const cacDv=['gemini','chatgpt'].map(dv=>{const k=d[dv],ten=dv==='gemini'?'Gemini':'ChatGPT';const kt=k.kiem_tra||null;if(kt&&kt.dang)dangKT=true;
     const nghe=k.dang_nghe?'<span style="color:#2e7d32">● đang nhận (cổng '+k.cong+')</span>':'<span style="color:#c62828">● không nhận được (cổng '+k.cong+' bận'+(k.loi?': '+escH(k.loi):'')+')</span>';
     // 15/10 user: kiểm tra nhanh — ✔ chạy được / ✖ lỗi (nạp cookie mới); Gemini kèm điểm vẽ ảnh còn lại
     const ketqua=a=>{const r=kt&&kt.kq?kt.kq[a.id]:null;if(!r)return(kt&&kt.dang&&a.dat_ten)?'<span class="sub" style="margin:0">… đang kiểm</span>':'';
@@ -161,6 +225,13 @@ async function veCookie(){let d;try{d=await api('/api/cookie')}catch(e){$('#ckds
       '<span class="sub" style="margin:0">'+a.so_cookie+' cookie · cập nhật '+tuoi(a.tuoi_giay)+' trước</span>'+ketqua(a)+'<button data-ckxoa="'+dv+'|'+escH(a.id)+'" style="padding:2px 8px">Xoá</button></div>').join(''):'<div class="sub" style="margin:0">(kho trống)</div>';
     const nutKT='<button data-ckkt="'+dv+'" style="padding:2px 10px"'+(kt&&kt.dang?' disabled':'')+'>'+(kt&&kt.dang?'Đang kiểm '+kt.xong+'/'+kt.tong+'…':'🔍 Kiểm tra')+'</button>'+(kt&&kt.loi?'<span style="color:#c62828">'+escH(kt.loi)+'</span>':'');
     return '<div style="margin:6px 0 10px"><div class="row" style="gap:10px"><b>'+ten+'</b>'+nghe+nutKT+'</div><div class="sub" style="margin:2px 0">'+(k.chung?'Dùng CHUNG kho với CapCut TTS Studio — nạp bằng tiện ích/app CapCut như cũ. ':'Kho RIÊNG (máy không có CapCut TTS Studio) — nạp bằng tiện ích cookie_ext. ')+escH(k.kho)+'</div>'+ds+'</div>'}).join('');
+  const yt=d.youtube||{};
+  const ytCard='<div style="margin:10px 0 6px;border-top:1px solid var(--line);padding-top:10px"><div class="row" style="gap:10px"><b>YouTube</b>'+
+    (yt.co_cookie?'<span style="color:#2e7d32">● Đang kích hoạt ('+(yt.so_dong||0)+' dòng)</span>':'<span style="color:#c62828">○ Chưa có cookie (dễ bị YouTube chặn bot)</span>')+'</div>'+
+    '<div class="sub" style="margin:2px 0">Tránh bị YouTube chặn ("Sign in to confirm you\'re not a bot") khi tải video số lượng lớn. Tệp: <code>'+escH(yt.duong_dan||'cookies.txt')+'</code></div>'+
+    (yt.co_cookie?'<div class="row" style="gap:8px;margin:3px 0"><b>cookies.txt</b><span class="sub" style="margin:0">'+(yt.so_dong||0)+' dòng · '+Math.round((yt.kich_thuoc||0)/1024)+' KB · cập nhật '+escH(yt.sua_cuoi||'')+'</span>'+
+    '<button data-ckxoa="youtube|cookies.txt" style="padding:2px 8px">Xoá</button></div>':'<div class="sub" style="margin:3px 0">(kho trống — hãy chọn Dịch vụ "YouTube" ở ô bên dưới rồi dán nội dung cookies.txt hoặc JSON)</div>')+'</div>';
+  $('#ckds').innerHTML=cacDv+ytCard;
   clearTimeout(ckHen);if(dangKT&&$('#ck').style.display!=='none')ckHen=setTimeout(veCookie,2500)}
 // 🎨 Flow: hồ sơ Chrome riêng để vẽ ảnh
 let flowHen=null;
@@ -174,18 +245,206 @@ async function veFlow(){let d;try{d=await api('/api/flow')}catch(e){$('#flowds')
       '<button data-fl="thu|'+escH(h.ten)+'" style="padding:2px 8px">Thử</button>'+
       '<button data-fl="xoa|'+escH(h.ten)+'" style="padding:2px 8px">Xoá</button>'+kq+'</div>'}).join(''):'<div class="sub" style="margin:0">(chưa có hồ sơ — đang dùng Gemini cookie, tốn điểm)</div>';
   clearTimeout(flowHen);if(dang&&$('#flowk').style.display!=='none')flowHen=setTimeout(veFlow,3000)}
-$('#nutflow').onclick=()=>{const c=$('#flowk');const hien=c.style.display==='none';c.style.display=hien?'':'none';if(hien)veFlow()};
+$('#nutflow').onclick=()=>{const c=$('#flowk');const hien=c.style.display==='none';c.style.display=hien?'':'none';if(hien){veFlow();kiemTraFlowHangLoat()}};
+$('#nutflow_hl').onclick=()=>{const c=$('#flowk');c.style.display='';veFlow();kiemTraFlowHangLoat();setTimeout(()=>$('#flow_hang_loat_sec').scrollIntoView({behavior:'smooth'}),100)};
 $('#flowtao').onclick=async()=>{const ten=$('#flowten').value.trim();if(!ten)return tb('Đặt tên hồ sơ');
   try{await post('/api/flow/tao',{ten});$('#flowten').value='';tb('Đã mở Chrome — đăng nhập Flow rồi đóng cửa sổ');veFlow()}catch(e){tb('Lỗi: '+e.message)}};
 $('#flowds').onclick=async e=>{const b=e.target.closest('[data-fl]');if(!b)return;const [vc,ten]=b.dataset.fl.split('|');
   if(vc==='xoa'&&!confirm('Xoá hồ sơ Chrome Flow "'+ten+'" (cả phiên đăng nhập trong đó)?'))return;
   try{await post('/api/flow/'+vc,{ten});if(vc==='mo')tb('Đã mở Chrome của hồ sơ — đăng nhập xong thì đóng cửa sổ');veFlow()}catch(er){tb('Lỗi: '+er.message)}};
+
+// 🖼️ Tạo hàng loạt ảnh bằng Flow
+function demCauFlow(){
+  const t=$('#flow_prompts').value;
+  const ds=t.split('\n').map(s=>s.trim()).filter(s=>s&&!s.startsWith('#')&&!s.startsWith('//'));
+  $('#flow_dem_cau').textContent=`${ds.length} câu`;
+}
+$('#flow_prompts').oninput=demCauFlow;
+$('#flow_phongcach').onchange=function(){if(this.value)$('#flow_hauto').value=this.value};
+$('#flow_xoa_trang').onclick=()=>{if(confirm('Xoá nội dung ô câu prompt?')){$('#flow_prompts').value='';demCauFlow()}};
+$('#flow_mau').onclick=()=>{
+  $('#flow_prompts').value=[
+    '01_meo_ngam_mua: Một chú mèo tam thể ngồi ngắm mưa bên khung cửa sổ phong cách điện ảnh',
+    '02_phi_thuyen: Tàu vũ trụ hiện đại bay xuyên qua tinh vân rực rỡ, góc nhìn rộng 8k',
+    '03_rung_phat_sang: Một khu rừng cổ thụ phát sáng huyền bí vào ban đêm, ánh sáng đom đóm lung linh'
+  ].join('\n');
+  demCauFlow();
+  tb('Đã nạp 3 câu mẫu');
+};
+$('#flow_nap_tep').onclick=()=>$('#flow_tep_input').click();
+$('#flow_tep_input').onchange=e=>{
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{$('#flow_prompts').value=ev.target.result;demCauFlow();tb('Đã nạp file: '+f.name)};
+  r.readAsText(f);
+};
+$('#flow_lay_du_an').onclick=async()=>{
+  if(!du)return tb('Chưa chọn dự án');
+  try{
+    const d=await api('/api/flow/hang_loat/goi_y_du_an?du_an='+encodeURIComponent(du));
+    if(!d.prompts)return tb('Không tìm thấy kịch bản hoặc cảnh nào trong dự án này');
+    $('#flow_prompts').value=d.prompts;
+    demCauFlow();
+    tb(`Đã nạp ${d.so_cau} cảnh từ dự án ${d.du_an}`);
+  }catch(e){tb('Lỗi: '+e.message)}
+};
+
+let flowHlHen=null;
+async function kiemTraFlowHangLoat(){
+  clearTimeout(flowHlHen);
+  let st;try{st=await api('/api/flow/hang_loat/trang_thai')}catch(e){return}
+  const box=$('#flow_tiendo_box');
+  const running=st.dang_chay;
+  $('#flow_chay').disabled=running;
+  $('#flow_dung').style.display=running?'inline-block':'none';
+  $('#flow_chaylai_loi').style.display=(!running&&st.loi>0)?'inline-block':'none';
+
+  if(st.tong>0){
+    box.style.display='';
+    const pt=st.tong?Math.round((st.da_xong/st.tong)*100):0;
+    $('#flow_thanh_pt').style.width=pt+'%';
+    $('#flow_tt_chu').innerHTML=running
+      ? `<span class="chip dang" style="font-size:13px"><i></i> Đang tạo ảnh ${st.hien_tai}/${st.tong}...</span>`
+      : (st.da_dung ? '<span style="color:var(--wa)">■ Đã dừng tạo hàng loạt</span>' : (st.loi>0 ? '<span style="color:var(--er)">🏁 Hoàn thành (có câu lỗi)</span>' : '<span style="color:var(--ok)">🏁 Đã tạo xong toàn bộ ảnh!</span>'));
+    $('#flow_tt_chitiet').textContent=`${st.da_xong}/${st.tong} ảnh xong (${pt}%)${st.loi?' · '+st.loi+' lỗi':''}`;
+    $('#flow_thongke').textContent=`Đã xong: ${st.da_xong}/${st.tong} ảnh · ${st.loi} lỗi`;
+  } else {
+    box.style.display='none';
+    $('#flow_thongke').textContent='';
+  }
+
+  // Cập nhật log
+  if(st.log&&st.log.length){
+    $('#flow_log').textContent=st.log.join('\n');
+    $('#flow_log').scrollTop=$('#flow_log').scrollHeight;
+  }
+
+  // Vẽ danh sách thẻ ảnh
+  const luoi=$('#flow_luoi');
+  if(st.cac_muc&&st.cac_muc.length){
+    luoi.innerHTML=st.cac_muc.map(m=>{
+      if(m.trang_thai==='xong'&&m.url){
+        return `<div class="o">
+          <img src="${esc(m.url)}" title="Bấm xem lớn / tải về" data-xem="${esc(m.url)}" data-ten="${esc(m.ten_file)}" data-prompt="${esc(m.prompt)}">
+          <div class="t">
+            <div class="row" style="justify-content:space-between;margin-bottom:4px">
+              <span class="tag" style="background:var(--ok);color:#fff">✔ Xong (${m.thoi_gian}s)</span>
+              ${m.ho_so?`<span class="tag">${esc(m.ho_so)}</span>`:''}
+            </div>
+            <b title="${esc(m.ten_file)}" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.ten_file)}</b>
+            <div class="md">${esc(m.prompt)}</div>
+          </div>
+        </div>`;
+      } else if(m.trang_thai==='dang'){
+        return `<div class="o" style="border-color:var(--ac)">
+          <div style="aspect-ratio:16/9;background:var(--bg);display:grid;place-items:center;color:var(--ac)">
+            <div class="chip dang" style="font-size:13.5px"><i></i> Đang vẽ (${m.thoi_gian||0}s)...</div>
+          </div>
+          <div class="t">
+            <b title="${esc(m.ten_file)}" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.ten_file)}</b>
+            <div class="md">${esc(m.prompt)}</div>
+          </div>
+        </div>`;
+      } else if(m.trang_thai==='loi'){
+        return `<div class="o sai">
+          <div style="aspect-ratio:16/9;background:var(--sai);display:grid;place-items:center;color:var(--er)">
+            <div style="font-size:13px;padding:8px;text-align:center">✖ Lỗi tạo ảnh</div>
+          </div>
+          <div class="t">
+            <div style="margin-bottom:4px"><span class="tag" style="background:var(--er);color:#fff">✖ Lỗi</span></div>
+            <b title="${esc(m.ten_file)}" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.ten_file)}</b>
+            <div class="md" style="color:var(--er)">${esc(m.loi||'Không lấy được ảnh')}</div>
+            <div class="md" style="margin-top:4px">${esc(m.prompt)}</div>
+          </div>
+        </div>`;
+      } else {
+        return `<div class="o" style="opacity:.65">
+          <div style="aspect-ratio:16/9;background:var(--bg);display:grid;place-items:center;color:var(--mut);font-size:13px">⏳ Chờ đến lượt...</div>
+          <div class="t">
+            <b title="${esc(m.ten_file)}" style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.ten_file)}</b>
+            <div class="md">${esc(m.prompt)}</div>
+          </div>
+        </div>`;
+      }
+    }).join('');
+
+    luoi.querySelectorAll('img[data-xem]').forEach(img=>{
+      img.onclick=()=>{
+        $('#xem').style.display='none';
+        $('#xem').pause();
+        const xi=$('#xem_img');
+        xi.style.display='block';
+        xi.src=img.dataset.xem;
+        $('#chuthich').textContent=img.dataset.ten+' — '+img.dataset.prompt;
+        const xt=$('#xem_tai');
+        xt.style.display='inline-block';
+        xt.href=img.dataset.xem;
+        xt.download=img.dataset.ten;
+        hop.showModal();
+      };
+    });
+  }
+
+  if(running&&$('#flowk').style.display!=='none'){
+    flowHlHen=setTimeout(kiemTraFlowHangLoat, 1800);
+  }
+}
+
+$('#flow_chay').onclick=async()=>{
+  const prompts=$('#flow_prompts').value.trim();
+  if(!prompts)return tb('Chưa nhập câu prompt nào');
+  try{
+    await post('/api/flow/hang_loat/bat_dau',{
+      prompts,
+      du_an:du,
+      thu_muc:$('#flow_thumuc').value.trim(),
+      ti_le:$('#flow_tile').value,
+      hau_to:$('#flow_hauto').value.trim()
+    });
+    tb('Đã bắt đầu tạo hàng loạt ảnh qua Flow');
+    $('#flow_tiendo_box').style.display='';
+    kiemTraFlowHangLoat();
+  }catch(e){tb('Lỗi: '+e.message)}
+};
+
+$('#flow_dung').onclick=async()=>{
+  try{await post('/api/flow/hang_loat/dung',{});tb('Đang yêu cầu dừng sau câu này...')}catch(e){tb('Lỗi: '+e.message)}
+};
+
+$('#flow_chaylai_loi').onclick=async()=>{
+  try{await post('/api/flow/hang_loat/chay_lai_loi',{});tb('Đang chạy lại các câu lỗi...');kiemTraFlowHangLoat()}catch(e){tb('Lỗi: '+e.message)}
+};
+
+$('#flow_mothu').onclick=async()=>{
+  try{await post('/api/flow/hang_loat/mo_thu_muc',{du_an:du})}catch(e){tb('Lỗi: '+e.message)}
+};
 $('#nutck').onclick=()=>{const c=$('#ck');const hien=c.style.display==='none';c.style.display=hien?'':'none';if(hien)veCookie()};
 $('#ckds').onclick=async e=>{const kt=e.target.closest('[data-ckkt]');
   if(kt){try{await post('/api/cookie/kiem_tra',{dich_vu:kt.dataset.ckkt});veCookie()}catch(er){tb('Lỗi: '+er.message)}return}
   const b=e.target.closest('[data-ckxoa]');if(!b)return;const [dv,id]=b.dataset.ckxoa.split('|');
+  if(dv==='youtube'){
+    if(!confirm('Xoá cookie YouTube? (Có thể bị YouTube hỏi xác minh bot khi tải)'))return;
+    try{await post('/api/cookie/youtube/xoa',{});veCookie();tb('Đã xoá cookie YouTube')}catch(er){tb('Lỗi: '+er.message)}
+    return;
+  }
   if(!confirm('Xoá tài khoản "'+id+'" khỏi kho '+dv+' của bán-content?'))return;try{await post('/api/cookie/xoa',{dich_vu:dv,id});veCookie()}catch(er){tb('Lỗi: '+er.message)}};
-$('#ckluu').onclick=async()=>{try{await post('/api/cookie/dan',{dich_vu:$('#ckdv').value,ten:$('#ckten').value,json:$('#ckjson').value});$('#ckjson').value='';tb('Đã lưu cookie');veCookie()}catch(e){tb('Lỗi: '+e.message)}};
+$('#ckdv').onchange=()=>{
+  const isYt=$('#ckdv').value==='youtube';
+  $('#ckten').style.display=isYt?'none':'';
+  $('#ckjson').placeholder=isYt?'Dán nội dung cookies.txt hoặc JSON cookie YouTube vào đây…':'Dán JSON cookie hoặc nội dung cookies.txt vào đây…';
+};
+$('#ckluu').onclick=async()=>{
+  try{
+    const dv=$('#ckdv').value;
+    const json=$('#ckjson').value;
+    if(dv==='youtube'){
+      await post('/api/cookie/youtube/dan',{noi_dung:json});
+    }else{
+      await post('/api/cookie/dan',{dich_vu:dv,ten:$('#ckten').value,json});
+    }
+    $('#ckjson').value='';tb('Đã lưu cookie '+dv);veCookie();
+  }catch(e){tb('Lỗi: '+e.message)}
+};
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 async function napDuAn(chon){

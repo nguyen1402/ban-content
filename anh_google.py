@@ -190,3 +190,64 @@ def google_anh(q, n=40, timeout=25):
     if not kq:
         log(f"    ! Google Images không ra ảnh cho '{q[:40]}'")
     return kq
+
+
+_JS_VIDEO = r"""(() => [...document.querySelectorAll('[data-curl]')].map(e => {
+    let c = e; for (let i = 0; i < 8 && c.parentElement; i++) { c = c.parentElement;
+        if (c.innerText && c.innerText.length > 40 && c.querySelector('h3,[role=heading]')) break }
+    return [e.getAttribute('data-curl') || '', c.innerText || ''] }))()"""
+
+
+def _giay(s):
+    p = [int(x) for x in s.split(":")]
+    return sum(v * 60 ** i for i, v in enumerate(reversed(p)))
+
+
+def google_video(q, n=10, timeout=25):
+    """15/10 user: tìm thêm ở Google Videos (udm=7) — nhiều cảnh sát nội dung hơn kho stock. Chỉ lấy kết quả YouTube
+    (bước chấm storyboard + tải ≤720p dùng id YouTube): [{id, tieu_de, dai, kenh, luot_xem}] như dung_tay.tim_youtube."""
+    url = "https://www.google.com/search?" + urllib.parse.urlencode({"q": q, "udm": "7", "hl": "en"})
+    with _KHOA:
+        tab = _tab_trang(_ds_tab())
+        moi = not tab
+        if moi:
+            _mo_chrome(url)
+            tab = _tab_trang(_ds_tab())
+        ws = _WS(tab["webSocketDebuggerUrl"])
+        try:
+            if not moi:
+                ws.goi("Page.navigate", url=url)
+                time.sleep(0.8)
+            het = time.time() + timeout
+            bao_captcha = False
+            while True:
+                tt = ws.js("[location.href, document.readyState, document.querySelectorAll('[data-curl]').length]") or ["", "", 0]
+                if "/sorry/" in tt[0]:
+                    if not bao_captcha:
+                        log("    ! Google hỏi captcha — giải trong cửa sổ Chrome tìm ảnh")
+                        ws.goi("Page.bringToFront")
+                        bao_captcha = True
+                        het = time.time() + CHO_CAPTCHA
+                elif tt[1] == "complete" and tt[2] >= 1:
+                    time.sleep(0.6)
+                    break
+                if time.time() > het:
+                    break
+                time.sleep(0.4)
+            the = ws.js(_JS_VIDEO) or []
+        finally:
+            ws.dong()
+    ra, seen = [], set()
+    for u, txt in the:
+        m = re.search(r"(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/)([\w-]{11})", u)
+        if not m or m.group(1) in seen:
+            continue
+        seen.add(m.group(1))
+        dong = [x.strip() for x in txt.splitlines() if x.strip()]
+        dai = next((_giay(x) for x in dong if re.fullmatch(r"\d{1,2}(?::\d{2}){1,2}", x)), 0)
+        kenh = next((x.split("·")[1].strip() for x in dong if x.startswith("YouTube ·") and x.count("·") >= 1), "")
+        ra.append({"id": m.group(1), "tieu_de": dong[0] if dong else "", "dai": dai, "kenh": kenh, "luot_xem": 0,
+                   "nguon_tim": "google_video"})
+        if len(ra) >= n:
+            break
+    return ra

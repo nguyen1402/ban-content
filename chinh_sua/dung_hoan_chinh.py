@@ -27,11 +27,11 @@ import kho_capcut                                                               
 import so_hien_thi                                                                           # noqa: E402
 
 SEC = 1_000_000
-#: Người dùng chốt 09/10: BỎ hết hiệu ứng âm thanh (chỗ chèn không hợp). Mã SFX còn đó, bật lại bằng True.
+#: 16/10: SFX tinh gọn chuẩn tài liệu (chỉ whoosh đổi chương + hit cao trào). Bật bằng True / cờ --co-sfx
 SFX_BAT = False
-#: 12/10 user: BỎ tự thêm nhạc nền và chữ nhấn mạnh (mã còn đó, bật lại bằng True / cờ --co-nhac --co-chu).
-NHAC_BAT = False          # 13/10 tối user: "thôi không tìm nhạc nữa" (Mixkit vẫn còn mã — bật lại: --co-nhac)
-NHAC_NGUON = "mixkit"     # "mixkit" | "kho" (kho cũ: nhạc kênh YouTube "No Copyright" — không chắc an toàn)
+#: 16/10: Nhạc nền từ kho sạch không bản quyền (kho_am_thanh). Bật bằng True / cờ --co-nhac
+NHAC_BAT = True
+NHAC_NGUON = "kho_chuan"  # "kho_chuan" (kho_am_thanh sạch) | "mixkit" | "kho"
 CHU_BAT = False
 #: 12/10 user: lớp ẢNH PHỦ minh hoạ khi cần (chinh_sua/lop_phu.py). Tắt bằng --khong-lop-phu.
 LOP_PHU_BAT = False        # 13/10 user: ẨN thẻ highlight ("hiện tại chưa cần dùng tới") — bật lại: True / bỏ --khong-lop-phu
@@ -44,8 +44,8 @@ HIEU_UNG_BAT = True
 #: có icon phương tiện, lan rộng) / sơ đồ Remotion trên nền video tối (cấu tạo, quy trình, vòng đời, mô phỏng).
 #: Tắt (về cách cũ: thẻ và đường đi hỏi riêng): --khong-dieu-phoi.
 DIEU_PHOI_BAT = True
-#: 13/10 user nghe thử rồi BỎ NGAY tiếng động diễn cảnh ("nghe không hợp"). Mã còn đó; bật lại = True.
-TIENG_DONG_BAT = False
+#: 13/10 user nghe thử rồi BỎ NGAY tiếng động diễn cảnh ("nghe không hợp"). 17/10 user bật lại cho mốc chữ, biểu đồ cột và AI slow.
+TIENG_DONG_BAT = True
 DEN_THEM = 1.0             # 15/10 user: đen màn ở chỗ (nghỉ X) kéo dài thêm bấy nhiêu giây MỖI BÊN (tối dần / sáng lại)
 BANG_GIAY_BAT = False     # 12/10 user xem bản thử rồi BỎ ("không muốn vẽ kiểu đấy") — bật lại bằng --co-bang-giay
 KE_HOACH = os.path.join(OUT, "ke_hoach.json")
@@ -404,19 +404,16 @@ def lap_ke_hoach(canh, cau, tong_s):
 
     chuyen, sfx_cung = chuyen_canh_theo_luat(canh, cau, chuong, theo_i, chuong_cua_cau, rnd)
 
-    # SFX: theo gợi ý của ChatGPT + khi chữ nhấn mạnh hiện
+    # SFX tinh gọn: chỉ whoosh đổi chương và tối đa điểm nhấn kịch tính thật sự (bỏ pop/ting tràn lan)
     sfx = list(sfx_cung)
     for x in sfx_llm:
         c = theo_i.get(int(x.get("cau", 0)))
-        if c and x.get("kieu") in ("hit", "ting", "riser", "whoosh", "pop"):
-            t = c["t0"] if x["kieu"] != "riser" else max(0.0, c["t0"] - 1.0)
-            sfx.append({"t": round(t, 2), "kieu": x["kieu"], "ly_do": f"câu {c['i']}"})
-    for x in chu_ra:
-        sfx.append({"t": x["bd"], "kieu": "pop" if x["kieu"] in ("ten", "y_chinh") else "hit", "ly_do": "chữ nhấn mạnh"})
+        if c and x.get("kieu") == "hit":
+            sfx.append({"t": round(c["t0"], 2), "kieu": "hit", "ly_do": f"câu {c['i']}"})
     sfx.sort(key=lambda z: z["t"])
     gon = []
-    for s in sfx:                                           # không dồn hai SFX trong 1,2s
-        if not gon or s["t"] - gon[-1]["t"] >= 1.2:
+    for s in sfx:                                           # không dồn hai SFX trong 3.0s
+        if not gon or s["t"] - gon[-1]["t"] >= 3.0:
             gon.append(s)
 
     return {"tong_giay": round(tong_s, 2), "chuong": chuong, "chu": lap_chu_nhan(cau) if CHU_BAT else [], "chuyen_canh": chuyen, "sfx": gon,
@@ -425,6 +422,14 @@ def lap_ke_hoach(canh, cau, tong_s):
 
 # --------------------------------------------------------------------------- chọn file âm thanh
 def _kho_am_thanh():
+    # Ưu tiên số 1: Kho âm thanh sạch không bản quyền (kho_am_thanh/)
+    try:
+        import kho_am_thanh
+        chuan = kho_am_thanh.quet_kho_chuan()
+        if chuan:
+            return chuan
+    except Exception as e:
+        log(f"  ! Lỗi nạp kho_am_thanh: {e}")
     d = doc_json(os.path.join(kho_capcut.KHO, "am_thanh.json"))
     d = d if d else kho_capcut.quet_am_thanh()
     yt = doc_json(os.path.join(kho_capcut.KHO, "nhac_youtube.json"))
@@ -436,42 +441,66 @@ def _kho_am_thanh():
 
 def chon_nhac(chuong, am):
     nhac = [v for v in am.values() if v["loai"] == "nhac"]
+    if not nhac:
+        return []
     da_dung, ra = set(), []
+
+    # Gộp các chương ngắn (< 75s) hoặc cùng tâm trạng để nhạc không nhảy bài liên tục
+    doan_nhac = []
     for x in chuong:
+        if doan_nhac and (x["den"] - x["tu"] < 75.0 or doan_nhac[-1]["tam_trang"] == x.get("tam_trang")):
+            doan_nhac[-1]["den"] = x["den"]
+        else:
+            doan_nhac.append({"tu": x["tu"], "den": x["den"], "tam_trang": x.get("tam_trang", "dien_anh")})
+
+    for x in doan_nhac:
         can = x["den"] - x["tu"]
         t = x["tu"]
         ung = [v for v in nhac if v.get("tam_trang") == x["tam_trang"]] or nhac
-        while t < x["den"] - 8.0:                              # chỗ trống <8s thì để nhạc cũ tắt dần, không chèn bài mới
+        while t < x["den"] - 10.0:
             con = [v for v in ung if v["file"] not in da_dung] or [v for v in nhac if v["file"] not in da_dung] or nhac
             v = sorted(con, key=lambda z: -z["dai"])[0] if can > 120 else sorted(con, key=lambda z: abs(z["dai"] - can))[0]
             da_dung.add(v["file"])
             d = min(v["dai"] - 0.2, x["den"] - t)
+            do_to = v.get("do_to_db", -15)
+            # Âm lượng chuẩn tài liệu: ~ -24 dB (nhỏ hơn giọng đọc -14dB đúng 10dB)
+            vol = round(max(0.06, min(0.22, 0.10 * 10 ** ((-24 - do_to) / 20))), 3)
             ra.append({"tu": round(t, 2), "den": round(t + d, 2), "file": v["file"], "tam_trang": v.get("tam_trang"),
-                       "vol": round(max(0.05, min(0.2, 0.11 * 10 ** ((-20 - v.get("do_to_db", -20)) / 20))), 3)})
+                       "vol": vol})
             t += d
     return ra
 
 
 def chon_sfx(sfx, am):
-    khoang = {"whoosh": (0.4, 2.6), "hit": (0.3, 3.0), "ting": (0.3, 3.0), "riser": (1.0, 6.0), "pop": (0.0, 0.8)}
-    theo = {}
+    # Chỉ giữ whoosh (chuyển cảnh) và hit (nhấn mạnh cao trào), loại bỏ pop/ting
+    theo = {"whoosh": [], "hit": []}
     for v in am.values():
-        if v["loai"] == "sfx" and v.get("kieu") in khoang:
-            lo, hi = khoang[v["kieu"]]
-            if lo <= v["dai"] <= hi:
-                theo.setdefault(v["kieu"], []).append(v)
+        if v["loai"] == "sfx":
+            kieu = v.get("kieu")
+            if kieu in ("whoosh", "hit"):
+                theo[kieu].append(v)
+
     dem = {}
-    for s in sfx:
-        ds = theo.get(s["kieu"]) or []
-        if not ds:
-            s["bo"] = True
+    ra = []
+    cuoi_t = -99.0
+    for s in sorted(sfx, key=lambda z: z["t"]):
+        kieu = s.get("kieu")
+        if kieu not in theo or not theo[kieu]:
             continue
-        k = dem.get(s["kieu"], 0)
-        dem[s["kieu"]] = k + 1
+        if s["t"] - cuoi_t < 2.5:
+            continue
+        k = dem.get(kieu, 0)
+        dem[kieu] = k + 1
+        ds = theo[kieu]
         v = sorted(ds, key=lambda z: z["file"])[k % len(ds)]
-        s["file"], s["dai"] = v["file"], v["dai"]
-        s["vol"] = round(max(0.15, min(1.0, 0.5 * 10 ** ((-18 - v.get("do_to_db", -18)) / 20))), 3)
-    return [s for s in sfx if not s.get("bo")]
+        s["file"] = v["file"]
+        s["dai"] = min(v["dai"], 2.2)
+        muc_tieu = -22 if kieu == "whoosh" else -16
+        do_to = v.get("do_to_db", -18)
+        s["vol"] = round(max(0.12, min(0.65, 0.35 * 10 ** ((muc_tieu - do_to) / 20))), 3)
+        ra.append(s)
+        cuoi_t = s["t"]
+    return ra
 
 
 # --------------------------------------------------------------------------- dựng dự án CapCut
@@ -499,6 +528,26 @@ def chuyen_dong_anh(seg, d, k, KP):
         seg.add_keyframe(KP.position_y, d - 1000, 0.03)
 
 
+def chuyen_dong_anh_ai(seg, d, k, KP):
+    """Chuyển động lia máy Ken Burns chậm rãi, điện ảnh cho chuỗi ảnh AI."""
+    kieu = k % 4
+    if kieu == 0:                                             # zoom in chậm rãi
+        seg.add_keyframe(KP.uniform_scale, 0, 1.02)
+        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.08)
+    elif kieu == 1:                                           # zoom out nhẹ nhàng
+        seg.add_keyframe(KP.uniform_scale, 0, 1.08)
+        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.02)
+    elif kieu == 2:                                           # lia chậm từ trái sang phải
+        seg.add_keyframe(KP.uniform_scale, 0, 1.06)
+        seg.add_keyframe(KP.position_x, 0, -0.025)
+        seg.add_keyframe(KP.position_x, d - 1000, 0.025)
+    else:                                                     # đẩy nhẹ vào kèm lia góc
+        seg.add_keyframe(KP.uniform_scale, 0, 1.03)
+        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.07)
+        seg.add_keyframe(KP.position_x, 0, 0.02)
+        seg.add_keyframe(KP.position_x, d - 1000, -0.02)
+
+
 def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
     """giong_chung: dự án kiểu mới — một file giọng nguyên bài (giong_doc.wav) đặt từ giây 0."""
     import pycapcut as draft
@@ -511,8 +560,10 @@ def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
         if (nm == "sfx" and not kh["sfx"]) or (nm == "nhac" and not kh["nhac"]) or (nm == "chu" and not kh["chu"]):
             continue
         script.add_track(tp, track_name=nm)
+    if kh.get("anh_ai"):
+        script.add_track(draft.TrackType.video, track_name="anh_ai", relative_index=1)
     if kh.get("hieu_ung"):
-        script.add_track(draft.TrackType.video, track_name="hieu_ung", relative_index=1)  # trên track hình
+        script.add_track(draft.TrackType.video, track_name="hieu_ung", relative_index=2)  # trên track anh_ai
     if kh.get("bang_giay"):
         script.add_track(draft.TrackType.video, track_name="bang_giay", relative_index=4)  # trên cùng: khối bảng giấy
     man_den = [c for c in canh if float(c.get("nghi_sau") or 0) > 0]
@@ -521,8 +572,8 @@ def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
     if kh.get("tieng_dong") and TIENG_DONG_BAT:
         script.add_track(draft.TrackType.audio, track_name="tieng_dong")
     if kh.get("lop_phu"):
-        script.add_track(draft.TrackType.video, track_name="lop_phu", relative_index=2)   # thẻ: ảnh thật
-        script.add_track(draft.TrackType.video, track_name="lop_phu_khung", relative_index=3)   # thẻ: khung trắng
+        script.add_track(draft.TrackType.video, track_name="lop_phu", relative_index=5)   # thẻ: ảnh thật
+        script.add_track(draft.TrackType.video, track_name="lop_phu_khung", relative_index=6)   # thẻ: khung trắng
         script.add_track(draft.TrackType.text, track_name="lop_phu_chu", relative_index=1)   # thẻ: chữ (sửa tay được)
     KP0 = draft.KeyframeProperty
     kieu_anh = 0
@@ -556,19 +607,24 @@ def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
         mat = draft.AudioMaterial(m["file"])
         d = min(int((m["den"] - m["tu"]) * SEC), mat.duration)
         seg = draft.AudioSegment(mat, trange(int(m["tu"] * SEC), d), source_timerange=trange(0, d), volume=m["vol"])
-        seg.add_fade(int(1.5 * SEC), int(1.8 * SEC))
+        seg.add_fade(int(2.0 * SEC), int(2.5 * SEC))
         script.add_segment(seg, track_name="nhac")
     ds_sfx = sorted(kh["sfx"], key=lambda z: z["t"])
+    cuoi_sfx = 0
     for k, s in enumerate(ds_sfx):
-        toi_da = (ds_sfx[k + 1]["t"] - s["t"] - 0.05) if k + 1 < len(ds_sfx) else s["dai"]
+        st = int(s["t"] * SEC)
+        if st < cuoi_sfx + int(0.1 * SEC):
+            continue
+        toi_da = (ds_sfx[k + 1]["t"] - s["t"] - 0.08) if k + 1 < len(ds_sfx) else s["dai"]
         mat = draft.AudioMaterial(s["file"])
         d = min(int(min(s["dai"], toi_da) * SEC), mat.duration)   # vừa khoảng trống VÀ không quá độ dài thật của file
         if d < int(0.2 * SEC):
             continue
-        seg = draft.AudioSegment(mat, trange(int(s["t"] * SEC), d), source_timerange=trange(0, d), volume=s["vol"])
+        seg = draft.AudioSegment(mat, trange(st, d), source_timerange=trange(0, d), volume=s["vol"])
         if d < int(s["dai"] * SEC):
             seg.add_fade(0, int(min(0.15 * SEC, d // 2)))
         script.add_segment(seg, track_name="sfx")
+        cuoi_sfx = st + d
     if man_den:
         from PIL import Image
         den = os.path.join(OUT, "_man_den.png")
@@ -618,6 +674,31 @@ def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
         seg.add_keyframe(KP.alpha, max(d - int(0.25 * SEC), int(0.4 * SEC)), 1.0)
         seg.add_keyframe(KP.alpha, d - 1000, 0.0)
         script.add_segment(seg, track_name="chu")
+    if kh.get("anh_ai"):
+        ds_pd = []
+        for x in kh["anh_ai"]:
+            for pd in x.get("phan_doan", []):
+                f_anh = pd["file"]
+                if os.path.isfile(f_anh) and os.path.getsize(f_anh) > 5000:
+                    ds_pd.append({"bd": pd["bd"], "dai": pd["dai"], "file": f_anh})
+        ds_pd.sort(key=lambda z: z["bd"])
+        cuoi_ai = 0
+        k_anh_ai = 0
+        for pd in ds_pd:
+            st = int(round(pd["bd"] * SEC))
+            d = int(round(pd["dai"] * SEC))
+            if st < cuoi_ai:
+                lech = cuoi_ai - st
+                st = cuoi_ai
+                d -= lech
+            if d < int(0.5 * SEC):
+                continue
+            mat = draft.VideoMaterial(pd["file"])
+            seg = draft.VideoSegment(mat, trange(st, d), volume=0.0)
+            chuyen_dong_anh_ai(seg, d, k_anh_ai, KP)
+            script.add_segment(seg, track_name="anh_ai")
+            cuoi_ai = st + d
+            k_anh_ai += 1
     if kh.get("hieu_ung"):
         import hieu_ung
         hieu_ung.dat(script, kh["hieu_ung"], SEC)
@@ -664,6 +745,39 @@ def gan_chuyen_canh(thu_muc, kh):
             "is_ai_transition": False, "video_path": "", "task_id": ""})
         a.setdefault("extra_material_refs", []).append(tid)
         n += 1
+
+    # 18/10 user: gắn chuyển cảnh 'Mờ dần' (Mix/Dissolve) giữa các ảnh AI liền kề trên track 'anh_ai'
+    track_ai = next((t for t in j["tracks"] if t.get("name") == "anh_ai"), None)
+    if track_ai and len(track_ai.get("segments", [])) > 1:
+        it_mo = dm.get("6798320902548230669")  # Mờ dần (Dissolve)
+        if it_mo:
+            try:
+                duong_mo = kho_capcut.cai_goi(it_mo).replace("\\", "/")
+                segs_ai = sorted(track_ai["segments"], key=lambda s: s["target_timerange"]["start"])
+                n_ai_trans = 0
+                for i in range(len(segs_ai) - 1):
+                    seg_a = segs_ai[i]
+                    seg_b = segs_ai[i + 1]
+                    end_a = seg_a["target_timerange"]["start"] + seg_a["target_timerange"]["duration"]
+                    start_b = seg_b["target_timerange"]["start"]
+                    # Chỉ gắn nếu 2 ảnh liền kề (khoảng cách <= 0.06s)
+                    if abs(start_b - end_a) <= 60000:
+                        dai_trans = int(min(0.5 * SEC, 0.4 * min(seg_a["target_timerange"]["duration"], seg_b["target_timerange"]["duration"])))
+                        tid = str(uuid.uuid4()).upper()
+                        j["materials"]["transitions"].append({
+                            "id": tid, "type": "transition", "name": it_mo["ten"], "effect_id": it_mo["id"],
+                            "resource_id": it_mo["id"], "third_resource_id": it_mo["id"], "source_platform": 1,
+                            "path": duong_mo, "duration": dai_trans, "is_overlap": True,
+                            "platform": "all", "category_id": "100000", "category_name": "", "request_id": "",
+                            "is_ai_transition": False, "video_path": "", "task_id": ""
+                        })
+                        seg_a.setdefault("extra_material_refs", []).append(tid)
+                        n_ai_trans += 1
+                if n_ai_trans:
+                    log(f"    chuyển cảnh ảnh AI: gắn {n_ai_trans} hiệu ứng 'Mờ dần'")
+            except Exception as e:
+                log(f"    ! lỗi gắn chuyển cảnh ảnh AI: {e}")
+
     json.dump(j, open(p, "w", encoding="utf-8"), ensure_ascii=False)
     return n
 
@@ -695,6 +809,8 @@ def main():
                     help="kiểu cũ: thay đoạn đầu MỌI cảnh địa điểm bằng bản đồ vệ tinh (mặc định tắt từ 14/10)")
     ap.add_argument("--khong-ban-do", action="store_true", help="dự án mới: không thay cảnh địa điểm bằng bản đồ vệ tinh")
     ap.add_argument("--co-nhac", action="store_true", help="bật lại tự thêm nhạc nền")
+    ap.add_argument("--co-sfx", action="store_true", help="bật lại SFX chuyển cảnh & điểm nhấn tinh gọn")
+    ap.add_argument("--khong-sfx", action="store_true", help="không thêm SFX")
     ap.add_argument("--co-chu", action="store_true", help="bật lại chữ nhấn mạnh")
     ap.add_argument("--khong-dieu-phoi", action="store_true", help="không dùng điều phối chung (thẻ/bản đồ hỏi riêng như cũ)")
     ap.add_argument("--khong-nhac", action="store_true", help="không thêm nhạc nền")
@@ -704,16 +820,21 @@ def main():
     ap.add_argument("--khong-bang-giay", action="store_true", help="không dựng lớp Remotion bảng giấy")
     ap.add_argument("--co-bang-giay", action="store_true", help="bật lớp Remotion bảng giấy (mặc định tắt)")
     ap.add_argument("--bang-giay-den", type=float, default=None, help="bảng giấy chỉ làm tới giây này (bản thử)")
+    ap.add_argument("--khong-tieng-dong", action="store_true", help="không thêm tiếng động diễn cảnh / SFX minh hoạ")
+    ap.add_argument("--co-tieng-dong", action="store_true", help="bật tiếng động diễn cảnh")
     ap.add_argument("--sua-nhanh", action="store_true",
-                    help="giữ kế hoạch: bỏ SFX, làm lại chữ (chỉ số liệu/dữ kiện) và chọn lại nhạc từ kho YouTube")
+                    help="giữ kế hoạch: bỏ SFX, làm lại chữ (chỉ số liệu/dữ kiện) và chọn lại nhạc từ kho sạch")
     ap.add_argument("--tinh-lai-chuyen-canh", action="store_true",
                     help="giữ kế hoạch cũ, chỉ dựng lại chuyển cảnh theo các ô hình hiện tại")
     a = ap.parse_args()
-    global NHAC_BAT, CHU_BAT, LOP_PHU_BAT, HIEU_UNG_BAT, BANG_GIAY_BAT, DIEU_PHOI_BAT
+    global NHAC_BAT, SFX_BAT, CHU_BAT, LOP_PHU_BAT, HIEU_UNG_BAT, BANG_GIAY_BAT, DIEU_PHOI_BAT, TIENG_DONG_BAT
+    TIENG_DONG_BAT = (TIENG_DONG_BAT or a.co_tieng_dong) and not a.khong_tieng_dong
     DIEU_PHOI_BAT = DIEU_PHOI_BAT and not a.khong_dieu_phoi
     BANG_GIAY_BAT = (BANG_GIAY_BAT or a.co_bang_giay) and not a.khong_bang_giay
     HIEU_UNG_BAT = HIEU_UNG_BAT and not a.khong_hieu_ung
-    NHAC_BAT, CHU_BAT = (NHAC_BAT or a.co_nhac) and not a.khong_nhac, CHU_BAT or a.co_chu
+    NHAC_BAT = (NHAC_BAT or a.co_nhac) and not a.khong_nhac
+    SFX_BAT = (SFX_BAT or a.co_sfx) and not a.khong_sfx
+    CHU_BAT = CHU_BAT or a.co_chu
     LOP_PHU_BAT = (LOP_PHU_BAT or a.co_lop_phu) and not a.khong_lop_phu
 
     giong_chung = None
@@ -745,9 +866,15 @@ def main():
             kh = tinh_lai_chuyen_canh(canh, cau, kh)
             ghi_json(KE_HOACH, kh)
             log(f"    dựng lại {len(kh['chuyen_canh'])} chuyển cảnh theo ô hiện tại")
-        if NHAC_BAT and NHAC_NGUON == "mixkit" and not kh.get("nhac"):    # kế hoạch cũ chưa có nhạc: tìm bổ sung
-            import nhac_mixkit
-            kh["nhac"] = nhac_mixkit.chon(kh["chuong"], cau, OUT)
+        if NHAC_BAT and not kh.get("nhac"):
+            if NHAC_NGUON == "mixkit":
+                import nhac_mixkit
+                kh["nhac"] = nhac_mixkit.chon(kh["chuong"], cau, OUT)
+            else:
+                kh["nhac"] = chon_nhac(kh["chuong"], am)
+            ghi_json(KE_HOACH, kh)
+        if SFX_BAT and not kh.get("sfx"):
+            kh["sfx"] = chon_sfx(kh.get("sfx") or [], am)
             ghi_json(KE_HOACH, kh)
         doi = doi_chuyen_canh_nhay(kh)
         if doi:
@@ -775,12 +902,17 @@ def main():
             import hieu_ung
             if de is not None:
                 import minh_hoa
-                kh["hieu_ung"] = [x for x in hieu_ung.lap(cau, canh, kh["chuong"], OUT, san=minh_hoa.lap(cau, canh, de))
+                san_hu, san_ai = minh_hoa.lap(cau, canh, de)
+                kh["hieu_ung"] = [x for x in hieu_ung.lap(cau, canh, kh["chuong"], OUT, san=san_hu)
                                   if ngoai_bg(x)]
+                kh["anh_ai"] = [x for x in san_ai if ngoai_bg(x)]
             else:
                 kh["hieu_ung"] = [x for x in hieu_ung.lap(cau, canh, kh["chuong"], OUT) if ngoai_bg(x)]
+                kh["anh_ai"] = []
         # 13/10 user: tiếng động đi kèm diễn cảnh (độc lập với SFX_BAT cũ đã tắt)
-        su_kien = sorted((a_ for y in kh.get("hieu_ung") or [] for a_ in (y.get("am") or [])), key=lambda z: z["t"])
+        su_kien_hu = [a_ for y in (kh.get("hieu_ung") or []) for a_ in (y.get("am") or [])]
+        su_kien_ai = [a_ for y in (kh.get("anh_ai") or []) for a_ in (y.get("am") or [])]
+        su_kien = sorted(su_kien_hu + su_kien_ai, key=lambda z: z["t"])
         kh["tieng_dong"] = []
         for s_ in chon_sfx([dict(z) for z in su_kien], am):
             s_["dai_goc"] = float(s_["dai"])
@@ -797,9 +929,10 @@ def main():
                              if all(x["bd"] + x["dai"] <= a or x["bd"] >= b for a, b in hu) and ngoai_bg(x)]
         kh["sfx"] = chon_sfx(kh["sfx"], am) if SFX_BAT else []
         ghi_json(KE_HOACH, kh)
-        log(f"[2] kế hoạch: {len(kh['chuong'])} chương, {len(kh['chu'])} chữ nhấn mạnh, {len(kh.get('lop_phu') or [])} ảnh phủ, {len(kh.get('hieu_ung') or [])} hiệu ứng, {len(kh.get('bang_giay') or [])} khối bảng giấy, "
-            f"{len(kh['chuyen_canh'])} chuyển cảnh, {len(kh['nhac'])} đoạn nhạc, {len(kh['sfx'])} SFX, "
-            f"{len(kh.get('tieng_dong') or [])} tiếng động diễn cảnh -> ra/ke_hoach.json")
+        log(f"[2] kế hoạch: {len(kh['chuong'])} chương, {len(kh['chu'])} chữ nhấn mạnh, {len(kh.get('lop_phu') or [])} ảnh phủ, "
+            f"{len(kh.get('hieu_ung') or [])} hiệu ứng, {len(kh.get('anh_ai') or [])} cảnh AI ({sum(len(y.get('phan_doan') or []) for y in kh.get('anh_ai') or [])} ảnh), "
+            f"{len(kh.get('bang_giay') or [])} khối bảng giấy, {len(kh['chuyen_canh'])} chuyển cảnh, {len(kh['nhac'])} đoạn nhạc, "
+            f"{len(kh['sfx'])} SFX, {len(kh.get('tieng_dong') or [])} tiếng động diễn cảnh -> ra/ke_hoach.json")
     if a.chi_lap_ke_hoach:
         return
     if not SFX_BAT:

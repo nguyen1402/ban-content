@@ -180,6 +180,117 @@ def logo_video(path, vid, w=320, h=180):
     return ra
 
 
+LOGO_TOI_THIEU = 1.2        # % điểm ở góc là NÉT ĐỨNG YÊN (qua mọi cảnh quay) thì coi là logo / chữ kênh
+
+
+def _ben_vung(F, nguong=25.0):
+    """Tỉ lệ khung mà mỗi điểm là NÉT (cạnh) — logo/chữ kênh: gần 1 ở mọi khung, nội dung đổi: thấp."""
+    gx = np.abs(np.diff(F, axis=2))[:, :-1, :]
+    gy = np.abs(np.diff(F, axis=1))[:, :, :-1]
+    return ((gx + gy) > nguong).mean(axis=0)
+
+
+def logo_kenh(path, vid, dai=0.0):
+    """16/10 user ("nhiều kênh có logo kênh"): góc có logo / chữ kênh (ACM, ABC TV, @tên instagram…) -> ['TL',...].
+    Lấy MỘT khung giữa mỗi cảnh quay (canh_cat): logo đứng yên qua mọi cảnh quay, phông nền thì không. Video ít cảnh
+    quay (< 8, cắt mềm): lấy khung theo chuyển động, chỉ tin khi phần giữa khung không có nét đứng yên (máy quay cố
+    định -> phông nền đứng yên, không phải logo). Đo 16/10: fish 28 video YouTube bắt ACM, ABC TV, @instagram, logo
+    màu (đã xem khung); 120 clip stock (không logo) báo nhầm 0."""
+    cache = duong_cache("logo_kenh.json")
+    da = doc_json(cache, {})
+    if vid in da:
+        return da[vid]
+    W, H = 320, 180
+    buf = _ffmpeg_khung(path, f"fps=2,scale={W}:{H}", fmt="gray")
+    n = len(buf) // (W * H)
+    ra = []
+    if n >= 24:
+        A = np.frombuffer(buf, np.uint8, n * W * H).reshape(n, H, W)
+        dai = float(dai or n / 2.0)
+        moc = [0.0] + list(canh_cat(path, vid)) + [dai]
+        giua = [(a + b) / 2 for a, b in zip(moc, moc[1:]) if b - a >= 1.0]
+        theo_canh = len(giua) >= 8
+        if theo_canh:
+            if len(giua) > 40:
+                giua = [giua[int(i * len(giua) / 40)] for i in range(40)]
+            F = np.stack([A[min(n - 1, int(t * 2))] for t in giua]).astype(np.float32)
+        else:                                               # cắt mềm: khung đổi rõ so với khung chọn trước
+            idx = np.linspace(0, n - 1, min(n, 120)).astype(int)
+            G = A[idx, H // 5:-H // 5, W // 5:-W // 5].astype(np.float32)
+            rep = [0]
+            for i in range(1, len(idx)):
+                if np.abs(G[i] - G[rep[-1]]).mean() > 18:
+                    rep.append(i)
+            F = A[idx[rep]].astype(np.float32) if len(rep) >= 12 else None
+        if F is not None:
+            P = _ben_vung(F)
+            h, w = P.shape
+            ph, pw = int(h * 0.22), int(w * 0.25)
+            vung = {"TL": P[:ph, :pw], "TR": P[:ph, -pw:], "BL": P[-ph:, :pw], "BR": P[-ph:, -pw:]}
+            nen = float((P[ph:-ph, pw:-pw] > 0.6).mean()) * 100
+            for k, v in vung.items():
+                p = float((v > 0.6).mean()) * 100
+                if p >= LOGO_TOI_THIEU and p > 3 * nen and (theo_canh or nen <= 0.1):
+                    ra.append(k)
+    with _KHOA_JSON:
+        da = doc_json(cache, {})
+        da[vid] = ra
+        ghi_json(cache, da)
+    return ra
+
+
+def logo_kenh_gop(paths, vid_goc):
+    """16/10 user: gộp khung hình của MỌI khoảng cùng một video gốc rồi mới dò logo kênh.
+    Một khoảng 30s ít cảnh quay -> gộp khung của nhiều khoảng (mỗi khoảng ở một đoạn thời gian khác nhau)
+    giúp đủ cảnh quay để bộ dò _ben_vung nhận diện chính xác logo đứng yên ở góc."""
+    cache = duong_cache("logo_kenh.json")
+    da = doc_json(cache, {})
+    if vid_goc in da:
+        return da[vid_goc]
+    W, H = 320, 180
+    frames_all = []
+    for p in paths:
+        if not os.path.isfile(p):
+            continue
+        try:
+            buf = _ffmpeg_khung(p, f"fps=2,scale={W}:{H}", fmt="gray")
+            n = len(buf) // (W * H)
+            if n > 0:
+                A = np.frombuffer(buf, np.uint8, n * W * H).reshape(n, H, W)
+                frames_all.append(A)
+        except Exception:
+            continue
+    if not frames_all:
+        return []
+    A_gop = np.concatenate(frames_all, axis=0) if len(frames_all) > 1 else frames_all[0]
+    n_all = len(A_gop)
+    ra = []
+    if n_all >= 16:
+        idx = np.linspace(0, n_all - 1, min(n_all, 150)).astype(int)
+        G = A_gop[idx, H // 5:-H // 5, W // 5:-W // 5].astype(np.float32)
+        rep = [0]
+        for i in range(1, len(idx)):
+            if np.abs(G[i] - G[rep[-1]]).mean() > 16:
+                rep.append(i)
+        F = A_gop[idx[rep]].astype(np.float32) if len(rep) >= 8 else None
+        if F is not None:
+            P = _ben_vung(F)
+            h, w = P.shape
+            ph, pw = int(h * 0.22), int(w * 0.25)
+            vung = {"TL": P[:ph, :pw], "TR": P[:ph, -pw:], "BL": P[-ph:, :pw], "BR": P[-ph:, -pw:]}
+            nen = float((P[ph:-ph, pw:-pw] > 0.6).mean()) * 100
+            for k, v in vung.items():
+                p = float((v > 0.6).mean()) * 100
+                if p >= LOGO_TOI_THIEU and p > 3 * nen and nen <= 0.25:
+                    ra.append(k)
+    with _KHOA_JSON:
+        da = doc_json(cache, {})
+        da[vid_goc] = ra
+        ghi_json(cache, da)
+    return ra
+
+
+
 # --------------------------------------------------------------------------- viền đen
 def vung_cat(path, bd, dai):
     """Chuỗi 'w:h:x:y' để cắt viền đen quanh hình thật; None nếu không đáng cắt."""

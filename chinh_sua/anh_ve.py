@@ -172,8 +172,13 @@ def ve_prompt(prompt, thu, ten, tep=None, timeout=150):
                 _HONG.add(nhan)                              # mất kết nối tạm thời thì để lần sau dùng lại
             continue
         if f and os.path.isfile(f):
-            return f
-        log(f"    ! vẽ ảnh (tài khoản {nhan}): không trả ảnh ({ly})")
+            if os.path.getsize(f) > 4000:
+                return f
+            try:
+                os.remove(f)
+            except OSError:
+                pass
+        log(f"    ! vẽ ảnh (tài khoản {nhan}): không trả ảnh hợp lệ ({ly})")
     # 15/10 user: Gemini (cookie) TRƯỚC; chỉ khi mọi tài khoản Gemini hết điểm / lỗi mới chuyển sang Flow
     return _qua_flow(prompt, thu, ten)
 

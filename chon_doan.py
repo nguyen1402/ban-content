@@ -50,13 +50,23 @@ _M = {}
 
 def _clip():
     if not _M:
+        import os
+        os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
         import torch
+        import transformers
+        transformers.logging.set_verbosity_error()
         from transformers import CLIPModel, CLIPProcessor
         dev = "cuda" if torch.cuda.is_available() else "cpu"
-        m = CLIPModel.from_pretrained(MODEL_CLIP, torch_dtype=torch.float16 if dev == "cuda"
-                                      else torch.float32).to(dev).eval()
-        _M.update(m=m, p=CLIPProcessor.from_pretrained(MODEL_CLIP), dev=dev, t=torch)
+        dt = torch.float16 if dev == "cuda" else torch.float32
+        try:
+            p = CLIPProcessor.from_pretrained(MODEL_CLIP, local_files_only=True)
+            m = CLIPModel.from_pretrained(MODEL_CLIP, local_files_only=True, torch_dtype=dt).to(dev).eval()
+        except Exception:
+            p = CLIPProcessor.from_pretrained(MODEL_CLIP)
+            m = CLIPModel.from_pretrained(MODEL_CLIP, torch_dtype=dt).to(dev).eval()
+        _M.update(m=m, p=p, dev=dev, t=torch)
     return _M
+
 
 
 def _chuan(x):

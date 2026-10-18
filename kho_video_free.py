@@ -3,7 +3,7 @@
 bỏ tự tải YouTube vì dính logo kênh). Pexels/Pixabay/Mixkit/Coverr — mở trang tìm trong cửa sổ Chrome hiện
 (cùng hạ tầng DevTools với anh_google: hồ sơ riêng, không cần API key), đọc JSON-LD VideoObject trong trang.
 
-  * Pexels: link file mp4 trực tiếp (sd 960x540 / hd 1280x720 / hd 1920x1080 / uhd) -> lấy bản hd <= 1080p.
+  * Pexels: link file mp4 trực tiếp (sd 960x540 / hd 1280x720 / hd 1920x1080 / uhd) -> lấy bản 1280x720 (15/10).
   * Pixabay: link xem trước _tiny.mp4; bản 1280x720 là _medium.mp4, 1920x1080 là _large.mp4 (cùng đường dẫn).
   * Giấy phép: cả hai cho dùng thương mại, không bắt ghi nguồn (Pexels License / Pixabay Content License).
   * Pixabay trả kết quả lỏng (tìm "sea urchin" ra cả "bàn chân trên cát") -> luôn chấm lại bằng SigLIP.
@@ -123,7 +123,7 @@ def tim_pexels(q):
         if not v or (a.get("width") or 0) <= (a.get("height") or 0):
             continue
         fs = [f for f in v.get("video_files") or [] if (f.get("width") or 0) > (f.get("height") or 0)]
-        tot = sorted(fs, key=lambda f: (f.get("width") != 1920, f.get("width") != 1280, -(f.get("width") or 0)))
+        tot = sorted(fs, key=lambda f: (f.get("width") != 1280, f.get("width") != 1920, -(f.get("width") or 0)))   # 15/10 user: 720p
         if not tot:
             continue
         th = v.get("thumbnail") or {}
@@ -146,7 +146,7 @@ def tim_pixabay(q):
         trang = o.get("acquireLicensePage", "")
         ra.append({"nguon": "pixabay", "id": "pb_" + m.group(1), "ten": o.get("name", ""),
                    "trang": urllib.parse.urljoin("https://pixabay.com", trang), "thumb": o.get("thumbnailUrl", ""),
-                   "file": u.replace("_tiny.mp4", "_large.mp4"), "file_nho": u.replace("_tiny.mp4", "_medium.mp4"),
+                   "file": u.replace("_tiny.mp4", "_medium.mp4"), "file_nho": u.replace("_tiny.mp4", "_medium.mp4"),   # 15/10: 720p
                    "dai": _giay(o.get("duration"))})
     return ra
 
@@ -200,7 +200,7 @@ def tim_coverr(q):
         du = re.search(r'"duration":"([\d.]+)"', sau)
         ra.append({"nguon": "coverr", "id": "cv_" + re.sub(r"[^\w-]", "", base)[-40:], "ten": td[-1] if td else base,
                    "trang": "https://coverr.co", "thumb": f"https://cdn.coverr.co/videos/{base}/thumbnail?width=640",
-                   "file": f"https://cdn.coverr.co/videos/{base}/1080p.mp4", "dai": float(du.group(1)) if du else 0.0})
+                   "file": f"https://cdn.coverr.co/videos/{base}/720p.mp4", "dai": float(du.group(1)) if du else 0.0})
     return ra
 
 
@@ -246,12 +246,23 @@ _HAM = {"pexels": "tim_pexels", "pixabay": "tim_pixabay", "mixkit": "tim_mixkit"
         "wikimedia": "tim_wikimedia"}
 
 
+def _720(x):
+    """15/10 user: hạ về 720p — kết quả cache cũ còn trỏ file 1080p (Pixabay/Coverr đổi được theo đường dẫn;
+    Pexels cache cũ giữ nguyên, hết 7 ngày tìm lại sẽ lấy 1280x720)."""
+    f = x.get("file") or ""
+    if x.get("nguon") == "pixabay" and f.endswith("_large.mp4"):
+        x = {**x, "file": f[:-len("_large.mp4")] + "_medium.mp4"}
+    elif x.get("nguon") == "coverr" and f.endswith("/1080p.mp4"):
+        x = {**x, "file": f[:-len("1080p.mp4")] + "720p.mp4"}
+    return x
+
+
 def _mot(n, q):
     """Kết quả MỘT nguồn cho từ khoá q (cache 7 ngày; ghi cache có khoá — gọi song song an toàn)."""
     k = f"{n}|{q.strip().lower()}"
     v = (doc_json(_CACHE, {}) or {}).get(k)
     if v and time.time() - v["luc"] < 7 * 86400:
-        return v["ds"]
+        return [_720(x) for x in v["ds"]]
     try:
         ds = globals()[_HAM[n]](q)
     except Exception as e:                                   # noqa: BLE001

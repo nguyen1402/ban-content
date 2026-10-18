@@ -70,6 +70,26 @@ python chay.py kich_ban\ten_du_an.txt --du-an ten_du_an --ten "Tên bản nháp"
 
 ---
 
+## 🎨 Tạo hàng loạt ảnh bằng Google Flow (Nano Banana, 0 điểm)
+
+Hỗ trợ nhập nhiều câu lệnh tạo ảnh và chạy script tự động vẽ hàng loạt ảnh, xoay vòng các hồ sơ Chrome Flow (0 credit).
+
+- **Trên giao diện Web**: Bấm nút **🖼️ Tạo hàng loạt ảnh Flow** ở thanh điều hướng trên cùng (hoặc mở thẻ `🎨 Hồ sơ Flow`):
+  - Dán danh sách câu prompt (mỗi dòng một câu, hoặc cú pháp `tên_file: câu lệnh`).
+  - Hoặc bấm **📄 Nạp từ file (.txt)**, hoặc **💡 Lấy từ kịch bản dự án** để tự động lấy toàn bộ mô tả cảnh của kịch bản đang chọn.
+  - Chọn tỉ lệ ảnh (`16:9`, `9:16`, `1:1`, `4:3`, `3:4`), phong cách gợi ý (Điện ảnh, Hoạt hình, Tách nền trắng...), thư mục lưu ảnh.
+  - Bấm **▶ Bắt đầu tạo hàng loạt**: hiển thị thanh tiến độ %, thẻ ảnh xem trước tức thì (bấm xem full HD / tải về), nút dừng và nút chạy lại câu lỗi.
+- **Bằng dòng lệnh (script CLI)**:
+  ```bash
+  # Vẽ từ file text danh sách prompt
+  python flow_hang_loat.py danh_sach.txt --ti-le 16:9 --thu ra/anh_flow
+
+  # Hoặc truyền trực tiếp câu prompt
+  python flow_hang_loat.py --prompts "chú mèo ngồi ngắm mưa\nphi thuyền không gian" --ti-le 16:9
+  ```
+
+---
+
 ## Trình dựng + tự động tìm hình (nút 🤖) + skill hoàn thiện
 
 Sau khi `chay.py` xong, nút "🎬 Mở trình dựng tay" (http://127.0.0.1:8777/dung?du_an=<dự án>):

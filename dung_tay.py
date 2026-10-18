@@ -55,17 +55,18 @@ def _sach_ten(s, n=60):
 
 
 # --------------------------------------------------------------------------- tìm
-def tim_youtube(q, n=12):
-    """Kết quả tìm YouTube (không tải): [{id, tieu_de, dai, kenh, luot_xem}] — dùng yt-dlp --flat-playlist."""
+def tim_youtube(q, n=12, lam_moi=False):
+    """Kết quả tìm YouTube (không tải): [{id, tieu_de, dai, kenh, luot_xem, xac_minh}] — dùng yt-dlp --flat-playlist."""
     cache = os.path.join(CACHE_CHUNG, "tim_tay.json")
     da = doc_json(cache, {}) or {}
     k = f"yt|{n}|{q.strip().lower()}"
-    if k in da and time.time() - da[k].get("luc", 0) < 7 * 86400:
-        return da[k]["ds"]
-    for n2 in (10, 12, 15, 20):                              # đã tìm cùng từ khoá với nhiều kết quả hơn: cắt bớt
-        k2 = f"yt|{n2}|{q.strip().lower()}"
-        if n2 > n and k2 in da and time.time() - da[k2].get("luc", 0) < 7 * 86400:
-            return da[k2]["ds"][:n]
+    if not lam_moi:
+        if k in da and time.time() - da[k].get("luc", 0) < 7 * 86400:
+            return da[k]["ds"]
+        for n2 in (10, 12, 15, 20, 25):                              # đã tìm cùng từ khoá với nhiều kết quả hơn: cắt bớt
+            k2 = f"yt|{n2}|{q.strip().lower()}"
+            if n2 > n and k2 in da and time.time() - da[k2].get("luc", 0) < 7 * 86400:
+                return da[k2]["ds"][:n]
     p = subprocess.run([YTDLP, *YT_JS, "--flat-playlist", "-J", "--no-warnings", f"ytsearch{n}:{q}"],
                        capture_output=True, timeout=120, creationflags=0x08000000 if os.name == "nt" else 0)
     try:
@@ -77,7 +78,8 @@ def tim_youtube(q, n=12):
         if not e or not e.get("id"):
             continue
         ds.append({"id": e["id"], "tieu_de": e.get("title") or "", "dai": e.get("duration") or 0,
-                   "kenh": e.get("channel") or e.get("uploader") or "", "luot_xem": e.get("view_count") or 0})
+                   "kenh": e.get("channel") or e.get("uploader") or "", "luot_xem": e.get("view_count") or 0,
+                   "xac_minh": bool(e.get("channel_is_verified"))})
     with _KHOA:
         da = doc_json(cache, {}) or {}
         da[k] = {"luc": time.time(), "ds": ds}
@@ -235,6 +237,386 @@ def danh_dau_logo(du_an):
         _cap_nhat_kho(du_an, kid, logo=goc, phong=PHONG_LOGO if goc else 1.0)
         n += bool(goc)
     return n
+
+
+def chon_khoang_video(t, e, qv, tong, min_dai=20.0, max_dai=40.0, toi_da_khoang=4):
+    """Giai đoạn 3: Chọn 1–4 khoảng tốt nhất (20–40s) dựa vào điểm chấm ảnh xem trước (storyboard) so với mô tả chủ đề qv.
+    Các khoảng không chồng nhau. Hai khoảng cách nhau dưới 10 giây thì gộp làm một."""
+    if len(t) < 1 or tong <= 0:
+        return []
+    import numpy as np
+    t = np.asarray(t, dtype=float)
+    e = np.asarray(e, dtype=float)
+    qv = np.asarray(qv, dtype=float)
+    s = np.atleast_1d(e @ qv)
+    if tong <= max_dai:
+        return [(0.0, round(float(tong), 2), float(s.mean() if len(s) else 0.0))]
+
+    muc_tieu = min(30.0, max(min_dai, float(tong)))
+    cands = []
+    for i in range(len(t)):
+        t_start = float(t[i])
+        t_end = min(float(tong), t_start + muc_tieu)
+        if t_end - t_start < min_dai and t_end < float(tong):
+            continue
+        mask = (t >= t_start) & (t <= t_end)
+        if not mask.any():
+            continue
+        score = float(s[mask].mean())
+        cands.append((score, t_start, t_end))
+
+    cands.sort(key=lambda x: -x[0])
+    chon = []
+    for sc, bd, kt in cands:
+        chong = False
+        for c_sc, c_bd, c_kt in chon:
+            if not (kt <= c_bd or bd >= c_kt):
+                chong = True
+                break
+        if not chong:
+            chon.append((sc, bd, kt))
+            if len(chon) >= toi_da_khoang * 2:
+                break
+
+    chon_theo_tg = sorted([(bd, kt, sc) for sc, bd, kt in chon], key=lambda x: x[0])
+    gop = []
+    for bd, kt, sc in chon_theo_tg:
+        if not gop:
+            gop.append([bd, kt, sc, 1])
+        else:
+            prev = gop[-1]
+            if bd - prev[1] < 10.0:  # cách nhau dưới 10 giây -> gộp làm một
+                prev[1] = max(prev[1], kt)
+                prev[2] = (prev[2] * prev[3] + sc) / (prev[3] + 1)
+                prev[3] += 1
+            else:
+                gop.append([bd, kt, sc, 1])
+
+    ket_qua = []
+    for bd, kt, sc, _ in gop:
+        d = kt - bd
+        if d < min_dai:
+            thieu = min_dai - d
+            bd = max(0.0, bd - thieu / 2)
+            kt = min(float(tong), kt + thieu / 2)
+        elif d > max_dai:
+            kt = min(float(tong), bd + max_dai)
+        ket_qua.append((round(bd, 2), round(kt, 2), round(sc, 3)))
+
+    ket_qua.sort(key=lambda x: -x[2])
+    ket_qua = ket_qua[:toi_da_khoang]
+    ket_qua.sort(key=lambda x: x[0])
+    return ket_qua
+
+
+def _cat_khoang_local(file_goc, bd, kt, dich):
+    """Cắt một khoảng video từ file gốc cục bộ bằng ffmpeg (-c copy nhanh 0.05s).
+    Lấy dư 1.5s mỗi đầu để bảo toàn khung khoá (keyframe buffer).
+    Nếu copy lỗi nhẹ thì fallback ultrafast encode."""
+    bd_du = max(0.0, float(bd) - 1.5)
+    kt_du = float(kt) + 1.5
+    thoi_luong = round(kt_du - bd_du, 2)
+    os.makedirs(os.path.dirname(dich), exist_ok=True)
+    # 1. Thử -c copy siêu tốc (không re-encode)
+    cat_lenh = [FFMPEG, "-y", "-ss", f"{bd_du:.2f}", "-i", file_goc,
+                "-t", f"{thoi_luong:.2f}", "-c", "copy", dich]
+    p = subprocess.run(cat_lenh, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=60,
+                       creationflags=0x08000000 if os.name == "nt" else 0)
+    if p.returncode == 0 and os.path.isfile(dich) and os.path.getsize(dich) > 10000:
+        return True, thoi_luong
+    # 2. Nếu copy lỗi (do keyframe lệch): encode lại siêu tốc (chỉ 30s)
+    cat_lenh_enc = [FFMPEG, "-y", "-ss", f"{bd_du:.2f}", "-i", file_goc,
+                    "-t", f"{thoi_luong:.2f}", "-c:v", "libx264", "-preset", "ultrafast",
+                    "-c:a", "aac", dich]
+    p2 = subprocess.run(cat_lenh_enc, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=60,
+                        creationflags=0x08000000 if os.name == "nt" else 0)
+    if p2.returncode == 0 and os.path.isfile(dich) and os.path.getsize(dich) > 10000:
+        return True, thoi_luong
+    return False, thoi_luong
+
+
+def _tai_video_goc(vid, file_goc):
+    """Tải 1 video YouTube 720p hoàn chỉnh bằng bộ tải gốc yt-dlp (nhanh 10-15s, không bị bóp băng thông)."""
+    if os.path.isfile(file_goc) and os.path.getsize(file_goc) > 50000:
+        return True
+    thu_goc = os.path.dirname(file_goc)
+    os.makedirs(thu_goc, exist_ok=True)
+    vid_safe = re.sub(r"[^\w-]", "", vid)[:30]
+
+    def _don_dep_tam():
+        import glob
+        for f_tam in glob.glob(os.path.join(thu_goc, f"goc_{vid_safe}*")):
+            if f_tam != file_goc:
+                try:
+                    os.remove(f_tam)
+                except Exception:
+                    pass
+
+    # yt-dlp: bỏ --no-part vì --no-part khiến yt-dlp không nhận diện được file .part đã tải xong một phần,
+    # dẫn đến HTTP Error 416 (Requested range not satisfiable) khi cố resume stream đã đủ.
+    lenh = [YTDLP, *YT_JS, "--no-playlist", "--no-warnings",
+            "--retries", "5", "--fragment-retries", "5",
+            "-f", "bv*+ba/b", "-S", f"res:{CHIEU_CAO},vcodec:h264,acodec:m4a",
+            "--merge-output-format", "mp4", "--ffmpeg-location", os.path.dirname(FFMPEG) or ".",
+            "-o", file_goc, f"https://www.youtube.com/watch?v={vid}"]
+    err_cuoi = ""
+    for lan in range(2):
+        p = subprocess.run(lenh, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=300,
+                           creationflags=0x08000000 if os.name == "nt" else 0)
+        if p.returncode == 0 and os.path.isfile(file_goc) and os.path.getsize(file_goc) > 50000:
+            return True
+        if p.stderr:
+            err_cuoi = p.stderr.decode("utf-8", errors="ignore").strip()
+        # Khi gặp lỗi 416 hoặc lỗi tải, xóa file tải dở để lần sau tải sạch từ đầu
+        _don_dep_tam()
+        time.sleep(2 * (lan + 1))
+
+    if err_cuoi:
+        dong_loi = [line for line in err_cuoi.splitlines() if "ERROR:" in line or "Sign in" in line]
+        msg = dong_loi[-1] if dong_loi else err_cuoi.splitlines()[-1]
+        log(f"    ! yt-dlp {vid}: {msg[:140]}")
+    _don_dep_tam()
+    return False
+
+
+
+def tai_khoang_video_dong_bo(du_an, vid, bd, kt, tieu_de="", kenh="", chu_de_id=None):
+    r"""Tải một khoảng video đồng bộ (chạy trong luồng worker).
+    Đúng ID YouTube bằng regex r'[^\w-]'.
+    Tải video gốc 720p về tệp tạm rồi cắt bằng ffmpeg trong 0.05s."""
+    vid_safe = re.sub(r"[^\w-]", "", vid)[:30]
+    kid = f"v_{vid_safe}_{int(bd)}"
+    kho = doc_kho(du_an)
+    thu = os.path.join(_ra(du_an), "kho", "video")
+    os.makedirs(thu, exist_ok=True)
+    dich = os.path.join(thu, kid + ".mp4")
+
+    if kho.get(kid, {}).get("trang_thai") == "xong" and os.path.isfile(dich) and os.path.getsize(dich) > 10000:
+        return kid
+
+    _cap_nhat_kho(du_an, kid, loai="video", video_goc=vid, giay_bat_dau=round(bd, 2),
+                  giay_ket_thuc=round(kt, 2), kenh=kenh, chu_de=chu_de_id,
+                  tieu_de=f"{tieu_de} [{int(bd)}s-{int(kt)}s]", file=dich,
+                  trang_thai="dang", pt=0.0, luc=time.time())
+
+    file_goc = os.path.join(thu, f"goc_{vid_safe}.mp4")
+    ok_goc = _tai_video_goc(vid, file_goc)
+    if not ok_goc:
+        _cap_nhat_kho(du_an, kid, trang_thai="loi", loi="Không tải được video gốc")
+        return kid
+
+    ok_cat, thoi_luong = _cat_khoang_local(file_goc, bd, kt, dich)
+    if ok_cat and os.path.isfile(dich):
+        dai_that = _do_dai(dich) or thoi_luong
+        w, h = _kich_thuoc(dich)
+        _cap_nhat_kho(du_an, kid, loai="video", video_goc=vid, giay_bat_dau=round(bd, 2),
+                      giay_ket_thuc=round(kt, 2), kenh=kenh, chu_de=chu_de_id,
+                      tieu_de=f"{tieu_de} [{int(bd)}s-{int(kt)}s]", file=dich,
+                      dai=dai_that, rong=w, cao=h, trang_thai="xong", pt=100.0, luc=time.time())
+    else:
+        _cap_nhat_kho(du_an, kid, trang_thai="loi", loi="Cắt khoảng video lỗi")
+
+    try:
+        if os.path.isfile(file_goc):
+            os.remove(file_goc)
+    except Exception:
+        pass
+    return kid
+
+
+def tai_khoang_video(du_an, vid, bd, kt, tieu_de="", kenh="", chu_de_id=None, tay=False):
+    """Tải một khoảng video chạy nền (async)."""
+    vid_safe = re.sub(r"[^\w-]", "", vid)[:30]
+    kid = f"v_{vid_safe}_{int(bd)}"
+    threading.Thread(target=tai_khoang_video_dong_bo,
+                     args=(du_an, vid, bd, kt, tieu_de, kenh, chu_de_id),
+                     daemon=True).start()
+    return kid
+
+
+def tai_khoang_cuon(du_an, ds_khoang, ten_buoc="tai_khoang", max_cung_luc=3, on_tien_do=None):
+    """Tải các khoảng video theo cơ chế Batch-per-source:
+    Gom các khoảng theo từng video nguồn (vid). Với mỗi video nguồn:
+    1. Tải bản 720p một lần bằng bộ tải gốc yt-dlp (nhanh 10-15s, không bị bóp băng thông).
+    2. Cắt các khoảng cần thiết bằng ffmpeg cục bộ (-c copy chỉ mất 0.05s/khoảng).
+    3. Xoá file gốc tạm để giải phóng ổ cứng.
+    Chạy song song 2-3 video nguồn cùng lúc, cập nhật tiến độ mượt mà."""
+    tong = len(ds_khoang)
+    if tong == 0:
+        return []
+
+    from concurrent.futures import ThreadPoolExecutor
+    kho = doc_kho(du_an)
+    thu = os.path.join(_ra(du_an), "kho", "video")
+    os.makedirs(thu, exist_ok=True)
+
+    # Gom các khoảng theo từng video nguồn
+    theo_vid = {}
+    for item in ds_khoang:
+        theo_vid.setdefault(item["vid"], []).append(item)
+
+    xong = [0]
+    kids = []
+    khoa_local = threading.Lock()
+
+    def xu_ly_video(vid, danh_sach):
+        vid_safe = re.sub(r"[^\w-]", "", vid)[:30]
+        # Lọc các khoảng chưa có
+        can_cat = []
+        for it in danh_sach:
+            kid = f"v_{vid_safe}_{int(it['bd'])}"
+            dich = os.path.join(thu, kid + ".mp4")
+            with khoa_local:
+                kids.append(kid)
+            if kho.get(kid, {}).get("trang_thai") == "xong" and os.path.isfile(dich) and os.path.getsize(dich) > 10000:
+                with khoa_local:
+                    xong[0] += 1
+                    if on_tien_do:
+                        on_tien_do(xong[0], tong)
+            else:
+                can_cat.append((it, kid, dich))
+
+        if not can_cat:
+            return
+
+        # Đánh dấu đang tải
+        for it, kid, dich in can_cat:
+            _cap_nhat_kho(du_an, kid, loai="video", video_goc=vid, giay_bat_dau=round(it["bd"], 2),
+                          giay_ket_thuc=round(it["kt"], 2), kenh=it.get("kenh", ""),
+                          chu_de=it.get("chu_de_id"),
+                          tieu_de=f"{it.get('tieu_de', '')} [{int(it['bd'])}s-{int(it['kt'])}s]",
+                          file=dich, trang_thai="dang", pt=0.0, luc=time.time(), tay=True)
+
+        # 1. Tải video gốc 720p về tệp tạm
+        file_goc = os.path.join(thu, f"goc_{vid_safe}.mp4")
+        ok_goc = _tai_video_goc(vid, file_goc)
+
+        if not ok_goc:
+            log(f"    ! không tải được video gốc {vid_safe} -> đánh dấu lỗi các khoảng")
+            for it, kid, dich in can_cat:
+                _cap_nhat_kho(du_an, kid, trang_thai="loi", loi="Không tải được video gốc", tay=True)
+                with khoa_local:
+                    xong[0] += 1
+                    if on_tien_do:
+                        on_tien_do(xong[0], tong)
+            return
+
+        # 2. Cắt từng khoảng cục bộ bằng ffmpeg (-c copy)
+        for it, kid, dich in can_cat:
+            ok_cat, thoi_luong = _cat_khoang_local(file_goc, it["bd"], it["kt"], dich)
+            if ok_cat and os.path.isfile(dich):
+                dai_that = _do_dai(dich) or thoi_luong
+                w, h = _kich_thuoc(dich)
+                _cap_nhat_kho(du_an, kid, loai="video", video_goc=vid, giay_bat_dau=round(it["bd"], 2),
+                              giay_ket_thuc=round(it["kt"], 2), kenh=it.get("kenh", ""),
+                              chu_de=it.get("chu_de_id"),
+                              tieu_de=f"{it.get('tieu_de', '')} [{int(it['bd'])}s-{int(it['kt'])}s]",
+                              file=dich, dai=dai_that, rong=w, cao=h, trang_thai="xong", pt=100.0, luc=time.time(), tay=True)
+            else:
+                _cap_nhat_kho(du_an, kid, trang_thai="loi", loi="Cắt khoảng video lỗi", tay=True)
+            with khoa_local:
+                xong[0] += 1
+                if on_tien_do:
+                    on_tien_do(xong[0], tong)
+
+        # 3. Dọn dẹp tệp gốc tạm
+        try:
+            if os.path.isfile(file_goc):
+                os.remove(file_goc)
+        except Exception:
+            pass
+
+    so_luong_thread = min(max(1, max_cung_luc), len(theo_vid), 3)
+    with ThreadPoolExecutor(max_workers=so_luong_thread) as executor:
+        for vid, ds_it in theo_vid.items():
+            executor.submit(xu_ly_video, vid, ds_it)
+
+    return kids
+
+
+TI_LE_CHU_BO = 0.25         # 16/10 user: video YouTube có chữ (phụ đề to, tiêu đề) ở hơn bấy nhiêu khung -> bỏ cả video
+KENH_BO = os.path.join(CACHE_CHUNG, "kenh_bo.json")   # kênh từng bị bỏ (logo / phụ đề) -> lần sau khỏi tải video kênh đó
+
+
+def loc_youtube(du_an, kenh_cua=None):
+    """Giai đoạn 4 — Lọc logo và phụ đề sau khi tải:
+    - Phụ đề và chữ to: dùng loc_chu.chu_video chạy trên từng khoảng. Khoảng có chữ > 25% khung thì bỏ.
+    - Logo kênh: gộp khung hình của MỌI khoảng cùng một video gốc rồi mới dò (sach_hinh.logo_kenh_gop).
+      Logo kênh giống nhau ở mọi khoảng, nên dò chung là đủ cảnh quay.
+      Có logo thì bỏ mọi khoảng của video đó và ghi tên kênh vào kenh_bo.json.
+    kenh_cua: {id YouTube: tên kênh}. Trả (số khoảng/video bỏ, tổng số đã soát)."""
+    import loc_chu
+    import sach_hinh
+    kenh_cua = kenh_cua or {}
+    bo = soat = 0
+    kenh_moi = {}
+
+    kho = doc_kho(du_an)
+    nhom_goc = {}
+    for kid, m in kho.items():
+        if m.get("loai") != "video" or m.get("trang_thai") != "xong" or m.get("sach") or m.get("tay"):
+            continue
+        vid_goc = m.get("video_goc") or (kid[2:] if kid.startswith("v_") else kid)
+        if "chu_yt" in m and "logo" in m:
+            continue
+        nhom_goc.setdefault(vid_goc, []).append((kid, m))
+
+    for vid_goc, items in nhom_goc.items():
+        soat += len(items)
+
+        # 1. Phụ đề và chữ to trên từng khoảng
+        co_chu_khoang = {}
+        for kid, m in items:
+            f = m.get("file", "")
+            if not os.path.isfile(f):
+                continue
+            try:
+                s = loc_chu.chu_video("tay_" + kid, f)
+                ti = float((s > loc_chu.NGUONG_DIEN_TICH).mean()) if len(s) else 0.0
+            except Exception:
+                ti = 0.0
+            co_chu_khoang[kid] = (ti, ti > TI_LE_CHU_BO)
+
+        # 2. Logo kênh: gộp khung hình của mọi khoảng cùng một video gốc rồi mới dò
+        paths = [m["file"] for _, m in items if os.path.isfile(m.get("file", ""))]
+        try:
+            goc_logo = sach_hinh.logo_kenh_gop(paths, "gop_" + vid_goc) if paths else []
+        except Exception:
+            goc_logo = []
+
+        k = (kenh_cua.get(vid_goc) or
+             next((m.get("kenh") for _, m in items if m.get("kenh")), "") or
+             kenh_cua.get(vid_goc.split("_")[0]) or "")
+
+        if goc_logo:
+            # Có logo: BỎ MỌI KHOẢNG của video đó
+            bo += len(items)
+            log(f"    bỏ MỌI khoảng của video YouTube {vid_goc} (logo kênh {goc_logo}){' — kênh ' + k if k else ''}")
+            if k:
+                kenh_moi[k] = f"logo kênh {goc_logo}"
+            for kid, m in items:
+                ti, _ = co_chu_khoang.get(kid, (0.0, False))
+                _cap_nhat_kho(du_an, kid, chu_yt=round(ti, 3), logo=goc_logo, bo_yt="logo kênh")
+        else:
+            # Không có logo kênh: xét từng khoảng theo chữ / phụ đề
+            for kid, m in items:
+                ti, co_chu = co_chu_khoang.get(kid, (0.0, False))
+                ly_do = f"chữ/phụ đề {ti * 100:.0f}% khung" if co_chu else ""
+                _cap_nhat_kho(du_an, kid, chu_yt=round(ti, 3), logo=[], bo_yt=ly_do)
+                if ly_do:
+                    bo += 1
+                    log(f"    bỏ khoảng YouTube {kid} ({ly_do}){' — kênh ' + k if k else ''}")
+                    if k:
+                        kenh_moi[k] = ly_do
+
+    if kenh_moi:
+        with _KHOA:
+            da = doc_json(KENH_BO, {}) or {}
+            da.update(kenh_moi)
+            ghi_json(KENH_BO, da)
+
+    return bo, soat
+
 
 
 def tai_anh(du_an, url, tieu_de=""):

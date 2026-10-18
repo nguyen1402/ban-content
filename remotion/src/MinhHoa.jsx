@@ -5,9 +5,11 @@ import {AbsoluteFill, Img, OffthreadVideo, Sequence, interpolate, spring, static
 // kieu: cau_tao | quy_trinh | vong_doi | mo_phong. Mốc t (giây, tính từ đầu clip) do Python căn theo giọng đọc.
 const W = 1920;
 const H = 1080;
-const FONT = '"Segoe UI", Arial, sans-serif';
+const FONT = '"Montserrat", "Plus Jakarta Sans", "Inter", -apple-system, system-ui, sans-serif';
 const EMOJI = '"Segoe UI Emoji", "Noto Color Emoji", sans-serif';
-const CAM = '#ff9a3c';
+const GOLD = '#facc15';
+const CAM = GOLD;
+const CYAN = '#38bdf8';
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const mem = (x) => x * x * (3 - 2 * x);
 
@@ -15,7 +17,7 @@ const Nen = ({nen, mo = true}) => {
   const {fps} = useVideoConfig();
   return (
     <AbsoluteFill style={{background: '#0d1217'}}>
-      <AbsoluteFill style={{filter: mo ? 'brightness(0.32) saturate(0.7) blur(7px)' : 'brightness(0.32) saturate(0.7)', transform: 'scale(1.06)'}}>
+      <AbsoluteFill style={{filter: mo ? 'brightness(0.72) saturate(0.85) blur(2.5px)' : 'brightness(0.82) saturate(0.9)', transform: 'scale(1.02)'}}>
         {nen.map((c, i) => (
           <Sequence key={i} from={Math.round(c.tu * fps)} durationInFrames={Math.max(1, Math.round(c.dai * fps) + 2)}>
             {c.anh
@@ -24,7 +26,7 @@ const Nen = ({nen, mo = true}) => {
           </Sequence>
         ))}
       </AbsoluteFill>
-      <AbsoluteFill style={{background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.2) 30%, rgba(0,0,0,0.6) 100%)'}} />
+      <AbsoluteFill style={{background: 'linear-gradient(to top, rgba(11,15,25,0.85) 0%, rgba(11,15,25,0.35) 50%, rgba(11,15,25,0.1) 100%)'}} />
     </AbsoluteFill>
   );
 };
@@ -33,7 +35,7 @@ const Nen = ({nen, mo = true}) => {
 const useBat = () => {
   const f = useCurrentFrame();
   const {fps} = useVideoConfig();
-  return (t) => (f < t * fps ? 0 : spring({frame: f - t * fps, fps, config: {damping: 13, stiffness: 140}}));
+  return (t) => (f < t * fps ? 0 : spring({frame: f - t * fps, fps, config: {damping: 14, stiffness: 130}}));
 };
 
 const TieuDe = ({chu}) => {
@@ -43,19 +45,19 @@ const TieuDe = ({chu}) => {
   return (
     <div style={{position: 'absolute', top: 70, width: W, textAlign: 'center', opacity: a,
       transform: `translateY(${(1 - a) * -20}px)`}}>
-      <span style={{color: '#fff', fontSize: 66, fontWeight: 800, fontFamily: FONT, textShadow: '0 4px 18px rgba(0,0,0,0.8)',
-        borderBottom: `8px solid ${CAM}`, paddingBottom: 8}}>{chu}</span>
+      <span style={{color: '#ffffff', fontSize: 44, fontWeight: 900, fontFamily: FONT, letterSpacing: 2,
+        textTransform: 'uppercase', textShadow: '0 4px 24px rgba(0,0,0,0.95), 0 0 40px rgba(0,0,0,0.8)'}}>{chu}</span>
     </div>
   );
 };
 
 const O = ({x, y, r, icon, chu, b, nho = false}) => (
   <g transform={`translate(${x},${y}) scale(${0.4 + 0.6 * b})`} opacity={clamp(b * 1.6, 0, 1)}>
-    <circle r={r} fill="rgba(255,255,255,0.12)" stroke="#fff" strokeWidth="5" />
-    {icon && <text y={4} fontSize={r * 1.05} textAnchor="middle" dominantBaseline="central" style={{fontFamily: EMOJI}}>{icon}</text>}
+    <circle r={r} fill="rgba(11,15,25,0.65)" stroke="rgba(255,255,255,0.3)" strokeWidth="3.5" filter="drop-shadow(0 6px 16px rgba(0,0,0,0.4))" />
+    {icon && <text y={4} fontSize={r * 1.0} textAnchor="middle" dominantBaseline="central" style={{fontFamily: EMOJI}}>{icon}</text>}
     {chu && (
       <foreignObject x={-240} y={r + 16} width={480} height={160}>
-        <div style={{color: '#fff', fontFamily: FONT, fontSize: nho ? 40 : 48, fontWeight: 700, textAlign: 'center', lineHeight: 1.15,
+        <div style={{color: '#fff', fontFamily: FONT, fontSize: nho ? 36 : 42, fontWeight: 700, textAlign: 'center', lineHeight: 1.2,
           textShadow: '0 3px 10px rgba(0,0,0,0.9)'}}>{chu}</div>
       </foreignObject>
     )}
@@ -579,6 +581,8 @@ const BanDoVe = ({anh, ten, bien_the = 0}) => {
   const f = useCurrentFrame();
   const {fps, durationInFrames: N} = useVideoConfig();
   const p = f / Math.max(1, N - 1);
+  // 18/10 user: không cho hiệu ứng mờ dần lúc xuất hiện và kết thúc
+  const aOut = 1.0;
   const cam = [
     {s: [1.0, 1.14], x: [0, 0], y: [0, 0], r: [0, 0]},
     {s: [1.18, 1.02], x: [0, 0], y: [0, 0], r: [0, 0]},
@@ -590,7 +594,7 @@ const BanDoVe = ({anh, ten, bien_the = 0}) => {
   const nhanA = mem(clamp((f / fps - 0.9) / 0.4, 0, 1));
   const song = ((f / fps) % 1.6) / 1.6;
   return (
-    <AbsoluteFill style={{background: '#0d1217', overflow: 'hidden'}}>
+    <AbsoluteFill style={{background: '#0d1217', overflow: 'hidden', opacity: aOut}}>
       <AbsoluteFill style={{transformOrigin: `${CX}px ${CY}px`,
         transform: `translate(${L(cam.x) * 0.5}px, ${L(cam.y) * 0.5}px) scale(${L(cam.s)}) rotate(${L(cam.r)}deg)`}}>
         <Img src={staticFile(anh)} style={{width: W, height: H, objectFit: 'cover'}} />
@@ -621,17 +625,544 @@ const BanDoVe = ({anh, ten, bien_the = 0}) => {
   );
 };
 
-export const MinhHoa = ({chu_tq = '', khuon = '', so = '', hoi = false, t_so = 0.6, gia_tri = [], nhan_gt = [], bo_cuc = '', anh = '', ten = '', bien_the = 0, nen_mo = true, giay = 6, nen = [], kieu = 'quy_trinh', tieu_de = '', chu_the = '', bieu_tuong = '', muc = [], vai = [],
-  hanh_dong = []}) => (
+// ---------------------------------------------------------------- BẢNG MÀU ĐA DẠNG CHO BIỂU ĐỒ & ĐỒ THỊ (MINIMALIST EDITORIAL)
+const THEMES = [
+  // 0: Classic Pearl & Slate Sky
+  {
+    colA: {main: '#38bdf8', dark: '#0369a1', text: '#f8fafc', label: '#94a3b8'},
+    colB: {main: '#f43f5e', dark: '#9f1239', text: '#f8fafc', label: '#94a3b8'},
+    waveA: '#38bdf8', waveB: '#f43f5e'
+  },
+  // 1: Emerald Slate & Champagne Gold
+  {
+    colA: {main: '#10b981', dark: '#047857', text: '#f8fafc', label: '#94a3b8'},
+    colB: {main: '#f59e0b', dark: '#b45309', text: '#f8fafc', label: '#94a3b8'},
+    waveA: '#10b981', waveB: '#f59e0b'
+  },
+  // 2: Soft Cyan & Royal Indigo
+  {
+    colA: {main: '#06b6d4', dark: '#0e7490', text: '#f8fafc', label: '#94a3b8'},
+    colB: {main: '#818cf8', dark: '#4338ca', text: '#f8fafc', label: '#94a3b8'},
+    waveA: '#06b6d4', waveB: '#818cf8'
+  },
+  // 3: Warm Coral & Slate Gray
+  {
+    colA: {main: '#fb923c', dark: '#c2410c', text: '#f8fafc', label: '#94a3b8'},
+    colB: {main: '#94a3b8', dark: '#475569', text: '#f8fafc', label: '#cbd5e1'},
+    waveA: '#fb923c', waveB: '#94a3b8'
+  }
+];
+
+function hashStr(str = '') {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) - hash + str.charCodeAt(i);
+    hash |= 0;
+  }
+  return Math.abs(hash);
+}
+
+// ---------------------------------------------------------------- HUD COMPONENTS: So sánh / Đồ thị sóng / Con số đơn, Sự kiện, Giải thích, Tái hiện AI
+const SoSanhHUD = ({tieu_de, ben_a, ben_b, gia_tri = [], nhan_gt = [], vai = [], dang = '', theme = null}) => {
+  const f = useCurrentFrame();
+  const {durationInFrames: N} = useVideoConfig();
+  // 18/10 user: không cho hiệu ứng mờ dần lúc xuất hiện và kết thúc
+  const aIn = 1.0;
+  const aOut = 1.0;
+  const a = 1.0;
+
+  const tenA = ben_a?.ten || nhan_gt[0] || 'TỔNG SỐ LƯỢNG';
+  const valA = ben_a?.gia_tri || (gia_tri[0] != null ? String(gia_tri[0]) : '');
+  const tenB = ben_b?.ten || nhan_gt[1] || '';
+  const valB = ben_b?.gia_tri || (gia_tri[1] != null ? String(gia_tri[1]) : '');
+
+  // Tự động chọn kiểu hiển thị linh hoạt (không bị gò bó 1 màu, 1 kiểu)
+  let kieuDang = dang;
+  if (!kieuDang) {
+    const txt = (tieu_de + ' ' + tenA + ' ' + tenB + ' ' + valA + ' ' + valB).toLowerCase();
+    if (!valB || valB.trim() === '' || !tenB) {
+      kieuDang = 'con_so';
+    } else if (txt.includes('hiệu suất') || txt.includes('tỷ lệ') || txt.includes('phần trăm') || txt.includes('%') || txt.includes('lọc') || txt.includes('sóng') || txt.includes('mức')) {
+      kieuDang = 'song';
+    } else {
+      kieuDang = 'cot';
+    }
+  }
+
+  // Chọn bộ màu biến thiên dựa trên tiêu đề / props (tránh bị 1 màu)
+  const themeIdx = theme !== null ? (theme % THEMES.length) : (hashStr(tieu_de + tenA) % THEMES.length);
+  const themeObj = THEMES[themeIdx];
+
+  // Animation vươn cột & vẽ sóng
+  const growA = mem(clamp((f - 4) / 18, 0, 1));
+  const growB = mem(clamp((f - 10) / 18, 0, 1));
+  const growWave = mem(clamp((f - 4) / 22, 0, 1));
+
+  const maxH = 210;
+  const hA = Math.max(50, maxH * 0.72 * growA);
+  const hB = Math.max(50, maxH * 0.95 * growB);
+
+  return (
+    <div style={{position: 'absolute', inset: 0, pointerEvents: 'none', opacity: a, fontFamily: FONT}}>
+      {/* 1. TIÊU ĐỀ Ở ĐỈNH (chỉ chữ trắng tinh tế, đổ bóng sâu, không khung viền) */}
+      {tieu_de && kieuDang !== 'con_so' && (
+        <div style={{
+          position: 'absolute', top: 70, left: 0, right: 0,
+          display: 'flex', justifyContent: 'center', pointerEvents: 'none',
+          opacity: aIn, transform: `translateY(${(1 - aIn) * -16}px)`, zIndex: 30
+        }}>
+          <span style={{
+            color: '#ffffff', fontSize: 34, fontWeight: 900, letterSpacing: 2, textTransform: 'uppercase',
+            textShadow: '0 4px 24px rgba(0,0,0,0.95), 0 0 30px rgba(0,0,0,0.85)'
+          }}>
+            {tieu_de}
+          </span>
+        </div>
+      )}
+
+      {/* 2. CHẾ ĐỘ: ĐỒ THỊ LƯỢN SÓNG (WAVE TREND CHART) */}
+      {kieuDang === 'song' && (
+        <div style={{position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 90}}>
+          <svg width={1400} height={500} viewBox="0 0 1400 500" style={{overflow: 'visible'}}>
+            <defs>
+              <linearGradient id={`waveGrad_${themeIdx}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor={themeObj.waveA} stopOpacity="0.85" />
+                <stop offset="100%" stopColor={themeObj.waveB} stopOpacity="0.95" />
+              </linearGradient>
+              <linearGradient id={`areaGrad_${themeIdx}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor={themeObj.waveB} stopOpacity="0.22" />
+                <stop offset="65%" stopColor={themeObj.waveA} stopOpacity="0.05" />
+                <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+
+            {/* Trục hoành & lưới tọa độ đứt nét */}
+            <line x1="100" y1="390" x2="1300" y2="390" stroke="rgba(255,255,255,0.2)" strokeWidth="2" />
+            <line x1="100" y1="260" x2="1300" y2="260" stroke="rgba(255,255,255,0.08)" strokeWidth="1" strokeDasharray="6 6" />
+            <line x1="100" y1="130" x2="1300" y2="130" stroke="rgba(255,255,255,0.05)" strokeWidth="1" strokeDasharray="6 6" />
+
+            {/* Đường dóng dọc tại điểm A & B */}
+            <line x1="420" y1="240" x2="420" y2="390" stroke={themeObj.waveA} strokeWidth="1.5" strokeDasharray="5 5" opacity={growA * 0.7} />
+            <line x1="980" y1="130" x2="980" y2="390" stroke={themeObj.waveB} strokeWidth="1.5" strokeDasharray="5 5" opacity={growB * 0.7} />
+
+            {/* Diện tích sóng mờ gradient */}
+            <path
+              d="M 100,390 L 100,350 C 240,350 300,240 420,240 C 600,240 760,130 980,130 C 1140,130 1200,170 1300,170 L 1300,390 Z"
+              fill={`url(#areaGrad_${themeIdx})`}
+              opacity={growWave}
+            />
+            {/* Đường cong sóng thanh mảnh, sắc nét */}
+            <path
+              d="M 100,350 C 240,350 300,240 420,240 C 600,240 760,130 980,130 C 1140,130 1200,170 1300,170"
+              fill="none"
+              stroke={`url(#waveGrad_${themeIdx})`}
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeDasharray={1500}
+              strokeDashoffset={1500 * (1 - growWave)}
+            />
+
+            {/* Điểm nút A */}
+            <g transform="translate(420, 240)" opacity={growA}>
+              <circle r="14" fill={themeObj.waveA} opacity="0.25" />
+              <circle r="7" fill="#fff" stroke={themeObj.waveA} strokeWidth="3.5" />
+            </g>
+
+            {/* Điểm nút B */}
+            <g transform="translate(980, 130)" opacity={growB}>
+              <circle r="16" fill={themeObj.waveB} opacity="0.25" />
+              <circle r="8" fill="#fff" stroke={themeObj.waveB} strokeWidth="4" />
+            </g>
+          </svg>
+
+          {/* Nhãn HTML định vị an toàn tuyệt đối - KHÔNG KHUNG HỘP */}
+          <div style={{position: 'absolute', width: 1400, height: 500, pointerEvents: 'none'}}>
+            {/* Nhãn giá trị A */}
+            <div style={{
+              position: 'absolute', left: 420, top: 140, transform: 'translateX(-50%)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', opacity: growA
+            }}>
+              <span style={{
+                fontSize: 52, fontWeight: 900, color: '#ffffff', letterSpacing: 1,
+                textShadow: '0 4px 20px rgba(0,0,0,0.95), 0 0 30px rgba(0,0,0,0.85)'
+              }}>
+                {valA}
+              </span>
+            </div>
+            <div style={{
+              position: 'absolute', left: 420, top: 412, transform: 'translateX(-50%)',
+              width: 380, textAlign: 'center', opacity: growA
+            }}>
+              <span style={{
+                color: 'rgba(255,255,255,0.78)', fontSize: 24, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2,
+                textShadow: '0 2px 14px rgba(0,0,0,0.95)'
+              }}>
+                {tenA}
+              </span>
+            </div>
+
+            {/* Nhãn giá trị B */}
+            <div style={{
+              position: 'absolute', left: 980, top: 35, transform: 'translateX(-50%)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', opacity: growB
+            }}>
+              <span style={{
+                fontSize: 56, fontWeight: 900, color: '#ffffff', letterSpacing: 1,
+                textShadow: '0 4px 20px rgba(0,0,0,0.95), 0 0 30px rgba(0,0,0,0.85)'
+              }}>
+                {valB}
+              </span>
+            </div>
+            <div style={{
+              position: 'absolute', left: 980, top: 412, transform: 'translateX(-50%)',
+              width: 380, textAlign: 'center', opacity: growB
+            }}>
+              <span style={{
+                color: 'rgba(255,255,255,0.78)', fontSize: 24, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 2,
+                textShadow: '0 2px 14px rgba(0,0,0,0.95)'
+              }}>
+                {tenB}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. CHẾ ĐỘ: HIỂN THỊ CON SỐ ĐƠN LẺ TINH GỌN (KHÔNG KHUNG HỘP, GIỐNG KIỂU CỦA NĂM) */}
+      {kieuDang === 'con_so' && (
+        <div style={{position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none'}}>
+          <div style={{
+            display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
+            opacity: growA, transform: `scale(${0.92 + 0.08 * growA}) translateY(${(1 - growA) * 12}px)`
+          }}>
+            {/* Nhãn thể loại nhỏ ở trên (nếu có tieu_de riêng) */}
+            {tieu_de && (
+              <div style={{
+                color: 'rgba(255,255,255,0.7)', fontSize: 26, fontWeight: 800,
+                letterSpacing: 3, textTransform: 'uppercase', marginBottom: 16,
+                textShadow: '0 2px 14px rgba(0,0,0,0.95)'
+              }}>
+                {tieu_de}
+              </div>
+            )}
+            {/* Giá trị số lớn trắng tinh, đổ bóng sâu y hệt SuKienHUD */}
+            <div style={{
+              fontSize: 130, fontWeight: 900, color: '#ffffff',
+              letterSpacing: 2, lineHeight: 1.05,
+              textShadow: '0 4px 24px rgba(0,0,0,0.95), 0 0 40px rgba(0,0,0,0.85)'
+            }}>
+              {valA || valB}
+            </div>
+            {/* Chú thích phía dưới màu xám bạc thanh lịch, không khung */}
+            {(tenA || tenB) && (
+              <div style={{
+                color: 'rgba(255,255,255,0.78)', fontSize: 32, fontWeight: 700,
+                letterSpacing: 2.5, textTransform: 'uppercase', marginTop: 18, maxWidth: 840,
+                textShadow: '0 3px 16px rgba(0,0,0,0.95)'
+              }}>
+                {tenA || tenB}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 4. CHẾ ĐỘ: BIỂU ĐỒ CỘT SO SÁNH TINH GỌN (MINIMALIST BAR CHART) */}
+      {kieuDang === 'cot' && (
+        <div style={{position: 'absolute', inset: 0, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 120, paddingBottom: 150}}>
+          {/* CỘT A */}
+          <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', width: 380}}>
+            <div style={{
+              fontSize: 52, fontWeight: 900, color: '#ffffff',
+              marginBottom: 16, textAlign: 'center',
+              textShadow: '0 4px 20px rgba(0,0,0,0.95), 0 0 30px rgba(0,0,0,0.85)',
+              opacity: growA, transform: `translateY(${(1 - growA) * 16}px)`
+            }}>
+              {valA}
+            </div>
+            <div style={{
+              width: 140, height: hA,
+              background: `linear-gradient(180deg, ${themeObj.colA.main} 0%, ${themeObj.colA.dark} 100%)`,
+              borderRadius: '10px 10px 0 0',
+              boxShadow: '0 12px 28px rgba(0,0,0,0.4)',
+              border: '1px solid rgba(255,255,255,0.18)', borderBottom: 'none'
+            }} />
+            <div style={{width: 320, height: 2, background: 'rgba(255,255,255,0.22)', marginTop: 2}} />
+            <div style={{
+              color: 'rgba(255,255,255,0.78)', fontSize: 24, fontWeight: 700,
+              letterSpacing: 2, textTransform: 'uppercase', marginTop: 16, textAlign: 'center',
+              textShadow: '0 2px 14px rgba(0,0,0,0.95)'
+            }}>
+              {tenA}
+            </div>
+          </div>
+
+          {/* CỘT B */}
+          <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', width: 380}}>
+            <div style={{
+              fontSize: 52, fontWeight: 900, color: '#ffffff',
+              marginBottom: 16, textAlign: 'center',
+              textShadow: '0 4px 20px rgba(0,0,0,0.95), 0 0 30px rgba(0,0,0,0.85)',
+              opacity: growB, transform: `translateY(${(1 - growB) * 16}px)`
+            }}>
+              {valB}
+            </div>
+            <div style={{
+              width: 140, height: hB,
+              background: `linear-gradient(180deg, ${themeObj.colB.main} 0%, ${themeObj.colB.dark} 100%)`,
+              borderRadius: '10px 10px 0 0',
+              boxShadow: '0 12px 28px rgba(0,0,0,0.4)',
+              border: '1px solid rgba(255,255,255,0.18)', borderBottom: 'none'
+            }} />
+            <div style={{width: 320, height: 2, background: 'rgba(255,255,255,0.22)', marginTop: 2}} />
+            <div style={{
+              color: 'rgba(255,255,255,0.78)', fontSize: 24, fontWeight: 700,
+              letterSpacing: 2, textTransform: 'uppercase', marginTop: 16, textAlign: 'center',
+              textShadow: '0 2px 14px rgba(0,0,0,0.95)'
+            }}>
+              {tenB}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const SuKienHUD = ({nam, tieu_de, cac_nam}) => {
+  const f = useCurrentFrame();
+  const {fps, durationInFrames: N} = useVideoConfig();
+  const now = f / fps;
+
+  // 18/10 user: không cho hiệu ứng mờ dần lúc xuất hiện và kết thúc
+  const aOut = 1.0;
+
+  if (cac_nam && cac_nam.length > 1) {
+    return (
+      <div style={{
+        position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        pointerEvents: 'none', opacity: aOut
+      }}>
+        <div style={{display: 'flex', alignItems: 'center', gap: 36}}>
+          {cac_nam.map((it, idx) => {
+            const isShown = now >= it.t;
+            if (!isShown) return null;
+            const itemFrame = Math.max(0, f - Math.round(it.t * fps));
+            const itemIn = mem(clamp(itemFrame / 8, 0, 1));
+            const itemScale = 0.88 + 0.12 * itemIn;
+            return (
+              <React.Fragment key={idx}>
+                {idx > 0 && (
+                  <span style={{
+                    fontSize: 60, color: 'rgba(255,255,255,0.45)',
+                    opacity: itemIn, transform: `scale(${itemIn})`,
+                    textShadow: '0 2px 10px rgba(0,0,0,0.8)'
+                  }}>
+                    •
+                  </span>
+                )}
+                <span style={{
+                  fontSize: 130, fontWeight: 900, fontFamily: FONT, letterSpacing: 4,
+                  color: '#ffffff',
+                  textShadow: '0 4px 24px rgba(0,0,0,0.95), 0 0 40px rgba(0,0,0,0.8)',
+                  opacity: itemIn, transform: `scale(${itemScale})`
+                }}>
+                  {it.nam}
+                </span>
+              </React.Fragment>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // Mốc sự kiện đơn (không có khung border đen, chỉ chữ trắng tinh trên nền tối)
+  const aIn = 1.0;
+  const a = 1.0;
+  const scale = 1.0;
+  const chuMoc = nam || tieu_de || '';
+
+  return (
+    <div style={{
+      position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      pointerEvents: 'none'
+    }}>
+      <div style={{
+        textAlign: 'center', opacity: a, transform: `scale(${scale}) translateY(${(1 - aIn) * 16}px)`
+      }}>
+        <div style={{
+          fontSize: 130, fontWeight: 900, fontFamily: FONT, letterSpacing: 4, textTransform: 'uppercase',
+          color: '#ffffff',
+          textShadow: '0 4px 24px rgba(0,0,0,0.95), 0 0 40px rgba(0,0,0,0.8)'
+        }}>
+          {chuMoc}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const GiaiThichHUD = ({tieu_de, cac_buoc = [], muc = []}) => {
+  const f = useCurrentFrame();
+  // 18/10 user: không cho hiệu ứng mờ dần lúc xuất hiện và kết thúc
+  const a = 1.0;
+  const bat = useBat();
+  const ds = cac_buoc && cac_buoc.length ? cac_buoc : muc;
+  const n = Math.min(4, Math.max(2, ds.length));
+
+  return (
+    <div style={{position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'}}>
+      {tieu_de && (
+        <div style={{marginBottom: 44, opacity: a, transform: `translateY(${(1 - a) * -20}px)`}}>
+          <span style={{color: '#ffffff', fontSize: 38, fontWeight: 900, fontFamily: FONT, letterSpacing: 2, textTransform: 'uppercase',
+            textShadow: '0 4px 24px rgba(0,0,0,0.95), 0 0 40px rgba(0,0,0,0.8)'}}>{tieu_de}</span>
+        </div>
+      )}
+      <div style={{display: 'flex', alignItems: 'center', gap: 32, maxWidth: 1800, padding: '0 40px'}}>
+        {ds.slice(0, n).map((m, i) => {
+          const t = m.t != null ? m.t : 0.3 * i;
+          const b = bat(t);
+          const chu = m.chu || m.text || '';
+          return (
+            <React.Fragment key={i}>
+              <div style={{
+                flex: 1, minWidth: 280, textAlign: 'center',
+                transform: `translateY(${(1 - b) * 24}px) scale(${0.9 + 0.1 * b})`, opacity: b
+              }}>
+                <div style={{
+                  color: '#38bdf8', fontSize: 24, fontWeight: 900, letterSpacing: 2, marginBottom: 12,
+                  textShadow: '0 2px 12px rgba(0,0,0,0.9)'
+                }}>
+                  BƯỚC {i + 1}
+                </div>
+                <div style={{color: '#ffffff', fontSize: 34, fontWeight: 800, lineHeight: 1.35, fontFamily: FONT,
+                  textShadow: '0 4px 20px rgba(0,0,0,0.95), 0 0 30px rgba(0,0,0,0.8)'}}>
+                  {chu}
+                </div>
+              </div>
+              {i < n - 1 && (
+                <div style={{opacity: b, transform: `scale(${b})`}}>
+                  <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+                    <path d="M5 12H19M19 12L12 5M19 12L12 19" stroke="#ffffff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------- TÁI HIỆN TƯ LIỆU AI ĐA PHÂN CẢNH (SEQUENTIAL MONTAGE - KHÔNG CHỮ, CHUYỂN CẢNH MƯỢT KHỚP VOICE)
+const TaiHienHUD = ({anh, ds_anh = [], diem_chuyen = []}) => {
+  const f = useCurrentFrame();
+  const {fps, durationInFrames} = useVideoConfig();
+  const list = (ds_anh && ds_anh.length) ? ds_anh : (anh ? [anh] : []);
+  const n = Math.max(1, list.length);
+
+  // 18/10 user: Không cho hiệu ứng mờ dần lúc xuất hiện và kết thúc
+  const aOut = 1.0;
+
+  // 1 ảnh đơn: zoom lia máy Ken Burns chậm rãi
+  if (n === 1) {
+    const progress = f / Math.max(1, durationInFrames - 1);
+    const zoom = 1.0 + 0.08 * progress;
+    return (
+      <AbsoluteFill style={{background: '#0d1217', overflow: 'hidden'}}>
+        <AbsoluteFill style={{transform: `scale(${zoom})`, transformOrigin: 'center center'}}>
+          <Img src={staticFile(list[0])} style={{width: W, height: H, objectFit: 'cover'}} />
+        </AbsoluteFill>
+        <AbsoluteFill style={{background: 'radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, rgba(0,0,0,0.48) 100%)', pointerEvents: 'none'}} />
+      </AbsoluteFill>
+    );
+  }
+
+  // Chuỗi nhiều ảnh (2-3 tấm): Sequential Montage khớp chính xác theo từng mốc hành động của lời đọc
+  // Thời gian hòa tan crossfade mượt mà (0.5s - 0.6s)
+  const fadeFrames = Math.min(Math.round(fps * 0.55), Math.max(8, Math.round((durationInFrames / n) * 0.3)));
+  const halfFade = Math.round(fadeFrames / 2);
+
+  const shotStarts = list.map((_, i) => {
+    if (diem_chuyen && diem_chuyen[i] != null && diem_chuyen[i] >= 0) {
+      return Math.round(diem_chuyen[i] * fps);
+    }
+    return Math.round(i * (durationInFrames / n));
+  });
+
+  return (
+    <AbsoluteFill style={{background: '#0d1217', overflow: 'hidden'}}>
+      {list.map((src, i) => {
+        const startFrame = shotStarts[i];
+        const nextStart = (i < n - 1) ? Math.max(startFrame + fadeFrames, shotStarts[i + 1]) : durationInFrames;
+        const shotDuration = Math.max(1, nextStart - startFrame);
+        const shotProgress = clamp((f - startFrame) / shotDuration, 0, 1);
+
+        // Chuyển động lia máy Ken Burns chậm rãi (slow motion) nối tiếp nhau theo từng góc quay
+        // Shot 0: Zoom in nhẹ nhàng + pan phải
+        // Shot 1: Zoom out nhẹ nhàng + pan trái
+        // Shot 2: Push in trực diện cận cảnh
+        const zoom = (i % 2 === 0) ? (1.0 + 0.07 * shotProgress) : (1.06 - 0.05 * shotProgress);
+        const panX = (i === 1) ? (-18 + 36 * shotProgress) : (i === 2) ? (16 - 32 * shotProgress) : (8 * shotProgress);
+
+        // Hòa tan chéo đón đầu voice: chuyển cảnh bắt đầu trước mốc voice halfFade frame
+        // để ngay đúng lúc giọng đọc nói đến hành động đó thì ảnh mới đã hiện rõ nét
+        let opacity = 1.0;
+        if (i > 0) {
+          const transStart = Math.max(0, startFrame - halfFade);
+          const transProgress = clamp((f - transStart) / Math.max(1, fadeFrames), 0, 1);
+          // Đường cong hòa tan mượt mà (sinusoidal ease)
+          const easeIn = 0.5 - 0.5 * Math.cos(Math.PI * transProgress);
+          opacity = Math.min(opacity, easeIn);
+        }
+        if (i < n - 1) {
+          const transOutStart = Math.max(0, nextStart - halfFade);
+          const transOutProgress = clamp((f - transOutStart) / Math.max(1, fadeFrames), 0, 1);
+          const easeOut = 0.5 + 0.5 * Math.cos(Math.PI * transOutProgress);
+          opacity = Math.min(opacity, easeOut);
+        }
+
+        const renderStart = (i > 0) ? startFrame - halfFade - 2 : 0;
+        const renderEnd = (i < n - 1) ? nextStart + halfFade + 2 : durationInFrames + 2;
+        if (f < renderStart || f > renderEnd) return null;
+
+        return (
+          <AbsoluteFill key={i} style={{opacity, transform: `scale(${zoom}) translate(${panX}px, 0)`, transformOrigin: 'center center'}}>
+            <Img src={staticFile(src)} style={{width: W, height: H, objectFit: 'cover'}} />
+          </AbsoluteFill>
+        );
+      })}
+      <AbsoluteFill style={{background: 'radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, rgba(0,0,0,0.48) 100%)', pointerEvents: 'none'}} />
+    </AbsoluteFill>
+  );
+};
+
+export const MinhHoa = ({
+  chu_tq = '', khuon = '', so = '', hoi = false, t_so = 0.6, gia_tri = [], nhan_gt = [], bo_cuc = '',
+  anh = '', ten = '', bien_the = 0, nen_mo = true, giay = 6, nen = [], kieu = 'quy_trinh', tieu_de = '',
+  chu_the = '', bieu_tuong = '', muc = [], vai = [], hanh_dong = [],
+  ben_a = null, ben_b = null, nam = '', cac_buoc = [], mo_ta = '', ds_anh = [], diem_chuyen = [],
+  dang = '', theme = null, cac_nam = null
+}) => (
   <AbsoluteFill style={{fontFamily: FONT, overflow: 'hidden'}}>
-    {kieu !== 'ban_do_ve' && <Nen nen={nen} mo={nen_mo} />}
-    <TieuDe chu={kieu === 'cau_tao' || kieu === 'dien_canh' || kieu === 'ban_do_ve' ? '' : tieu_de} />
+    {kieu !== 'ban_do_ve' && kieu !== 'tai_hien' && <Nen nen={nen} mo={nen_mo} />}
+    {kieu === 'tai_hien' && <TaiHienHUD anh={anh} ds_anh={ds_anh} diem_chuyen={diem_chuyen} />}
+    {(kieu === 'so_sanh' || kieu === 'song' || kieu === 'con_so') && (
+      <SoSanhHUD tieu_de={tieu_de} ben_a={ben_a} ben_b={ben_b} gia_tri={gia_tri} nhan_gt={nhan_gt} vai={vai} dang={dang || (kieu !== 'so_sanh' ? kieu : '')} theme={theme} />
+    )}
+    {kieu === 'su_kien' && <SuKienHUD nam={nam || so} tieu_de={tieu_de || chu_tq} cac_nam={cac_nam} anh={anh} />}
+    {kieu === 'giai_thich' && <GiaiThichHUD tieu_de={tieu_de} cac_buoc={cac_buoc} muc={muc} />}
     {kieu === 'cau_tao' && <CauTao chu_the={chu_the} bieu_tuong={bieu_tuong} muc={muc} />}
-    {kieu === 'quy_trinh' && <QuyTrinh muc={muc} />}
+    {kieu === 'quy_trinh' && <GiaiThichHUD tieu_de={tieu_de} muc={muc} />}
     {kieu === 'vong_doi' && <VongDoi muc={muc} giay={giay} />}
-    {kieu === 'mo_phong' && <MoPhong vai={vai} hanh_dong={hanh_dong} />}
-    {kieu === 'dien_canh' && <DienCanh vai={vai} hanh_dong={hanh_dong} bo_cuc={bo_cuc} khuon={khuon} so={so} hoi={hoi}
-      t_so={t_so} gia_tri={gia_tri} nhan_gt={nhan_gt} chu_tq={chu_tq} />}
+    {kieu === 'dien_canh' && (
+      khuon === 'so_sanh' ? <SoSanhHUD tieu_de={tieu_de} ben_a={ben_a} ben_b={ben_b} gia_tri={gia_tri} nhan_gt={nhan_gt} vai={vai} dang={dang} theme={theme} /> :
+      khuon === 'con_so' ? <SoSanhHUD tieu_de={tieu_de} ben_a={ben_a || {ten: nhan_gt[0] || tieu_de, gia_tri: so || gia_tri[0]}} dang="con_so" theme={theme} /> :
+      khuon === 'su_kien' ? <SuKienHUD nam={nam || so} tieu_de={tieu_de || chu_tq} cac_nam={cac_nam} anh={anh} /> :
+      <DienCanh vai={vai} hanh_dong={hanh_dong} bo_cuc={bo_cuc} khuon={khuon} so={so} hoi={hoi} t_so={t_so} gia_tri={gia_tri} nhan_gt={nhan_gt} chu_tq={chu_tq} />
+    )}
     {kieu === 'ban_do_ve' && <BanDoVe anh={anh} ten={ten} bien_the={bien_the} />}
   </AbsoluteFill>
 );

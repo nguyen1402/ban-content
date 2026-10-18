@@ -55,8 +55,56 @@ CHUNG = {"xem_truoc", "chi_muc", "chi_muc_l14", "ocr.json", "shots.json", "logo.
          "nen_lop", "anh", "kho", "doan_tho", "nhac_yt"}
 FFMPEG = os.environ.get("BC_FFMPEG") or (r"C:\yt-dlp\ffmpeg.exe" if os.path.isfile(r"C:\yt-dlp\ffmpeg.exe") else "ffmpeg")
 YTDLP = os.path.join(ROOT, "tools", "yt-dlp.exe")
-#: YouTube bắt buộc chạy JS để giải chữ ký — không có cờ này thì tải bị 403.
-YT_JS = ["--js-runtimes", "node"]
+
+
+def yt_cookie_path():
+    """Đường dẫn file cookie YouTube (ưu tiên youtube_cookies.txt, cookies.txt ở thư mục gốc hoặc cache)."""
+    cac_duong = [
+        os.path.join(ROOT, "cookies.txt"),
+        os.path.join(ROOT, "youtube_cookies.txt"),
+        os.path.join(CACHE_CHUNG, "youtube_cookies.txt"),
+        os.path.join(CACHE_CHUNG, "cookies.txt"),
+    ]
+    for p in cac_duong:
+        if os.path.isfile(p) and os.path.getsize(p) > 10:
+            return p
+    return os.path.join(ROOT, "cookies.txt")
+
+
+def yt_cookie_args():
+    """Trả về ['--cookies', đường_dẫn] nếu có file cookie YouTube hợp lệ."""
+    p = yt_cookie_path()
+    if os.path.isfile(p) and os.path.getsize(p) > 10:
+        return ["--cookies", p]
+    return []
+
+
+class _YTOpts(list):
+    """Tự động thêm cờ --cookies nếu người dùng có file cookie YouTube."""
+    def _current(self):
+        return ["--js-runtimes", "node"] + yt_cookie_args()
+
+    def __iter__(self):
+        return iter(self._current())
+
+    def __len__(self):
+        return len(self._current())
+
+    def __getitem__(self, idx):
+        return self._current()[idx]
+
+    def __add__(self, other):
+        return self._current() + list(other)
+
+    def __radd__(self, other):
+        return list(other) + self._current()
+
+    def __repr__(self):
+        return repr(self._current())
+
+
+#: YouTube bắt buộc chạy JS để giải chữ ký — tự động kèm --cookies nếu có file cookie.
+YT_JS = _YTOpts(["--js-runtimes", "node"])
 MODELS = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite"]
 
 #: kênh lớn bật Content ID rất chặt — bỏ ngay từ lúc tìm (khớp một phần tên, không phân hoa/thường).
@@ -143,7 +191,7 @@ def gon_loi(e, n=90):
 _GM = {"i": 0, "da_bao": False}
 
 
-def hoi_gemini(prompt, timeout=240):
+def hoi_gemini(prompt, timeout=240, du_phong=True):
     """15/10 user: "nếu toàn bộ ChatGPT lỗi thì dùng Gemini để hỏi". Một lượt hỏi Gemini web (cookie, chỉ tài khoản ĐÃ
     ĐẶT TÊN, xoay vòng; chế độ trò chuyện tạm) -> text ('' nếu mọi tài khoản đều hỏng)."""
     sys.path.insert(0, os.path.join(ROOT, "tts"))
@@ -154,7 +202,7 @@ def hoi_gemini(prompt, timeout=240):
     except Exception as e:                                 # noqa: BLE001
         log(f"    (gemini dự phòng không dùng được: {gon_loi(e)})")
         return ""
-    if not _GM["da_bao"]:
+    if du_phong and not _GM["da_bao"]:
         log("    ChatGPT lỗi hết -> hỏi Gemini (cookie) thay")
         _GM["da_bao"] = True
     for _ in range(min(len(ds), 4)):
@@ -174,7 +222,95 @@ def _tat_chatgpt():
     return bool(os.environ.get("BC_TAT_CHATGPT"))
 
 
+# 15/10 user: "dùng GEMINI làm chính" -> mọi bước hỏi AI: Gemini (cookie) trước, câu/lô Gemini hỏng mới hỏi ChatGPT.
+# BC_AI_CHINH=chatgpt để quay lại ChatGPT chính (Gemini dự phòng).
+AI_CHINH = (os.environ.get("BC_AI_CHINH") or "gemini").strip().lower()
+
+
 def hoi_llm(prompt, timeout=240):
+    """Một lượt hỏi AI (Gemini hay ChatGPT làm chính theo AI_CHINH; bên kia dự phòng). '' nếu cả hai hỏng."""
+    if AI_CHINH == "gemini":
+        kq = hoi_gemini(prompt, timeout=timeout, du_phong=False)
+        if kq:
+            return kq
+        log("    (Gemini không trả lời -> hỏi ChatGPT)")
+        return _hoi_llm_chatgpt(prompt, timeout=timeout, bu_gemini=False)
+    return _hoi_llm_chatgpt(prompt, timeout=timeout)
+
+
+def hoi_nhieu(prompts, timeout=240, on_xong=None):
+    """Hỏi AI nhiều lô cùng lúc (Gemini hay ChatGPT làm chính theo AI_CHINH). Trả list text theo thứ tự `prompts`.
+    on_xong(i, text) gọi ngay khi lô i xong."""
+    if AI_CHINH != "gemini":
+        return _hoi_nhieu_chatgpt(prompts, timeout, on_xong)
+    ra = _hoi_nhieu_gemini(prompts, timeout, on_xong)
+    thieu = [i for i, t in enumerate(ra) if not t]
+    if thieu:                                              # lô Gemini hỏng -> ChatGPT làm nốt
+        log(f"    {len(thieu)}/{len(prompts)} lô Gemini không trả lời -> hỏi ChatGPT")
+        bu = _hoi_nhieu_chatgpt([prompts[i] for i in thieu], timeout, None, bu_gemini=False)
+        for i, kq in zip(thieu, bu):
+            ra[i] = kq or ""
+            if on_xong and ra[i]:
+                on_xong(i, ra[i])
+    return ra
+
+
+def _hoi_nhieu_gemini(prompts, timeout, on_xong):
+    """Nhiều lô qua Gemini: MỖI TÀI KHOẢN (đặt tên, không trùng phiên) MỘT LUỒNG, hàng đợi chung; lô lỗi trả hàng đợi
+    cho tài khoản khác (tối đa 3 lần); tài khoản lỗi 3 lô liên tiếp thì nghỉ."""
+    import queue
+    import threading
+    sys.path.insert(0, os.path.join(ROOT, "tts"))
+    import gemini_web_client as gw
+    ra = [""] * len(prompts)
+    lan = _gemini_ds()
+    if not lan:
+        return ra
+    viec = queue.Queue()
+    for i in range(len(prompts)):
+        viec.put((i, 0))
+    xong_q = queue.Queue()
+
+    def luong(acc):
+        loi = 0
+        while loi < 3:
+            try:
+                i, lan_thu = viec.get_nowait()
+            except queue.Empty:
+                return
+            kq = ""
+            try:
+                kq = gw.ask(acc, prompts[i], timeout=timeout, retries=1) or ""
+            except Exception as e:                         # noqa: BLE001
+                log(f"    (gemini '{acc}' lỗi: {gon_loi(e)} — tài khoản khác làm thay)")
+            if kq:
+                loi = 0
+                xong_q.put((i, kq))
+            else:
+                loi += 1
+                if lan_thu + 1 < 3:
+                    viec.put((i, lan_thu + 1))
+                else:
+                    xong_q.put((i, ""))
+    ths = [threading.Thread(target=luong, args=(a,), daemon=True) for a in lan[:max(1, len(prompts))]]
+    for t in ths:
+        t.start()
+    con = len(prompts)
+    while con > 0:
+        try:
+            i, kq = xong_q.get(timeout=2)
+        except queue.Empty:
+            if not any(t.is_alive() for t in ths) and xong_q.empty():
+                break
+            continue
+        ra[i] = kq
+        con -= 1
+        if on_xong and kq:
+            on_xong(i, kq)
+    return ra
+
+
+def _hoi_llm_chatgpt(prompt, timeout=240, bu_gemini=True):
     """Một lượt hỏi ChatGPT web bằng cookie; tài khoản lỗi thì xoay sang tài khoản kế.
     Trả text; mọi tài khoản ChatGPT hỏng -> hỏi Gemini (15/10 user); vẫn hỏng -> ''."""
     sys.path.insert(0, os.path.join(ROOT, "tts"))
@@ -193,10 +329,10 @@ def hoi_llm(prompt, timeout=240):
             else:
                 log(f"    (chatgpt '{acc}' lỗi: {gon_loi(e)} → đổi tài khoản)")
         _TK["i"] += 1
-    return hoi_gemini(prompt, timeout=timeout)
+    return hoi_gemini(prompt, timeout=timeout) if bu_gemini else ""
 
 
-def hoi_nhieu(prompts, timeout=240, on_xong=None):
+def _hoi_nhieu_chatgpt(prompts, timeout=240, on_xong=None, bu_gemini=True):
     """Hỏi ChatGPT nhiều lô CÙNG LÚC: MỖI COOKIE MỘT LUỒNG (mỗi cookie phiên khác nhau là một làn, cookie trùng
     không tạo thêm làn), các luồng lấy lô từ một hàng đợi chung nên luồng nào xong trước nhận lô kế.
     Lô lỗi được trả lại hàng đợi cho cookie khác (tối đa 3 lần); cookie lỗi 3 lô liên tiếp thì nghỉ.
@@ -211,10 +347,10 @@ def hoi_nhieu(prompts, timeout=240, on_xong=None):
     lan = [a for a in kho.unique_account_ids(ds)] if len(ds) > 1 else list(ds)
     ra = [""] * len(prompts)
     if not lan and len(prompts) > 1:                      # không còn tài khoản ChatGPT nào: thẳng sang Gemini
-        return _bu_gemini(prompts, ra, timeout, on_xong)
+        return _bu_gemini(prompts, ra, timeout, on_xong) if bu_gemini else ra
     if len(prompts) <= 1 or len(lan) <= 1:
         for i, p in enumerate(prompts):
-            ra[i] = hoi_llm(p, timeout=timeout)
+            ra[i] = _hoi_llm_chatgpt(p, timeout=timeout, bu_gemini=bu_gemini)
             if on_xong:
                 on_xong(i, ra[i])
         return ra
@@ -305,7 +441,7 @@ def hoi_nhieu(prompts, timeout=240, on_xong=None):
         con[0] -= 1
         if on_xong and kq:
             on_xong(i, kq)
-    return _bu_gemini(prompts, ra, timeout, on_xong)
+    return _bu_gemini(prompts, ra, timeout, on_xong) if bu_gemini else ra
 
 
 def _bu_gemini(prompts, ra, timeout, on_xong):

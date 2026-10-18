@@ -159,6 +159,22 @@ def doc_omni(canh, ref=OMNI_REF, batch=16, num_step=32, toc_do=1.0):
         rc, cuoi = _chay_hien_log(lenh, len(can))
         if rc != 0:
             log(f"    ! TTS mã {rc}: {' | '.join(cuoi)[-300:]}")
+    # 18/10 user: soát nuốt / méo chữ (cụm số) + ngắt giữa cụm từ; câu lỗi đọc lại bằng seed khác, giữ bản ít lỗi nhất
+    tts_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tts", "omnivoice_tts.py")
+
+    def doc_lai(jobs_json, out_dir, seed):
+        if not (ref and os.path.isfile(ref)):                # không có clip mẫu -> model tự chọn giọng KHÁC: không đọc lại
+            log(f"    ! soát giọng: không thấy clip mẫu '{ref}' — không đọc lại")
+            return 1
+        return _chay_hien_log([OMNI_PY, tts_py, "--jobs-json", jobs_json, "--out-dir", out_dir, "--ref", ref,
+                               "--batch", str(batch), "--num-step", str(num_step), "--rate", str(toc_do),
+                               "--name-fmt", "{:04d}.wav", "--seed", str(seed)],
+                              len(json.load(open(jobs_json, encoding="utf-8"))))[0]
+    try:
+        import soat_giong
+        soat_giong.soat_va_doc_lai([c for c in canh if c.get("text")], thu_muc, doc_lai)
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! soát giọng lỗi (giữ bản đọc hiện có): {str(e)[:160]}")
     _ghi_dau(canh, thu_muc)
     for c in canh:
         p = os.path.join(thu_muc, f"{c['id']:04d}.wav")

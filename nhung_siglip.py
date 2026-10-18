@@ -25,12 +25,23 @@ def _nap():
 
 def _nap_():
     if not _M:
+        import os
+        os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
         import torch
+        import transformers
+        transformers.logging.set_verbosity_error()
         from transformers import AutoModel, AutoProcessor
         dev = "cuda" if torch.cuda.is_available() else "cpu"
-        m = AutoModel.from_pretrained(MO_HINH, dtype=torch.float16 if dev == "cuda" else torch.float32).to(dev).eval()
-        _M.update(m=m, p=AutoProcessor.from_pretrained(MO_HINH), dev=dev, t=torch)
+        dt = torch.float16 if dev == "cuda" else torch.float32
+        try:
+            p = AutoProcessor.from_pretrained(MO_HINH, local_files_only=True)
+            m = AutoModel.from_pretrained(MO_HINH, local_files_only=True, dtype=dt).to(dev).eval()
+        except Exception:
+            p = AutoProcessor.from_pretrained(MO_HINH)
+            m = AutoModel.from_pretrained(MO_HINH, dtype=dt).to(dev).eval()
+        _M.update(m=m, p=p, dev=dev, t=torch)
     return _M
+
 
 
 def _chuan(x):

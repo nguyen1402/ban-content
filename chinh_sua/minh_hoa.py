@@ -12,10 +12,13 @@ import hashlib
 import json
 import os
 
-from common import log
+from common import ROOT, log
+
+AQ = os.path.dirname(os.path.abspath(__file__))
+PUB = os.path.join(ROOT, "remotion", "public")
 
 MO_PHONG_DEN = 1e9          # 13/10 user duyệt sau 2 kịch bản thử: bật diễn cảnh cho TOÀN BỘ video (trước: 180 s)
-SO_DO = ("dien_canh", "cau_tao", "quy_trinh", "vong_doi", "mo_phong")
+SO_DO = ("dien_canh", "cau_tao", "quy_trinh", "vong_doi", "mo_phong", "so_sanh", "su_kien", "giai_thich", "tai_hien")
 BO_VAI_AI = True           # 13/10 user: mọi vai do AI vẽ CẢ BỘ một lượt (kèm ảnh mẫu thật); hỏng thì lùi về từng vai
 #: 13/10 user: diễn cảnh có TIẾNG ĐỘNG đi kèm — loại SFX (kho CapCut: pop / whoosh / hit / ting) theo hành động
 AM_HANH_DONG = {"xuat_hien": "pop", "an": "pop", "sinh_soi": "pop", "bay_toi": "whoosh", "bo_chay": "whoosh",
@@ -26,8 +29,7 @@ AM_HANH_DONG = {"xuat_hien": "pop", "an": "pop", "sinh_soi": "pop", "bay_toi": "
 HOAT_CANH = 1.0
 GIU_CUOI = 2.0
 KHOANG_NGAT = 4.0
-DI_TRUOC = 0.5             # 14/10 user: hình hiện TRƯỚC lời ~0,5 s (người xem nghe tới thì hình đã rõ)
-KHOANG_GIUA = 2.0          # 14/10 user: ít nhất 2 s footage thật giữa hai lớp minh hoạ (video có nhịp, không ngợp)
+KHOANG_GIUA = 0.5          # 17/10: khoảng đệm 0.5s đạt chuẩn 19-20 cảnh AI Storytelling (25-30% thời lượng)
 
 
 def _ve_day_du(y, ds):
@@ -186,6 +188,137 @@ def _tim(cau_ds, moc):
     return None
 
 
+def _tim_doan(cau_ds, moc):
+    """(t_dau, t_cuoi) của cụm moc trong cau_ds; (None, None) nếu không thấy."""
+    from lop_phu import _chuan
+    m = _chuan(moc or "")
+    if not m:
+        return None, None
+    for c in cau_ds:
+        tu = c.get("tu") or []
+        phang = [(k, x) for k, t in enumerate(tu) for x in _chuan(t[0])]
+        tot, vt_dau, vt_cuoi = 0, None, None
+        for s in range(len(phang)):
+            n = 0
+            while n < len(m) and s + n < len(phang) and phang[s + n][1] == m[n]:
+                n += 1
+            if n > tot:
+                tot = n
+                vt_dau = phang[s][0]
+                vt_cuoi = phang[s + n - 1][0]
+        if vt_dau is not None and tot >= min(2, len(m)):
+            return float(tu[vt_dau][1]), float(tu[vt_cuoi][2])
+    return None, None
+
+
+def _trich_su_kien(c):
+    """Trích xuất các mốc thời gian / năm (kèm t_bd, t_kt) có trong câu c."""
+    import re
+    tu = c.get("tu") or []
+    if not tu:
+        return []
+    SO_TU = {"một", "hai", "ba", "bốn", "năm", "lăm", "sáu", "bảy", "bẩy", "tám", "chín", "mười", "mươi",
+             "trăm", "nghìn", "ngàn", "tư", "lẻ", "linh"}
+    groups, cur = [], []
+    for i, w in enumerate(tu):
+        raw = w[0].strip()
+        clean = re.sub(r"[^\w\s]", "", raw.lower()).strip()
+        has_punct = bool(re.search(r"[,;.\-]", raw))
+        if clean in SO_TU:
+            cur.append((i, raw, clean, float(w[1]), float(w[2])))
+            if has_punct:
+                groups.append(cur)
+                cur = []
+        else:
+            if cur:
+                groups.append(cur)
+                cur = []
+    if cur:
+        groups.append(cur)
+
+    ds_nam = []
+    # (a) Thế kỷ
+    for i, w in enumerate(tu):
+        raw = re.sub(r"[^\w\s]", "", w[0].lower()).strip()
+        if raw == "thế" and i + 1 < len(tu) and re.sub(r"[^\w\s]", "", tu[i + 1][0].lower()).strip() == "kỷ":
+            j = i + 2
+            tk_words = []
+            while j < len(tu) and re.sub(r"[^\w\s]", "", tu[j][0].lower()).strip() in SO_TU:
+                tk_words.append(tu[j])
+                j += 1
+            if tk_words:
+                tk_so = so_chu_so(" ".join(re.sub(r"[^\w\s]", "", x[0].lower()) for x in tk_words)).replace(".", "")
+                ds_nam.append({
+                    "nam": f"THẾ KỶ {tk_so}",
+                    "t_bd": float(tu[i][1]),
+                    "t_kt": float(tk_words[-1][2]),
+                })
+
+    # (b) Thập niên
+    for i, w in enumerate(tu):
+        raw = re.sub(r"[^\w\s]", "", w[0].lower()).strip()
+        if raw == "thập" and i + 1 < len(tu) and re.sub(r"[^\w\s]", "", tu[i + 1][0].lower()).strip() == "niên":
+            j = i + 2
+            tn_words = []
+            while j < len(tu) and re.sub(r"[^\w\s]", "", tu[j][0].lower()).strip() in SO_TU:
+                tn_words.append(tu[j])
+                j += 1
+            if tn_words:
+                tn_so = so_chu_so(" ".join(re.sub(r"[^\w\s]", "", x[0].lower()) for x in tn_words)).replace(".", "")
+                t_bd = float(tu[i - 1][1]) if i > 0 and re.sub(r"[^\w\s]", "", tu[i - 1][0].lower()).strip() == "đầu" else float(tu[i][1])
+                prefix = "ĐẦU " if (i > 0 and re.sub(r"[^\w\s]", "", tu[i - 1][0].lower()).strip() == "đầu") else ""
+                ds_nam.append({
+                    "nam": f"{prefix}THẬP NIÊN {tn_so}",
+                    "t_bd": t_bd,
+                    "t_kt": float(tn_words[-1][2]),
+                })
+
+    # (c) Tháng ... năm ...
+    for i, w in enumerate(tu):
+        raw = re.sub(r"[^\w\s]", "", w[0].lower()).strip()
+        if raw == "tháng" and i + 1 < len(tu) and re.sub(r"[^\w\s]", "", tu[i + 1][0].lower()).strip() in SO_TU:
+            thang_so = so_chu_so(re.sub(r"[^\w\s]", "", tu[i + 1][0].lower())).replace(".", "")
+            j = i + 2
+            if j < len(tu) and re.sub(r"[^\w\s]", "", tu[j][0].lower()).strip() == "năm":
+                k = j + 1
+                nam_words = []
+                while k < len(tu) and re.sub(r"[^\w\s]", "", tu[k][0].lower()).strip() in SO_TU:
+                    nam_words.append(tu[k])
+                    k += 1
+                if nam_words:
+                    nam_so = so_chu_so(" ".join(re.sub(r"[^\w\s]", "", x[0].lower()) for x in nam_words)).replace(".", "")
+                    if len(nam_so) > 4 and nam_so.startswith("2000"):
+                        nam_so = "20" + nam_so[-2:]
+                    ds_nam.append({
+                        "nam": f"THÁNG {thang_so}/{nam_so}",
+                        "t_bd": float(tu[i][1]),
+                        "t_kt": float(nam_words[-1][2]),
+                    })
+
+    # (d) Nhóm số năm thông thường (18xx, 19xx, 20xx)
+    for g in groups:
+        clean_phrase = " ".join(x[2] for x in g)
+        if clean_phrase.startswith("năm "):
+            clean_phrase = clean_phrase[4:]
+        val = so_chu_so(clean_phrase).replace(".", "")
+        if val.startswith("2000") and len(val) >= 5:
+            val = "20" + val[-2:]
+        if re.match(r"^(1[89]\d\d|20\d\d)$", val):
+            ds_nam.append({
+                "nam": val,
+                "t_bd": g[0][3],
+                "t_kt": g[-1][4],
+            })
+
+    ds_nam.sort(key=lambda z: (z["t_bd"], -z["t_kt"]))
+    ket_qua = []
+    for it in ds_nam:
+        if not any(it["t_bd"] >= k["t_bd"] and it["t_kt"] <= k["t_kt"] for k in ket_qua):
+            ket_qua.append(it)
+    return ket_qua
+
+
+
 def _moc_con(ds, cau_ds, bd, dai, tang=False):
     """Giờ (tính từ đầu clip) cho từng bộ phận / bước theo moc riêng; thiếu thì rải đều; tang=True: bắt tăng dần."""
     n = len(ds)
@@ -327,7 +460,7 @@ def _render_so_do(jobs):
     os.makedirs(thu, exist_ok=True)
     ra, viec = {}, []
     for khoa, giay, pr in jobs:
-        out = os.path.join(thu, hashlib.md5((json.dumps(pr, ensure_ascii=False, sort_keys=True) + f"|{giay}|v35")
+        out = os.path.join(thu, hashlib.md5((json.dumps(pr, ensure_ascii=False, sort_keys=True) + f"|{giay}|v46")
                                             .encode()).hexdigest()[:16] + ".mp4")
         ra[khoa] = out
         if not (os.path.isfile(out) and os.path.getsize(out) > 5000):
@@ -344,7 +477,7 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
     import nen_ban_do as B
     theo_i = {c["i"]: c for c in cau}
     vt = [(t / SEC, (t + d) / SEC) for c in canh for (t, d, o) in c["_os"] if o.get("ban_do")]   # bản đồ có sẵn trên track hình
-    ung = []
+    ung_hud, ung_ai = [], []
     for x in de_xuat:
         k = x.get("kieu")
         if k not in SO_DO + BAN_DO + VE_BAN_DO:
@@ -353,53 +486,117 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
         if not c:
             continue
         ds_c = [theo_i[j] for j in range(x["cau"], x.get("den_cau", x["cau"]) + 1) if j in theo_i]
-        if k == "dien_canh":
-            x = _chuan_hoa(x)
-            for g in _gio_dien_canh(x, ds_c, theo_i.get(x.get("den_cau", x["cau"]) + 1)):
-                if g["bd"] > MO_PHONG_DEN:
-                    continue
-                if any(g["bd"] < b_ + 0.3 and g["bd"] + g["dai"] > a_ - 0.3 for a_, b_ in vt):
-                    continue
-                ung.append((g["bd"], g["dai"], k, dict(x, _gio=g), ds_c))
+        bd = round(c["t0"], 2)
+        kt = ds_c[-1]["t1"]
+        dai = round(max(1.8, kt - bd), 2)
+
+        if k in ("tai_hien", "dien_canh"):
+            # 18/10 user: Ảnh AI chuyển thẳng sang CapCut timeline (không render Remotion)
+            ung_ai.append((bd, dai, "tai_hien", x, ds_c))
             continue
-        t = _tim([c], x.get("moc"))
-        bd = round(max(c["t0"], (t if t is not None else c["t0"]) - 0.1), 2)
-        kt = ds_c[-1]["t1"] + 0.4
-        if k in ("mo_phong", "dien_canh") and bd > MO_PHONG_DEN:
-            continue
-        dai = round(max(4.5, min(8.0, kt - bd)) if k in BAN_DO else max(3.8, min(6.5, kt - bd)) if k in VE_BAN_DO
-                    else max(5.5, min(14.0, kt - bd)), 2)
+
+        t = _tim(ds_c, x.get("moc_so") or x.get("moc"))
+        if k in BAN_DO or k in VE_BAN_DO or k == "ban_do_ve":
+            kt_hud = ds_c[-1]["t1"] + 0.5
+            dai = round(max(3.8, min(8.0, kt_hud - bd)), 2)
+        elif k == "su_kien":
+            ds_nam_c = _trich_su_kien(c)
+            if ds_nam_c:
+                bd = round(ds_nam_c[0]["t_bd"], 2)
+                t_cuoi = ds_nam_c[-1]["t_kt"]
+                kt_hud = round(t_cuoi + 1.0, 2)
+                dai = round(max(1.8, kt_hud - bd), 2)
+                if len(ds_nam_c) > 1:
+                    x["cac_nam"] = [{"nam": r["nam"], "t": round(r["t_bd"] - bd, 2)} for r in ds_nam_c]
+                    x["nam"] = ", ".join(r["nam"] for r in ds_nam_c)
+                else:
+                    x["cac_nam"] = None
+                    x["nam"] = x.get("nam") or ds_nam_c[0]["nam"]
+            else:
+                t_dau, t_cuoi = _tim_doan(ds_c, x.get("moc"))
+                if t_dau is not None:
+                    bd = round(t_dau, 2)
+                    kt_hud = round((t_cuoi if t_cuoi else t_dau + 1.0) + 1.0, 2)
+                    dai = round(max(1.8, kt_hud - bd), 2)
+                else:
+                    bd = round(c["t0"], 2)
+                    dai = 2.0
+        elif k in ("so_sanh", "song", "con_so"):
+            bd = round(t if t is not None else c["t0"], 2)
+            kt_hud = ds_c[-1]["t1"] + 0.1
+            dai = round(max(2.2, min(3.5, kt_hud - bd)), 2)
+        else:
+            kt_hud = ds_c[-1]["t1"] + 0.3
+            dai = round(max(2.5, min(5.5, kt_hud - bd)), 2)
+
         ke = theo_i.get(x.get("den_cau", x["cau"]) + 1)
-        if ke:                                               # 14/10 user: không lấn sang câu mới
+        if ke:
             dai = round(min(dai, ke["t0"] - 0.05 - bd), 2)
-        if dai < 2.0:
+        if dai < 1.4:
             continue
         if any(bd < b_ + 0.3 and bd + dai > a_ - 0.3 for a_, b_ in vt):
-            continue                                         # trùng cảnh bản đồ vệ tinh đã có trên track hình
-        ung.append((bd, dai, k, x, ds_c))
-    ung.sort(key=lambda z: z[0])
-    # không chồng nhau. 13/10: cảnh nối sát nhau -> CẮT ĐUÔI cảnh trước tới lúc cảnh sau bật (đuôi chỉ là phần giữ hình
-    # sau hành động cuối); chỉ bỏ cảnh sau khi cắt xong cảnh trước còn < 1,2 s sau hành động cuối của nó.
-    def _xong(u):                                            # sớm nhất được tắt: nhịp cuối hiện xong + giữ GIU_CUOI s
-        g = (u[3] or {}).get("_gio")
-        return (g["hd"][-1]["t"] if g and g.get("hd") else u[0] + 1.0) + HOAT_CANH + GIU_CUOI
-    # 14/10 user: chừa >= KHOANG_GIUA s footage giữa hai lớp; khi tranh chỗ giữ lớp CÓ GIÁ TRỊ hơn (không phải lớp đến trước)
-    def _uu(u):
-        x_ = u[3] or {}
-        kh_ = str(x_.get("khuon") or "")
-        if u[2] == "dien_canh":
-            return 0 if kh_ in ("tong_quat", "liet_ke", "truoc_sau", "hanh_dong", "co_che", "so_sanh", "") else 1
-        return 2 if u[2] in VE_BAN_DO else 3
-    nhan = []
-    for u in sorted(ung, key=lambda z: (_uu(z), z[0])):
-        u = list(u)
-        if any(u[0] < v[0] + v[1] + KHOANG_GIUA and v[0] < u[0] + u[1] + KHOANG_GIUA for v in nhan):
             continue
-        nhan.append(u)
-    nhan.sort(key=lambda z: z[0])
-    # ---- bản đồ
+        ung_hud.append((bd, dai, k, x, ds_c))
+
+    # Xử lý ung_ai: sắp theo giờ, xén mép và snap cảnh liền kề
+    nhan_ai = []
+    for u in sorted(ung_ai, key=lambda z: z[0]):
+        u = list(u)
+        if nhan_ai:
+            prev = nhan_ai[-1]
+            prev_end = round(prev[0] + prev[1], 2)
+            if u[0] < prev_end:
+                prev[1] = round(max(1.8, u[0] - prev[0]), 2)
+            elif u[0] - prev_end < 0.6:
+                u[0] = prev_end
+                u[1] = round(max(2.0, u[4][-1]["t1"] - u[0]), 2)
+        nhan_ai.append(u)
+
+    def _uu(u):
+        k_ = u[2]
+        if k_ in ("su_kien", "con_so", "so_sanh", "giai_thich"):
+            return 0
+        if k_ in VE_BAN_DO or k_ in BAN_DO:
+            return 1
+        return 2
+
+    nhan_hud = []
+    for u in sorted(ung_hud, key=lambda z: (_uu(z), z[0])):
+        u = list(u)
+        if any(u[0] < v[0] + v[1] + 0.1 and v[0] < u[0] + u[1] + 0.1 for v in nhan_hud):
+            continue
+        nhan_hud.append(u)
+    nhan_hud.sort(key=lambda z: z[0])
+
+    diem_cat = sorted(list(set(
+        [round(t / SEC, 3) for cc in canh for (t, d, o) in cc.get("_os", [])] +
+        [round((t + d) / SEC, 3) for cc in canh for (t, d, o) in cc.get("_os", [])]
+    )))
+
+    for i in range(len(nhan_hud)):
+        if nhan_hud[i][2] == "su_kien":
+            continue
+        bd_i, dai_i = nhan_hud[i][0], nhan_hud[i][1]
+        kt_i = round(bd_i + dai_i, 2)
+        truoc_kt = round(nhan_hud[i - 1][0] + nhan_hud[i - 1][1] + 0.05, 2) if i > 0 else 0.0
+        sau_bd = round(nhan_hud[i + 1][0] - 0.05, 2) if i < len(nhan_hud) - 1 else 1e9
+
+        gant_kt = [c for c in diem_cat if abs(kt_i - c) <= 1.3 and bd_i + 1.2 <= c <= sau_bd]
+        if gant_kt:
+            c_tot = min(gant_kt, key=lambda c: abs(kt_i - c))
+            dai_i = round(c_tot - bd_i, 2)
+            kt_i = c_tot
+        gant_bd = [c for c in diem_cat if abs(bd_i - c) <= 0.5 and truoc_kt <= c <= kt_i - 1.2]
+        if gant_bd:
+            c_tot = min(gant_bd, key=lambda c: abs(bd_i - c))
+            bd_i = c_tot
+            dai_i = round(kt_i - bd_i, 2)
+        nhan_hud[i][0] = round(bd_i, 2)
+        nhan_hud[i][1] = round(dai_i, 2)
+
+    # ---- bản đồ cho HUD
     viec, ma = [], {}
-    for n, (bd, dai, k, x, ds_c) in enumerate(nhan):
+    for n, (bd, dai, k, x, ds_c) in enumerate(nhan_hud):
         pt = x.get("phuong_tien") if x.get("phuong_tien") in ("may_bay", "tau_thuy", "tau_hoa", "xe", "di_bo") else ""
         if k == "khoanh_vung" and x.get("dia_danh"):
             viec.append((n, dai, B.chuan_bi_vetinh, [x["dia_danh"], x.get("ten_vi") or None]))
@@ -412,142 +609,164 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
             viec.append((n, dai, B.chuan_bi_lan_rong, [x["goc"], noi[:6], x.get("goc_vi") or None, pt]))
             ma[n] = f"{x.get('goc_vi') or x['goc']} → {len(noi)} nơi"
     clip = B.dung_clip(viec) if viec else {}
-    # ---- lấy sẵn ảnh vai của mọi diễn cảnh, SONG SONG 3 cảnh (Google vẫn tuần tự do khoá trình duyệt; vẽ AI chạy song song)
-    import anh_tach
+
     from concurrent.futures import ThreadPoolExecutor
 
-    def _vai_canh(x):
-        if str(x.get("khuon") or "") in ("tong_quat", "con_so") and x.get("ve"):
-            r = anh_tach.anh_tong_quat(str(x["ve"])) if BO_VAI_AI else None   # 14/10 user: MỘT ảnh cho cả ý
-            return [{"ten": "", "src": r["src"], "vi_tri": "giua", "dan": False}] if r else [None]
-        ds = [y for y in (x.get("vai") or []) if isinstance(y, dict)][:_toi_da_vai(x)]
-        bo = anh_tach.bo_canh_nhom(ds) if BO_VAI_AI else [None] * len(ds)
-        vai, da_url = [], []
-        for y, b in zip(ds, bo):
-            if b:                                            # 13/10 user: AI vẽ cả bộ vai (theo nhóm nhỏ)
-                vai.append({"ten": str(y.get("ten") or ""), "src": b["src"], "vi_tri": _vt(y.get("vi_tri")),
-                            "dan": bool(y.get("dan"))})
-                continue
-            r = None
-            ve = _ve_day_du(y, ds)
-            if BO_VAI_AI and ve:                             # 14/10: bộ hỏng -> AI vẽ RIÊNG vai này (ảnh web cắt nền hay ra rác)
-                r = anh_tach.lay("", ve=ve)
-            bien_the = re.match(r"\s*same as (?:actor |subject )?(\d)", str(y.get("ve") or ""), re.I)
-            if not r and bien_the:                           # trạng thái "sau" mà AI vẽ hỏng: ảnh web không cùng vật -> dùng
-                goc = int(bien_the.group(1))                 # lại ảnh vai gốc (đỡ hơn một mảnh rác lạ)
-                if goc < len(vai) and vai[goc]:
-                    vai.append(dict(vai[goc], ten=str(y.get("ten") or ""), vi_tri=_vt(y.get("vi_tri"))))
-                    continue
-            if not r:
-                r = anh_tach.lay(str(y.get("anh") or ""), tranh=da_url, ve=str(y.get("ve") or "") or None,
-                                 truu_tuong=bool(y.get("truu_tuong")))
-            if r and r.get("url"):
-                da_url.append(r["url"])
-            vai.append({"ten": str(y.get("ten") or ""), "src": r["src"], "vi_tri": _vt(y.get("vi_tri")),
-                        "dan": bool(y.get("dan"))} if r else None)
-        return vai
-    dc = [u[3] for u in nhan if u[2] == "dien_canh"]
-    bdv = [u[3] for u in nhan if u[2] == "ban_do_ve"]
-    log(f"    lấy ảnh vai cho {len(dc)} diễn cảnh (ảnh thật tách nền / AI vẽ), vẽ {len(bdv)} bản đồ…")
+    for u in nhan_ai:
+        u[3]["_dai"] = u[1]
+    for u in nhan_hud:
+        u[3]["_dai"] = u[1]
+
+    bdv = [u[3] for u in nhan_hud if u[2] == "ban_do_ve"]
+    th = [u[3] for u in nhan_ai]
+
+    def _ve_tai_hien(x):
+        prompts = []
+        if x.get("ve_1"):
+            prompts.append(str(x["ve_1"]).strip())
+            if x.get("ve_2"):
+                prompts.append(str(x["ve_2"]).strip())
+            if x.get("ve_3"):
+                prompts.append(str(x["ve_3"]).strip())
+        elif x.get("ve"):
+            prompts = [str(x["ve"]).strip()]
+        if not prompts:
+            return []
+
+        # 18/10 user: Luật thời lượng mới cho ảnh:
+        # - Đoạn <= 5.25s: đúng 1 ảnh
+        # - Đoạn 5.25s - 8.5s: 2 ảnh
+        # - Đoạn >= 8.5s: 3 ảnh Story
+        # - Độ dài tối thiểu 1 ảnh: 3.5s -> 5.25s
+        dai_cau = float(x.get("_dai") or 6.0)
+        if dai_cau <= 5.25:
+            prompts = prompts[:1]
+        elif dai_cau < 8.5:
+            prompts = prompts[:2]
+        else:
+            prompts = prompts[:3]
+
+        import hashlib, anh_ve
+        PUB = os.path.join(ROOT, "remotion", "public")
+        os.makedirs(PUB, exist_ok=True)
+        ds_ten = []
+        for i, p in enumerate(prompts):
+            kid = hashlib.md5(p.encode("utf-8")).hexdigest()[:14]
+            ten_f = f"tai_hien_{kid}_{i}.png"
+            f_anh = os.path.join(PUB, ten_f)
+            if not (os.path.isfile(f_anh) and os.path.getsize(f_anh) > 5000):
+                p_full = f"{p}, 16:9 aspect ratio, 8k documentary photograph, award-winning cinematic lighting, authentic, photorealistic, absolutely NO text, NO letters, NO words."
+                try:
+                    f_anh = anh_ve.ve_prompt(p_full, PUB, ten_f, timeout=120)
+                except Exception as e:
+                    log(f"    ! vẽ tái hiện [{i+1}] lỗi: {e}")
+                    f_anh = None
+            if f_anh and os.path.isfile(f_anh):
+                ds_ten.append(f_anh)
+        return ds_ten
+
+    log(f"    vẽ {len(bdv)} bản đồ, kiểm tra/vẽ {len(th)} chuỗi ảnh AI…")
     with ThreadPoolExecutor(3) as ex:
-        san = list(ex.map(_vai_canh, dc))
         for x, a in zip(bdv, ex.map(_ve_ban_do, bdv)):
             x["_anh"] = a
-    for x, v in zip(dc, san):
-        x["_vai"] = v
-    import unicodedata
-    dau_tien = {}
-    for x in sorted(dc, key=lambda z: z["_gio"]["bd"]):     # 14/10: một vật một ảnh xuyên suốt video
-        for y, v in zip([y for y in (x.get("vai") or []) if isinstance(y, dict)], x["_vai"]):
-            if not v or "same as" in str(y.get("ve") or "").lower():
-                continue
-            kt_ = unicodedata.normalize("NFC", str(y.get("ten") or "")).lower().strip()
-            if not kt_:
-                continue                                     # ảnh tổng quát không tên: không dùng chung
-            if kt_ in dau_tien:
-                v["src"] = dau_tien[kt_]
-            else:
-                dau_tien[kt_] = v["src"]
-    # ---- sơ đồ trên nền video tối
+        for x, a in zip(th, ex.map(_ve_tai_hien, th)):
+            x["_ds_anh"] = a
+            x["_anh"] = a[0] if a else None
+
+    # Phân chia ảnh AI thành các lát cắt phan_doan đưa trực tiếp lên CapCut
+    ra_anh_ai = []
+    for bd, dai, k, x, ds_c in nhan_ai:
+        ds_anh = x.get("_ds_anh") or []
+        if not ds_anh:
+            continue
+        n_anh = len(ds_anh)
+        phan_doan = []
+        sfx_th = [{"t": round(bd + 0.2, 2), "kieu": "whoosh", "ly_do": "tái hiện AI"}]
+
+        if n_anh == 1 or dai <= 5.25:
+            phan_doan.append({"bd": bd, "dai": dai, "file": ds_anh[0]})
+        elif n_anh == 2 or dai < 8.5:
+            m2 = x.get("moc_2")
+            t_split = _tim(ds_c, m2) if m2 else None
+            if t_split is None or t_split < bd + 2.5 or t_split > bd + dai - 2.5:
+                t_split = round(bd + dai / 2, 2)
+            d1 = round(t_split - bd, 2)
+            d2 = round(dai - d1, 2)
+            phan_doan.append({"bd": bd, "dai": d1, "file": ds_anh[0]})
+            phan_doan.append({"bd": t_split, "dai": d2, "file": ds_anh[min(1, len(ds_anh)-1)]})
+            sfx_th.append({"t": round(t_split, 2), "kieu": "whoosh", "ly_do": "chuyển cảnh AI 2"})
+        else:
+            m2 = x.get("moc_2")
+            m3 = x.get("moc_3")
+            t1 = _tim(ds_c, m2) if m2 else None
+            t2 = _tim(ds_c, m3) if m3 else None
+            if t1 is None or t1 < bd + 2.8 or t1 > bd + dai - 5.6:
+                t1 = round(bd + dai / 3, 2)
+            if t2 is None or t2 < t1 + 2.8 or t2 > bd + dai - 2.8:
+                t2 = round(t1 + (bd + dai - t1) / 2, 2)
+            d1 = round(t1 - bd, 2)
+            d2 = round(t2 - t1, 2)
+            d3 = round(dai - d1 - d2, 2)
+            phan_doan.append({"bd": bd, "dai": d1, "file": ds_anh[0]})
+            phan_doan.append({"bd": t1, "dai": d2, "file": ds_anh[min(1, len(ds_anh)-1)]})
+            phan_doan.append({"bd": t2, "dai": d3, "file": ds_anh[min(2, len(ds_anh)-1)]})
+            sfx_th.append({"t": round(t1, 2), "kieu": "whoosh", "ly_do": "chuyển cảnh AI 2"})
+            sfx_th.append({"t": round(t2, 2), "kieu": "whoosh", "ly_do": "chuyển cảnh AI 3"})
+
+        ra_anh_ai.append({
+            "cau": x["cau"],
+            "bd": bd,
+            "dai": dai,
+            "ds_anh": ds_anh,
+            "phan_doan": phan_doan,
+            "mo_ta": f"ảnh AI: {x.get('tieu_de') or 'chuỗi phân cảnh'}",
+            "am": sfx_th
+        })
+
+    # ---- sơ đồ HUD trên nền video tối (chỉ render Remotion cho HUD/bản đồ)
     jobs, ma_am = [], {}
-    for n, (bd, dai, k, x, ds_c) in enumerate(nhan):
+    for n, (bd, dai, k, x, ds_c) in enumerate(nhan_hud):
         if k == "ban_do_ve":
             if x.get("_anh"):
                 import hashlib
-                bt = int(hashlib.md5(str(x.get("dia_danh")).encode("utf-8")).hexdigest(), 16) % 4   # kiểu máy quay đổi theo nơi
+                bt = int(hashlib.md5(str(x.get("dia_danh")).encode("utf-8")).hexdigest(), 16) % 4
                 jobs.append((n, dai, {"kieu": "ban_do_ve", "nen": [], "anh": x["_anh"], "ten": x.get("ten_vi") or "",
                                       "bien_the": bt}))
                 ma[n] = f"bản đồ vẽ (vệ tinh siêu thực): {x.get('ten_vi')}"
+                ma_am[n] = [{"t": round(bd + 0.2, 2), "kieu": "whoosh", "ly_do": "bản đồ"}]
             continue
         if k not in SO_DO:
             continue
         pr = {"kieu": k, "nen": bang_giay._clips(canh, bd, bd + dai)}                      # noqa: SLF001
-        if k == "dien_canh":                                 # 13/10 user: ảnh thật tách nền thay icon
-            vai = [dict(v) if v else None for v in x["_vai"]]
-            g = x["_gio"]
-            hd = [dict(h, t=round(h["t"] - bd, 2)) for h in g["hd"]
-                  if h["ai"] < len(vai) and vai[h["ai"]] and (h["toi"] is None or (h["toi"] < len(vai) and vai[h["toi"]]))]
-            khuon = str(x.get("khuon") or "")
-            lk = str(x.get("bo_cuc") or "").lower() == "liet_ke"
-            if not any(vai):
-                log(f"    ! diễn cảnh câu {x['cau']}: không có ảnh — bỏ")
-                continue
-            if not lk and khuon not in ("con_so", "so_sanh") + TOAN_Y and not any(h["lam"] != "xuat_hien" for h in hd) and not any(
-                    h["lam"] != "xuat_hien" for h in (x.get("hanh_dong") or []) if isinstance(h, dict)):
-                log(f"    ! diễn cảnh câu {x['cau']}: không còn hành động chuyển động (chỉ xuất hiện / thiếu ảnh / mốc không khớp lời) — bỏ")
-                continue
-            for k2, v in enumerate(vai):
-                if v:
-                    v["vao"] = None if k2 >= len(g["vao"]) or g["vao"][k2] is None else round(max(0.0, g["vao"][k2] - bd), 2)
-            if lk:                                           # 14/10 user: LIỆT KÊ = mọi mục CÙNG hiện, chia cột, chỉ trạng thái "sau"
-                den = {h["ai"]: h["toi"] for h in hd if h["lam"] == "bien_thanh" and h["toi"] is not None}
-                dich = set(den.values())
-                moc_i = {}
-                for i in range(len(vai)):
-                    ts = [h["t"] for h in hd if h["ai"] == i or h["toi"] == i]
-                    if vai[i] and vai[i].get("vao") is not None:
-                        ts.append(vai[i]["vao"])
-                    if ts:
-                        moc_i[i] = min(ts)
-                muc = []
-                for i in sorted(moc_i, key=moc_i.get) + [i for i in range(len(vai)) if i not in moc_i]:
-                    if i in dich:
-                        continue
-                    j, da = i, {i}
-                    while j in den and den[j] not in da:     # theo chuỗi biến thành tới trạng thái cuối
-                        j = den[j]
-                        da.add(j)
-                    if vai[j] or vai[i]:
-                        muc.append(dict(vai[j] or vai[i]))
-                if len(muc) < 2:
-                    log(f"    ! diễn cảnh câu {x['cau']}: liệt kê còn < 2 mục có ảnh — bỏ")
-                    continue
-                t0 = max(0.1, min(moc_i.values()) if moc_i else 0.3)
-                for k2, v in enumerate(muc):
-                    v["vao"] = round(t0, 2)                  # 14/10 user: liệt kê hiện HẾT cùng lúc
-                vai, hd = muc, []
-            pr.update(vai=[v or {"ten": "", "src": ""} for v in vai], hanh_dong=hd,
-                      bo_cuc="liet_ke" if lk else "", khuon=khuon)
-            if khuon == "tong_quat":                         # 14/10 user: dòng tiêu đề tiếng Việt dưới ảnh tổng quát
-                pr.update(chu_tq=str(x.get("tieu_de") or "").strip())
-            if khuon == "con_so":
-                ts = g.get("t_so")
-                pr.update(so=so_chu_so(x.get("so")), hoi=False,   # 14/10 user: không gắn "?" vào con số
-                          t_so=round(max(0.3, (ts - bd) if ts is not None else 0.6), 2))
-            elif khuon == "so_sanh":
-                try:
-                    gt = [float(str(z).replace(",", ".")) for z in (x.get("gia_tri") or [])][:2]
-                except ValueError:
-                    gt = []
-                pr.update(gia_tri=gt if len(gt) == 2 else [], nhan_gt=[str(z) for z in (x.get("nhan_gt") or [])][:2])
-            am, cuoi_am = [], -9.0
-            for h in hd:                                     # tiếng động đúng lúc hành động (cách nhau >= 0,5 s)
-                t_am = round(bd + h["t"] + (0.25 if h["lam"] == "bien_thanh" else 0.0), 2)
-                if AM_HANH_DONG.get(h["lam"]) and t_am - cuoi_am >= 0.5:
-                    am.append({"t": t_am, "kieu": AM_HANH_DONG[h["lam"]], "ly_do": f"diễn cảnh: {h['lam']}"})
-                    cuoi_am = t_am
-            ma_am[n] = am
-            ma[n] = "diễn cảnh: " + ", ".join(v["ten"] for v in vai if v)
+        if k in ("so_sanh", "song", "con_so"):
+            jobs.append((n, dai, {
+                "kieu": "so_sanh",
+                "nen": pr["nen"],
+                "tieu_de": x.get("tieu_de") or "",
+                "ben_a": x.get("ben_a"),
+                "ben_b": x.get("ben_b"),
+                "dang": x.get("dang") or (k if k in ("song", "con_so") else ""),
+                "theme": x.get("theme")
+            }))
+            ma[n] = f"đồ thị/biểu đồ số liệu: {x.get('tieu_de')}"
+            ma_am[n] = [{"t": round(bd + 0.2, 2), "kieu": "hit", "ly_do": "biểu đồ số liệu"}]
+            continue
+        elif k == "su_kien":
+            jobs.append((n, dai, {
+                "kieu": "su_kien",
+                "nen": pr["nen"],
+                "nam": str(x.get("nam") or ""),
+                "tieu_de": x.get("tieu_de") or "",
+                "cac_nam": x.get("cac_nam")
+            }))
+            ma[n] = f"mốc sự kiện: {x.get('nam')}"
+            ma_am[n] = [{"t": round(bd + 0.15, 2), "kieu": "whoosh", "ly_do": "mốc sự kiện"}]
+            continue
+        elif k in ("giai_thich", "quy_trinh"):
+            jobs.append((n, dai, {"kieu": "giai_thich", "nen": pr["nen"], "tieu_de": x.get("tieu_de") or "", "cac_buoc": x.get("cac_buoc") or x.get("buoc") or x.get("muc") or []}))
+            ma[n] = f"giải thích cơ chế: {x.get('tieu_de')}"
+            ma_am[n] = [{"t": round(bd + 0.25, 2), "kieu": "whoosh", "ly_do": "giải thích"}]
+            continue
         elif k == "cau_tao":
             ds = [y for y in (x.get("phan") or []) if isinstance(y, dict) and y.get("chu")][:6]
             ts = _moc_con(ds, ds_c, bd, dai)
@@ -560,38 +779,20 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
             pr.update(tieu_de=x.get("tieu_de") or "",
                       muc=[{"chu": y["chu"], "bieu_tuong": y.get("bieu_tuong") or "", "t": t} for y, t in zip(ds, ts)])
             ma[n] = f"{'quy trình' if k == 'quy_trinh' else 'vòng đời'}: {x.get('tieu_de')}"
-        else:
-            vai = [{"ten": y.get("ten") or "", "bieu_tuong": y.get("bieu_tuong") or "❓"} for y in (x.get("vai") or [])
-                   if isinstance(y, dict)][:3]
-            hd = []
-            for y in (x.get("hanh_dong") or [])[:4]:
-                try:
-                    ai = int(y.get("ai"))
-                    toi = None if y.get("toi") in (None, "", "null") else int(y.get("toi"))
-                except (TypeError, ValueError, AttributeError):
-                    continue
-                if 0 <= ai < len(vai) and (toi is None or 0 <= toi < len(vai)) and toi != ai:
-                    hd.append({"ai": ai, "lam": y.get("lam"), "toi": toi, "moc": y.get("moc")})
-            if not vai or not hd:
-                continue
-            ts = _moc_con(hd, ds_c, bd, dai, tang=True)
-            for y, t in zip(hd, ts):
-                y["t"] = max(0.6, t)
-                y.pop("moc", None)
-            pr.update(vai=vai, hanh_dong=hd)
-            ma[n] = "mô phỏng: " + ", ".join(v["ten"] for v in vai)
-        if not pr["nen"] or not (pr.get("muc") or pr.get("vai")) or (k not in ("mo_phong", "dien_canh") and len(pr.get("muc") or []) < 2):
+        if not pr["nen"] or not (pr.get("muc") or pr.get("vai")) or len(pr.get("muc") or []) < 2:
             continue
         jobs.append((n, dai, pr))
+
     clip.update(_render_so_do(jobs) if jobs else {})
     ra = []
-    for n, (bd, dai, k, x, ds_c) in enumerate(nhan):
+    for n, (bd, dai, k, x, ds_c) in enumerate(nhan_hud):
         if clip.get(n):
             ra.append({"kieu": k, "cau": x["cau"], "bd": bd, "dai": dai, "file": clip[n], "mo_ta": ma.get(n, ""),
                        "am": ma_am.get(n, [])})
     dem = {}
     for y in ra:
         dem[y["kieu"]] = dem.get(y["kieu"], 0) + 1
-    log(f"    minh hoạ dựng được: {', '.join(f'{k} {v}' for k, v in sorted(dem.items())) or 'không có'} "
-        f"(đề xuất {len(ung)}, sau khi bỏ chồng giờ {len(nhan)})")
-    return ra
+    log(f"    minh hoạ Remotion: {', '.join(f'{k} {v}' for k, v in sorted(dem.items())) or 'không có'} "
+        f"(đề xuất {len(ung_hud)}, sau khi lọc {len(nhan_hud)})")
+    log(f"    ảnh AI CapCut: {len(ra_anh_ai)} cảnh ({sum(len(y['phan_doan']) for y in ra_anh_ai)} ảnh)")
+    return ra, ra_anh_ai

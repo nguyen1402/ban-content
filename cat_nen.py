@@ -39,11 +39,24 @@ def mat_na(img):
     return np.asarray(Image.fromarray((p * 255).astype(np.uint8)).resize(img.size, Image.LANCZOS), np.float32) / 255.0
 
 
+def nen_la_trang(img, ti_le=0.85):
+    """Ảnh có nằm trên NỀN TRẮNG không: >= ti_le điểm ở dải viền (3% mỗi cạnh) gần trắng (kênh tối nhất >= 225)."""
+    x = np.asarray(img.convert("RGB"), np.uint8)
+    h, w = x.shape[:2]
+    b = max(2, int(0.03 * min(h, w)))
+    vien = np.concatenate([x[:b].reshape(-1, 3), x[-b:].reshape(-1, 3), x[:, :b].reshape(-1, 3), x[:, -b:].reshape(-1, 3)])
+    return float((vien.min(axis=1) >= 225).mean()) >= ti_le
+
+
 def hop_nen_trang(img, a):
     """14/10 user ("cây cao xoá bay sạch màu"): ISNet hay xoá phần MẢNH / THƯA / SÁNG (tán lá, lông, khói, lưới).
     Ảnh AI vẽ luôn trên NỀN TRẮNG trơn -> gộp thêm mặt nạ theo màu (điểm khác trắng rõ = vật): tán lá được giữ nhờ màu,
-    phần vật màu trắng vẫn còn nhờ ISNet. Bỏ đốm lẻ nhỏ."""
+    phần vật màu trắng vẫn còn nhờ ISNet. Bỏ đốm lẻ nhỏ.
+    15/10: ảnh KHÔNG nằm trên nền trắng (AI vẽ cả cảnh chụp có phông) -> chỉ dùng ISNet (tách vật chính khỏi phông);
+    gộp mặt nạ màu với ảnh có phông thì cả khung thành "vật" -> bị loại "dính kín mép", vẽ lại hoài."""
     from scipy import ndimage
+    if not nen_la_trang(img):
+        return a
     x = np.asarray(img.convert("RGB"), np.float32)
     d = (255.0 - x).max(axis=2)                              # độ "khác trắng" (bóng xám nhạt < 45 không tính)
     wk = np.clip((d - 45.0) / 30.0, 0, 1)

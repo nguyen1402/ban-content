@@ -118,9 +118,15 @@ def _chrome():
     if p and os.path.isfile(p):
         return p
     goc = r"D:\CapCutTTS\hoat_hinh_remotion\node_modules\.remotion"      # dùng lại Chrome đã tải sẵn
-    for r, _, fs in os.walk(goc):
-        if "chrome-headless-shell.exe" in fs:
-            return os.path.join(r, "chrome-headless-shell.exe")
+    if os.path.isdir(goc):
+        for r, _, fs in os.walk(goc):
+            if "chrome-headless-shell.exe" in fs:
+                return os.path.join(r, "chrome-headless-shell.exe")
+    for std in [r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+                r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"]:
+        if os.path.isfile(std):
+            return std
     return None
 
 

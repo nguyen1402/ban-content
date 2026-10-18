@@ -28,19 +28,61 @@ VIDEO_MIN, VIDEO_MAX = 20, 45 * 60     # bỏ video quá ngắn / dài hơn 45 p
 NGUONG_DUNG = 0.12          # điểm storyboard dưới mức này: video không giúp gì cho cảnh
 NGUONG_ANH = 0.10           # sau gợi ý: đoạn điểm dưới mức này (hoặc trống) -> tìm ảnh bù
 ANH_MOI_CANH = 2
-DUNG_YOUTUBE = False        # 12/10 user: KHÔNG tự tải YouTube nữa (logo kênh) — chỉ kho miễn phí sạch
+DUNG_YOUTUBE = True         # 12/10 user tắt (logo kênh); 15/10 user BẬT LẠI: tìm thêm trên Google Videos (nhiều cảnh sát
+#                             nội dung hơn kho stock), chấp nhận video có bản quyền; tải ≤720p, logo góc -> phóng to giấu
 STOCK_MOI_CANH = 4          # 12/10: video stock SẠCH (Pexels/Pixabay) — mỗi cảnh lấy tối đa bấy nhiêu clip MỚI khớp nhất
 #                             (14/10: clip đã chọn cho cảnh khác không tính -> kho đa dạng, đỡ lặp hình)
 NGUONG_STOCK = 0.12         # điểm ảnh thu nhỏ tối thiểu để tải clip stock
 STOCK_TOI_DA = 300           # trần số clip stock mỗi lần chạy (mỗi clip 10-30 s, 5-15 MB); 14/10: 150 -> 300 (đỡ lặp)
 TU_STOCK_MOI_NHOM = 3       # 14/10: mỗi nhóm ~1 phút tìm từ khoá video của 3 cảnh dài nhất (trước: 2) + biến thể + ảnh
+VE_AI_BU = False            # 16/10 user: bản thô KHÔNG tạo ảnh AI bù (chỗ thiếu: ảnh thật Google, không có thì dùng lại video)
 GEMINI_BU_TOI_DA = 200      # 14/10 user: chỗ hết video mới -> Gemini vẽ ảnh ngang (trần mỗi lần chạy; ~17 credit/ảnh)
 ANH_MOI_DIA_DANH = 4        # mỗi địa danh: 2 ảnh phong cảnh + 2 ảnh từ trên cao
 GIAY_MOI_NHOM = 60.0        # gom cảnh liền nhau thành nhóm ~1 phút voice; mỗi nhóm tìm TU_MOI_NHOM từ khoá
 TU_MOI_NHOM = 2
 KQ_MOI_TU = 6               # 11/10: user thấy quét ~1.500 video cho 166 cảnh là quá nhiều
+MODIFIERS_BROLL = ("b-roll", "footage")
+
+
+def tao_tu_khoa_broll(ds_chu_de):
+    """Tạo danh sách từ khoá tìm kiếm video tự nhiên, chính xác cho từng chủ đề:
+    - Nếu từ khoá gốc đã dài (>= 4 từ, ví dụ 'fish spawning flooded plains'): GIỮ NGUYÊN để không làm loãng kết quả.
+    - Nếu từ khoá ngắn (1-3 từ, ví dụ 'carp fish', 'new york rats'): bổ sung biến thể gắn 'footage' hoặc 'b-roll'.
+    - Tuyệt đối không nhồi cờ loại trừ (-vlog...) vì làm YouTube xếp hạng sai lệch sang game/phim truyền hình."""
+    kq = []
+    da_co = set()
+
+    for idx_cd, cd in enumerate(ds_chu_de):
+        cac_tk = cd.get("tu_khoa_en") or []
+        for i, q in enumerate(cac_tk):
+            q_clean = str(q).strip()
+            if not q_clean:
+                continue
+            q_low = q_clean.lower()
+            if q_low in da_co:
+                continue
+            da_co.add(q_low)
+
+            # Luôn giữ từ khoá gốc
+            kq.append(q_clean)
+
+            # Nếu từ ngắn (1-3 từ) và chưa có modifier thì thêm 1 biến thể footage/b-roll
+            words = q_clean.split()
+            co_mod = any(m in q_low for m in ("b-roll", "b roll", "footage", "cinematic", "documentary"))
+            if len(words) <= 3 and not co_mod:
+                mod = MODIFIERS_BROLL[i % len(MODIFIERS_BROLL)]
+                q_mod = f"{q_clean} {mod}"
+                if q_mod.lower() not in da_co:
+                    da_co.add(q_mod.lower())
+                    kq.append(q_mod)
+
+    return kq
+
+
+
 TT = {}
 _KHOA = threading.Lock()
+
 
 
 def _tt(du_an, **kw):
@@ -122,6 +164,38 @@ def tu_khoa_nhom(can):
     return ra
 
 
+TAI_CUNG_LUC = 5             # 15/10 user: 5 clip tải cùng lúc (trước: lô 3, chờ cả lô xong)
+TAI_TOI_DA_NGUON = {"pixabay": 2}   # Pixabay trả 429 khi tải dồn -> tối đa 2 clip Pixabay cùng lúc
+
+
+def _tai_cuon(du_an, viec, ten_buoc):
+    """viec: [(nguồn, hàm bắt đầu tải -> id kho)]. Tải CUỐN: luôn giữ TAI_CUNG_LUC clip đang tải, clip nào xong (hoặc
+    lỗi) thì clip kế vào thế chỗ ngay; in tiến độ ra console mỗi ~10 clip."""
+    import dung_tay
+    cho, dang, kids, bao, t0 = list(viec), [], [], 0, time.time()
+    tong = len(cho)
+    while cho or dang:
+        kho = dung_tay.doc_kho(du_an)
+        dang = [(n, k) for n, k in dang if kho.get(k, {}).get("trang_thai") not in ("xong", "loi")]
+        i = 0
+        while i < len(cho) and len(dang) < TAI_CUNG_LUC:
+            n, ham = cho[i]
+            if sum(1 for n2, _ in dang if n2 == n) >= TAI_TOI_DA_NGUON.get(n, TAI_CUNG_LUC):
+                i += 1                                       # nguồn này đủ suất -> lấy clip nguồn khác trước
+                continue
+            cho.pop(i)
+            k = ham()
+            kids.append(k)
+            dang.append((n, k))
+        xong = sum(1 for k in kids if kho.get(k, {}).get("trang_thai") in ("xong", "loi"))
+        _tt(du_an, buoc=ten_buoc, xong=xong, tong=tong,
+            pt=round((xong + sum(kho.get(k, {}).get("pt", 0) / 100 for _, k in dang)) * 100 / max(1, tong), 1))
+        if xong - bao >= 10 or (xong == tong and bao < tong):
+            log(f"  tải stock {xong}/{tong} ({(time.time() - t0) / 60:.1f} phút)")
+            bao = xong
+        time.sleep(1)
+
+
 def _cho_tai(du_an, kids, ten_buoc):
     import dung_tay
     while True:
@@ -135,8 +209,264 @@ def _cho_tai(du_an, kids, ten_buoc):
         time.sleep(2)
 
 
-def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
-    """chi_chon=True: chỉ tìm + chấm + chọn (không tải, không đổi kế hoạch) — để đo/xem trước."""
+def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False, dung_stock=True):
+    """Giai đoạn 2 & 3: Tự động tìm nguồn theo chủ đề, chấm storyboard với mô tả chủ đề,
+    tải 1-4 khoảng tốt nhất mỗi video trong ngân sách ~3x độ dài chủ đề, lọc logo/phụ đề gộp,
+    và khớp đoạn theo chủ đề."""
+    import chu_de
+    import dung_tay
+    import goi_y
+    import nhung_siglip
+    import xep_hang
+    out = thu_muc_du_an(du_an)[1]
+    canh = doc_json(os.path.join(out, "tu_khoa.json"), []) or []
+    if not canh:
+        raise ValueError("dự án chưa có tu_khoa.json — chạy bước Từ khoá trước")
+
+    dung = dung_tay.doc_dung(du_an)
+    can = [c for c in canh if not (dung.get(str(c["id"]), {}).get("doan") and not dung[str(c["id"])].get("goi_y"))]
+    if not can:
+        raise ValueError("mọi cảnh đều đã tự dựng — không còn cảnh nào để tự động")
+
+    t_bd = time.time()
+
+    # 1. Chia kịch bản theo chủ đề (Giai đoạn 1)
+    _tt(du_an, buoc="chia_chu_de", xong=0, tong=len(canh))
+    ds_chu_de = chu_de.chia_chu_de(du_an)
+    _tt(du_an, buoc="chia_chu_de", xong=len(ds_chu_de), tong=len(ds_chu_de))
+    if not ds_chu_de:
+        raise ValueError("Không chia được chủ đề từ kịch bản")
+
+    # 2. Lấy từ khoá từ mỗi chủ đề (tự động gắn modifier B-roll / Cinematic / Loại trừ vlog)
+    tu_khoa_ds = tao_tu_khoa_broll(ds_chu_de)
+
+    # 3. Tìm nguồn theo chủ đề (Google Videos + YouTube): ~50-100 lượt tìm
+    _tt(du_an, buoc="tim_chu_de", xong=0, tong=len(tu_khoa_ds))
+    kq = {}
+    dem = [0]
+
+    def tim_mot_tu(q):
+        r = []
+        try:
+            import anh_google
+            r += anh_google.google_video(q, KQ_MOI_TU)
+        except Exception as e:
+            log(f"    ! Google Videos '{q[:40]}': {str(e)[:80]}")
+        try:
+            r += dung_tay.tim_youtube(q, KQ_MOI_TU)
+        except Exception as e:
+            log(f"    ! tìm '{q[:40]}': {str(e)[:80]}")
+        with _KHOA:
+            dem[0] += 1
+        _tt(du_an, buoc="tim_chu_de", xong=dem[0], tong=len(tu_khoa_ds))
+        return r
+
+    with ThreadPoolExecutor(4) as ex:
+        for r in ex.map(tim_mot_tu, tu_khoa_ds):
+            for v in r:
+                kq.setdefault(v["id"], v)
+
+    # Lọc ngay từ khi tìm:
+    # bỏ video quá ngắn hoặc dài hơn 45 phút; bỏ video kênh trong kenh_bo.json; bỏ video đã có trong kho
+    kho = dung_tay.doc_kho(du_an)
+    co_san = set()
+    for k, m in kho.items():
+        if m.get("loai") == "video" and m.get("trang_thai") == "xong":
+            if m.get("video_goc"):
+                co_san.add(m["video_goc"])
+            elif k.startswith("v_"):
+                co_san.add(k[2:])
+            else:
+                co_san.add(k)
+
+    kenh_bo = doc_json(dung_tay.KENH_BO, {}) or {}
+    ung = [v for v in kq.values() if VIDEO_MIN <= (v.get("dai") or 0) <= VIDEO_MAX
+           and v["id"] not in co_san and (v.get("kenh") or "") not in kenh_bo]
+    # Giới hạn tối đa 120 ứng viên để bước chấm storyboard nhanh gọn (khoảng 30-45 giây), không bị chờ 5-7 phút
+    if len(ung) > 120:
+        log(f"  tìm được {len(ung)} ứng viên -> chọn top 120 ứng viên tiềm năng nhất để chấm storyboard")
+        ung = ung[:120]
+    else:
+        log(f"  tìm theo chủ đề: {len(tu_khoa_ds)} từ khoá → {len(kq)} video, {len(ung)} ứng viên")
+
+    # 4. Chấm sơ bộ bằng storyboard so với mo_ta_en của chủ đề
+    _tt(du_an, buoc="storyboard", xong=0, tong=len(ung))
+    log(f"  bắt đầu chấm storyboard cho {len(ung)} video ứng viên (6 luồng GPU)...")
+    vec_cd = nhung_siglip.nhung_chu([cd["mo_ta_en"] for cd in ds_chu_de])
+    dem = [0]
+    diem_theo_cd = {cd["id"]: [] for cd in ds_chu_de}
+
+    def sb(v):
+        try:
+            t, e, tong = xep_hang.storyboard(v["id"])
+            import loc_minh_hoa
+            if len(t) and (loc_minh_hoa.diem_hoat_hinh(e) > loc_minh_hoa.NGUONG_HOAT_HINH).mean() > loc_minh_hoa.TI_LE_BO_VIDEO:
+                res = None
+            else:
+                scores = [float((e @ vec_cd[k]).max()) if len(e) else -1.0 for k in range(len(ds_chu_de))]
+                k_best = int(np.argmax(scores))
+                best_sc = scores[k_best]
+                res = (best_sc, k_best, t, e, tong) if best_sc >= NGUONG_DUNG else None
+        except Exception as ex:
+            log(f"    ! storyboard {v['id']}: {str(ex)[:80]}")
+            res = None
+        with _KHOA:
+            dem[0] += 1
+            if dem[0] % 20 == 0 or dem[0] == len(ung):
+                log(f"  chấm storyboard: {dem[0]}/{len(ung)} video ({int(dem[0] * 100 / max(1, len(ung)))}%)")
+        _tt(du_an, buoc="storyboard", xong=dem[0], tong=len(ung))
+        return v, res
+
+
+    with ThreadPoolExecutor(6) as ex:
+        for v, res in ex.map(sb, ung):
+            if res is not None:
+                best_sc, k_best, t, e, tong = res
+                cd_id = ds_chu_de[k_best]["id"]
+                v["chu_de_id"] = cd_id
+                v["diem_cd"] = best_sc
+                diem_theo_cd[cd_id].append((v, best_sc, k_best, t, e, tong))
+
+    # 5. Lượng video cần cho mỗi chủ đề: ~3 lần độ dài của chủ đề
+    video_duoc_chon = []
+    tong_giay_chon = 0.0
+
+    for cd in ds_chu_de:
+        cd_id = cd["id"]
+        cd_dai = float(cd.get("dai") or 60.0)
+        muc_tieu_giay = 3.0 * cd_dai
+        ung_cd = sorted(diem_theo_cd[cd_id], key=lambda x: -x[1])
+        tich_luy = 0.0
+        for v, sc, k_best, t, e, tong in ung_cd:
+            video_duoc_chon.append((v, k_best, t, e, tong))
+            tich_luy += float(v.get("dai") or 0.0)
+            tong_giay_chon += float(v.get("dai") or 0.0)
+            if tich_luy >= muc_tieu_giay:
+                break
+
+    log(f"  chọn theo chủ đề: {len(video_duoc_chon)} video nguồn cho {len(ds_chu_de)} chủ đề")
+    _tt(du_an, chon=len(video_duoc_chon), phut=round(tong_giay_chon / 60, 1), so_canh=len(can))
+    if chi_chon:
+        return {"chon": [(v["id"], v.get("tieu_de", ""), v.get("dai")) for v, _, _, _, _ in video_duoc_chon],
+                "phut": round(tong_giay_chon / 60, 1), "so_canh": len(can)}
+
+    # 6. Giai đoạn 3: Chỉ tải đúng khoảng cần (1-4 khoảng 20-40s mỗi video)
+    _tt(du_an, buoc="tai_khoang", xong=0, tong=0)
+    ds_khoang_tai = []
+    for v, k_best, t, e, tong in video_duoc_chon:
+        qv = vec_cd[k_best]
+        khoang_tot = dung_tay.chon_khoang_video(t, e, qv, tong, min_dai=20.0, max_dai=40.0, toi_da_khoang=4)
+        for bd, kt, sc in khoang_tot:
+            ds_khoang_tai.append({
+                "vid": v["id"],
+                "bd": bd,
+                "kt": kt,
+                "tieu_de": v.get("tieu_de", ""),
+                "kenh": v.get("kenh", ""),
+                "chu_de_id": ds_chu_de[k_best]["id"]
+            })
+
+    log(f"  tải từng khoảng: {len(ds_khoang_tai)} khoảng từ {len(video_duoc_chon)} video được chọn (3-5 lượt cùng lúc)...")
+    _tt(du_an, buoc="tai_khoang", xong=0, tong=len(ds_khoang_tai))
+    dung_tay.tai_khoang_cuon(du_an, ds_khoang_tai, ten_buoc="tai_khoang", max_cung_luc=TAI_CUNG_LUC,
+                             on_tien_do=lambda x, n: _tt(du_an, buoc="tai_khoang", xong=x, tong=n,
+                                                         pt=round(x * 100 / max(1, n), 1)))
+
+    # 6b. Tự động tải bù ứng viên dự phòng nếu video chính bị lỗi tải (bot chặn, lỗi mạng)
+    kho_hien = dung_tay.doc_kho(du_an)
+    da_tai_vids = {v["id"] for v, _, _, _, _ in video_duoc_chon}
+    ds_du_phong = []
+    for k_cd, cd in enumerate(ds_chu_de):
+        cd_id = cd["id"]
+        cd_dai = float(cd.get("dai") or 60.0)
+        tong_xong = sum(
+            float(m.get("dai") or 0.0) for m in kho_hien.values()
+            if m.get("loai") == "video" and m.get("chu_de") == cd_id and m.get("trang_thai") == "xong"
+        )
+        if tong_xong < cd_dai:
+            ung_con = [x for x in diem_theo_cd.get(cd_id, []) if x[0]["id"] not in da_tai_vids]
+            for v_dp, sc, k_best, t, e, tong in ung_con[:2]:
+                da_tai_vids.add(v_dp["id"])
+                qv = vec_cd[k_best]
+                khoang_tot = dung_tay.chon_khoang_video(t, e, qv, tong, min_dai=20.0, max_dai=40.0, toi_da_khoang=3)
+                for bd, kt, sc in khoang_tot:
+                    ds_du_phong.append({
+                        "vid": v_dp["id"], "bd": bd, "kt": kt,
+                        "tieu_de": v_dp.get("tieu_de", ""), "kenh": v_dp.get("kenh", ""),
+                        "chu_de_id": cd_id
+                    })
+    if ds_du_phong:
+        log(f"  tải dự phòng: {len(ds_du_phong)} khoảng bù cho các chủ đề thiếu footage...")
+        dung_tay.tai_khoang_cuon(du_an, ds_du_phong, ten_buoc="tai_du_phong", max_cung_luc=TAI_CUNG_LUC,
+                                 on_tien_do=lambda x, n: _tt(du_an, buoc="tai_khoang", xong=x, tong=n,
+                                                             pt=round(x * 100 / max(1, n), 1)))
+
+    # 7. Giai đoạn 4: Lọc logo và phụ đề sau khi tải
+    dung_tay.danh_dau_logo(du_an)
+    _tt(du_an, buoc="loc_yt", xong=0, tong=0)
+    try:
+        bo, soat = dung_tay.loc_youtube(du_an, {v["id"]: v.get("kenh") or "" for v in kq.values()})
+        if soat:
+            log(f"  soát video YouTube: bỏ {bo}/{soat} khoảng (logo kênh / phụ đề to)")
+    except Exception as e:
+        log(f"    ! soát logo/phụ đề YouTube lỗi: {str(e)[:120]}")
+
+    # 8. Giai đoạn 5: Lấp hình theo chủ đề
+    _tt(du_an, buoc="goi_y", xong=0, tong=0)
+    if any(m.get("trang_thai") == "xong" for m in dung_tay.doc_kho(du_an).values()):
+        goi_y.goi_y(du_an)
+
+    # 9. Cảnh trống -> ảnh Google bù (Ảnh thật, không dùng ảnh AI vẽ)
+    dung = dung_tay.doc_dung(du_an)
+    yeu = []
+    for c in can:
+        kh = dung.get(str(c["id"]), {})
+        doan = kh.get("doan") or []
+        phu_giay = sum(d["dai"] for d in doan)
+        if not doan or phu_giay < float(c["dai"]) - 0.5:
+            yeu.append(c)
+    loi_anh = None
+    if yeu:
+        for k, c in enumerate(yeu):
+            _tt(du_an, buoc="anh", xong=k, tong=len(yeu))
+            try:
+                _anh_google_canh(du_an, c, ANH_MOI_CANH)
+            except ValueError as e:
+                loi_anh = str(e)
+                log(f"    ! ảnh bù dừng: {loi_anh[:120]}")
+                break
+        _tt(du_an, buoc="goi_y", xong=0, tong=0)
+        dung = dung_tay.doc_dung(du_an)
+        ids = [c["id"] for c in yeu if not (dung.get(str(c["id"]), {}).get("doan") and not dung[str(c["id"])].get("goi_y"))]
+        try:
+            goi_y.goi_y(du_an, ids=ids)
+        except ValueError:
+            pass
+
+    # 10. Tạo bản nháp CapCut
+    nhap = None
+    if ten_nhap:
+        from common import thu_muc_nhap_capcut
+        dd = thu_muc_nhap_capcut()
+        if not dd:
+            raise ValueError("không dò được thư mục CapCut Drafts")
+        _tt(du_an, buoc="nhap", xong=0, tong=0)
+        nhap = {"ten": ten_nhap, "so": dung_tay.tao_nhap(du_an, ten_nhap, dd)}
+
+    dung = dung_tay.doc_dung(du_an)
+    co_hinh = sum(1 for c in canh if dung.get(str(c["id"]), {}).get("doan"))
+    log(f"  tự động theo chủ đề xong sau {(time.time() - t_bd) / 60:.1f} phút: {co_hinh}/{len(canh)} cảnh có hình")
+    return {"co_hinh": co_hinh, "so_canh": len(canh), "anh_bu": len(yeu), "loi_anh": loi_anh, "nhap": nhap,
+            "video": len(video_duoc_chon), "phut": round(tong_giay_chon / 60, 1)}
+
+
+def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False, dung_stock=True, che_do="chu_de"):
+    """chi_chon=True: chỉ tìm + chấm + chọn (không tải, không đổi kế hoạch) — để đo/xem trước.
+    dung_stock=False: bỏ tìm/tải Pexels/Pixabay/Mixkit/Coverr — chỉ video YouTube.
+    che_do='chu_de': tìm nguồn và tải từng khoảng theo chủ đề (Giai đoạn 2); 'canh': tìm theo cảnh cũ."""
+    if che_do == "chu_de":
+        return chay_theo_chu_de(du_an, ngan_sach_phut, ten_nhap, chi_chon, dung_stock)
+
     import dung_tay
     import goi_y
     import nhung_siglip
@@ -163,11 +493,16 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
     dem = [0]
 
     def tim(q):
+        r = []
+        try:                                                 # 15/10 user: Google Videos trước (kết quả sát nội dung hơn)
+            import anh_google
+            r += anh_google.google_video(q, KQ_MOI_TU)
+        except Exception as e:                               # noqa: BLE001
+            log(f"    ! Google Videos '{q[:40]}': {str(e)[:80]}")
         try:
-            r = dung_tay.tim_youtube(q, KQ_MOI_TU)
+            r += dung_tay.tim_youtube(q, KQ_MOI_TU)
         except Exception as e:                               # noqa: BLE001
             log(f"    ! tìm '{q[:40]}': {str(e)[:80]}")
-            r = []
         with _KHOA:
             dem[0] += 1
         _tt(du_an, buoc="tim", xong=dem[0], tong=len(tu))
@@ -178,7 +513,9 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
                 kq.setdefault(v["id"], v)
     kho = dung_tay.doc_kho(du_an)
     co_san = {k[2:] for k, m in kho.items() if m.get("loai") == "video" and m.get("trang_thai") == "xong"}
-    ung = [v for v in kq.values() if VIDEO_MIN <= (v.get("dai") or 0) <= VIDEO_MAX and v["id"] not in co_san]
+    kenh_bo = doc_json(dung_tay.KENH_BO, {}) or {}            # 16/10: kênh từng bị bỏ vì logo / phụ đề to
+    ung = [v for v in kq.values() if VIDEO_MIN <= (v.get("dai") or 0) <= VIDEO_MAX and v["id"] not in co_san
+           and (v.get("kenh") or "") not in kenh_bo]
     log(f"  tự động: {len(tu)} từ khoá → {len(kq)} video, {len(ung)} ứng viên")
 
     # 2. storyboard + chấm với mọi cảnh
@@ -214,11 +551,13 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
         dai_g = sorted(g, key=lambda x: -float(x.get("dai") or 0))
         tu_s += [(c.get("video") or [""])[0] for c in dai_g[:TU_STOCK_MOI_NHOM]]
         tu_s += [((dai_g[0].get("video") or ["", ""]) + [""])[1], (dai_g[0].get("anh") or [""])[0]]
-    tu_s = list(dict.fromkeys(q.strip() for q in tu_s if q and q.strip()))
+    tu_s = list(dict.fromkeys(q.strip() for q in tu_s if q and q.strip())) if dung_stock else []
+    if not dung_stock:
+        log("  kho video free: TẮT (chỉ dùng video YouTube)")
     kq_s = {}
     _tt(du_an, buoc="tim_stock", xong=0, tong=len(tu_s))
     t_tim = time.time()                                      # 15/10 user: 10 tab song song (trước: tuần tự 1 tab)
-    theo_tu = kho_video_free.tim_nhieu(tu_s, bao=lambda x, n: _tt(du_an, buoc="tim_stock", xong=x, tong=n))
+    theo_tu = kho_video_free.tim_nhieu(tu_s, bao=lambda x, n: _tt(du_an, buoc="tim_stock", xong=x, tong=n)) if tu_s else {}
     for q in tu_s:                                           # giữ thứ tự từ khoá như cũ
         for x in theo_tu.get(q) or []:
             kq_s.setdefault(x["id"], x)
@@ -229,13 +568,13 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
     import loc_chu_de                                        # 14/10 user: clip sai con vật / vật chính -> không tải
     _tt(du_an, buoc="loc_chu_de", xong=0, tong=len(ds_s))
     try:
-        sai = loc_chu_de.sai_chu_de(du_an, {x["id"]: x.get("ten") or "" for x in ds_s})
+        sai = loc_chu_de.sai_chu_de(du_an, {x["id"]: x.get("ten") or "" for x in ds_s}) if ds_s else set()
     except Exception as e:                                   # noqa: BLE001
         log(f"    ! lọc sai chủ đề lỗi: {str(e)[:120]}")
         sai = set()
     ds_s = [x for x in ds_s if x["id"] not in sai]
     _tt(du_an, buoc="cham_stock", xong=0, tong=len(ds_s))
-    co, E = xep_hang.nhung_url([x["thumb"] for x in ds_s], bao=lambda x, n: _tt(du_an, xong=x, tong=n))
+    co, E = xep_hang.nhung_url([x["thumb"] for x in ds_s], bao=lambda x, n: _tt(du_an, xong=x, tong=n)) if ds_s else ([], None)
     chon_s = {}
     if co:
         S = E @ Q.T                                          # (clip, cảnh)
@@ -249,12 +588,9 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
                 chon_s[co[i]] = max(chon_s.get(co[i], -1), float(S[i, j]))
     chon_s = sorted(chon_s, key=lambda i: -chon_s[i])[:STOCK_TOI_DA]
     log(f"  stock sạch: {len(tu_s)} từ khoá → {len(ds_s)} clip, chọn tải {len(chon_s)}")
-    if chon_s and not chi_chon:
-        kids_s = []
-        for b in range(0, len(chon_s), 3):                   # 3 file một lúc (Pixabay chặn 429 khi tải dồn)
-            kids_s += [dung_tay.tai_file(du_an, ds_s[i]["id"], ds_s[i]["file"], ds_s[i]["ten"], ds_s[i]["nguon"],
-                                     ds_s[i].get("ghi_nguon", "")) for i in chon_s[b:b + 3]]
-            _cho_tai(du_an, kids_s, "tai_stock")
+    if chon_s and not chi_chon:                              # 15/10 user: tải CUỐN 5 clip, xong cái nào vào cái kế ngay
+        _tai_cuon(du_an, [(ds_s[i]["nguon"], (lambda x=ds_s[i]: dung_tay.tai_file(
+            du_an, x["id"], x["file"], x["ten"], x["nguon"], x.get("ghi_nguon", "")))) for i in chon_s], "tai_stock")
     kho = dung_tay.doc_kho(du_an)
 
     # 3. chọn theo ngân sách (video sẵn trong kho: tính vào ngân sách và điểm nền)
@@ -262,7 +598,8 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
     da_dung, cur = 0.0, np.full(len(can), -1.0)
     import loc_minh_hoa
     for k, m in kho.items():
-        if m.get("loai") == "video" and m.get("trang_thai") == "xong" and os.path.isfile(m.get("file", "")):
+        if m.get("loai") == "video" and m.get("trang_thai") == "xong" and os.path.isfile(m.get("file", "")) \
+                and not m.get("bo_yt"):                      # 16/10: video YouTube đã bỏ (logo/phụ đề) không tính
             try:
                 t, e = nhung_siglip.chi_muc_video("tay_" + k, m["file"])
             except Exception:                                # noqa: BLE001
@@ -291,6 +628,13 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
         _cho_tai(du_an, kids, "tai")
 
     dung_tay.danh_dau_logo(du_an)                            # YouTube có logo góc -> phóng to giấu logo khi dựng
+    _tt(du_an, buoc="loc_yt", xong=0, tong=0)                # 16/10 user: bỏ hẳn video có logo kênh / phụ đề to
+    try:
+        bo, soat = dung_tay.loc_youtube(du_an, {k: v.get("kenh") or "" for k, v in kq.items()})
+        if soat:
+            log(f"  soát video YouTube: bỏ {bo}/{soat} (logo kênh / phụ đề to)")
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! soát logo/phụ đề YouTube lỗi: {str(e)[:120]}")
 
     # 4b. ảnh THẬT của từng địa danh (cảnh loai=dia_diem): Google Images "<nơi> landscape" / "aerial view"
     dds = list(dict.fromkeys(c["dia_danh_en"] for c in can if c.get("loai") == "dia_diem" and c.get("dia_danh_en")))
@@ -364,46 +708,15 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
     lay_cua = {}
     for k, c in enumerate(yeu):
         _tt(du_an, buoc="anh", xong=k, tong=len(yeu))
-        q = ((c.get("anh") or []) + (c.get("video") or []))[:1]
-        if not q:
-            continue
         try:
-            ds = dung_tay.tim_anh(q[0], 30)
+            lay = len(_anh_google_canh(du_an, c, ANH_MOI_CANH))
         except ValueError as e:                              # captcha không giải / Google lỗi: dừng phần ảnh
             loi_anh = str(e)
             log(f"    ! ảnh bù dừng: {loi_anh[:120]}")
             break
-        if not ds:
-            continue
-        d, chu_thumb = xep_hang.diem_anh([a["thumb"] or a["url"] for a in ds], xep_hang.vec_canh(c), chu=True)
-        xep = sorted((i for i in range(len(ds)) if chu_thumb[i] is False),    # ảnh thu nhỏ đã thấy chữ: khỏi tải
-                     key=lambda i: -(d[i] + (0.02 if min(ds[i].get("rong", 0), ds[i].get("cao", 0)) >= 700 else 0)))
-        lay = thu = 0
-        for i in xep:
-            if d[i] < xep_hang.NGUONG_THAP or lay >= ANH_MOI_CANH or thu >= 15:
-                break
-            if ds[i].get("rong") and ds[i].get("cao") and ds[i]["rong"] < 1.2 * ds[i]["cao"]:
-                continue                                     # 14/10 user: ảnh dọc / vuông -> khỏi tải
-            thu += 1
-            try:
-                kid = dung_tay.tai_anh(du_an, ds[i]["url"], ds[i].get("tieu_de", ""))
-            except Exception:                                # noqa: BLE001  (trang chặn tải ảnh gốc: lấy ảnh kế)
-                continue
-            try:
-                import loc_chu
-                import loc_minh_hoa
-                f_anh = dung_tay.doc_kho(du_an)[kid]["file"]
-                if loc_chu.co_chu_anh(f_anh) or loc_minh_hoa.la_hoat_hinh_anh(f_anh):
-                    continue                                 # ảnh có chữ / hoạt hình: không tính, lấy ảnh kế
-            except Exception:                                # noqa: BLE001
-                pass
-            import goi_y as _gy
-            if not _gy._ngang(dung_tay.doc_kho(du_an)[kid]):  # noqa: SLF001  ảnh tải về là ảnh dọc: không tính
-                continue
-            lay += 1
         lay_cua[c["id"]] = lay
     # 6c. 14/10 user: cảnh cần ảnh bù mà không tìm được ảnh NGANG hợp -> Gemini vẽ một ảnh chụp ngang 16:9
-    ve_bu = [c for c in yeu if not lay_cua.get(c["id"])]
+    ve_bu = [c for c in yeu if not lay_cua.get(c["id"])] if VE_AI_BU else []
     for k, c in enumerate(ve_bu):
         _tt(du_an, buoc="anh_ve", xong=k, tong=len(ve_bu))
         if not _ve_anh_ngang(du_an, c):
@@ -422,7 +735,36 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
     thieu = {int(k): int(v) for k, v in (doc_json(os.path.join(out, "thieu_hinh.json"), {}) or {}).items() if v}
     theo_id = {c["id"]: c for c in can}
     viec = [(theo_id[i], k) for i, n in sorted(thieu.items()) if i in theo_id for k in range(n)][:GEMINI_BU_TOI_DA]
-    if viec:
+    if viec and not loi_anh:                                 # 15/10 user: ưu tiên ẢNH THẬT Google, Gemini chỉ vẽ phần còn thiếu
+        can_anh = {}
+        for c, _ in viec:
+            can_anh[c["id"]] = can_anh.get(c["id"], 0) + 1
+        con = {}
+        for k, (i, n) in enumerate(can_anh.items()):
+            _tt(du_an, buoc="anh", xong=k, tong=len(can_anh))
+            try:
+                lay = len(_anh_google_canh(du_an, theo_id[i], n, rieng=True))
+            except ValueError as e:                          # captcha không giải / Google lỗi: phần còn lại để Gemini vẽ
+                log(f"    ! ảnh Google bù dừng: {str(e)[:120]}")
+                break
+            con[i] = n - lay
+        da_lay = sum(n - con.get(i, n) for i, n in can_anh.items())
+        if da_lay:
+            log(f"  ảnh thật Google lấp {da_lay}/{len(viec)} chỗ hết video mới")
+        dem_c = {}
+        viec2 = []
+        for c, k in viec:
+            dem_c[c["id"]] = dem_c.get(c["id"], 0) + 1
+            if dem_c[c["id"]] <= con.get(c["id"], can_anh[c["id"]]):
+                viec2.append((c, k))
+        if da_lay and len(viec2) < len(viec):
+            _tt(du_an, buoc="goi_y", xong=0, tong=0)
+            try:
+                goi_y.goi_y(du_an, ids=sorted({c["id"] for c, _ in viec if con.get(c["id"], 1) < can_anh[c["id"]]}))
+            except ValueError:
+                pass
+        viec = viec2
+    if viec and VE_AI_BU:
         log(f"  {len(viec)} chỗ hết video mới -> Gemini vẽ ảnh ngang bù ({len({c['id'] for c, _ in viec})} cảnh)")
         dem_v = [0]
 
@@ -465,6 +807,52 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False):
     log(f"  tự động xong sau {(time.time() - t_bd) / 60:.1f} phút: {co_hinh}/{len(canh)} cảnh có hình")
     return {"co_hinh": co_hinh, "so_canh": len(canh), "anh_bu": len(yeu), "loi_anh": loi_anh, "nhap": nhap,
             "video": len(chon), "phut": round(tong_giay / 60, 1)}
+
+
+def _anh_google_canh(du_an, c, toi_da, rieng=False):
+    """Ảnh THẬT Google Images cho cảnh c: tải tối đa `toi_da` ảnh NGANG, không chữ, không hoạt hình -> [id kho].
+    rieng=True (chỗ hết video mới): chỉ lấy ảnh CHƯA có trong kho và gắn cho_canh (goi_y dùng ảnh đó ở đúng cảnh này).
+    Ném ValueError khi Google hỏi captcha mà không giải / lỗi."""
+    import dung_tay
+    import goi_y as _gy
+    import xep_hang
+    q = ((c.get("anh") or []) + (c.get("video") or []))[:1]
+    if not q:
+        return []
+    ds = dung_tay.tim_anh(q[0], 30)
+    if not ds:
+        return []
+    d, chu_thumb = xep_hang.diem_anh([a["thumb"] or a["url"] for a in ds], xep_hang.vec_canh(c), chu=True)
+    xep = sorted((i for i in range(len(ds)) if chu_thumb[i] is False),    # ảnh thu nhỏ đã thấy chữ: khỏi tải
+                 key=lambda i: -(d[i] + (0.02 if min(ds[i].get("rong", 0), ds[i].get("cao", 0)) >= 700 else 0)))
+    ra, thu = [], 0
+    for i in xep:
+        if d[i] < xep_hang.NGUONG_THAP or len(ra) >= toi_da or thu >= 15:
+            break
+        if ds[i].get("rong") and ds[i].get("cao") and ds[i]["rong"] < 1.2 * ds[i]["cao"]:
+            continue                                         # 14/10 user: ảnh dọc / vuông -> khỏi tải
+        thu += 1
+        truoc = set(dung_tay.doc_kho(du_an)) if rieng else set()
+        try:
+            kid = dung_tay.tai_anh(du_an, ds[i]["url"], ds[i].get("tieu_de", ""))
+        except Exception:                                    # noqa: BLE001  (trang chặn tải ảnh gốc: lấy ảnh kế)
+            continue
+        if rieng and kid in truoc:                           # ảnh đã có trong kho (đang dùng chỗ khác): lấy ảnh kế
+            continue
+        try:
+            import loc_chu
+            import loc_minh_hoa
+            f_anh = dung_tay.doc_kho(du_an)[kid]["file"]
+            if loc_chu.co_chu_anh(f_anh) or loc_minh_hoa.la_hoat_hinh_anh(f_anh):
+                continue                                     # ảnh có chữ / hoạt hình: không tính, lấy ảnh kế
+        except Exception:                                    # noqa: BLE001
+            pass
+        if not _gy._ngang(dung_tay.doc_kho(du_an)[kid]):     # noqa: SLF001  ảnh tải về là ảnh dọc: không tính
+            continue
+        if rieng:
+            dung_tay._cap_nhat_kho(du_an, kid, cho_canh=c["id"])   # noqa: SLF001
+        ra.append(kid)
+    return ra
 
 
 def _ve_anh_ngang(du_an, c, bien_the=0):
@@ -541,16 +929,17 @@ def _viet_lai_canh(canh, ly_do):
     return t if 15 <= len(t) <= 800 else ""
 
 
-def chay_nen(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, sau=None):
-    """sau: hàm gọi khi chạy XONG không lỗi (13/10 user: tự chạy tiếp ✨ Hoàn thiện — một mạch tới bản cuối)."""
+def chay_nen(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, sau=None, dung_stock=True, che_do="chu_de"):
+    """sau: hàm gọi khi chạy XONG không lỗi (13/10 user: tự chạy tiếp ✨ Hoàn thiện — một mạch tới bản cuối).
+    che_do='chu_de': tìm theo chủ đề (Giai đoạn 2); 'canh': tìm theo cảnh cũ."""
     with _KHOA:
         if TT.get(du_an, {}).get("dang"):
             raise ValueError("đang chạy tự động — chờ xong")
-        TT[du_an] = {"dang": True, "buoc": "bat_dau", "luc": time.time()}
+        TT[du_an] = {"dang": True, "buoc": "bat_dau", "luc": time.time(), "che_do": che_do}
 
     def ch():
         try:
-            kq = chay(du_an, ngan_sach_phut, ten_nhap)
+            kq = chay(du_an, ngan_sach_phut, ten_nhap, dung_stock=dung_stock, che_do=che_do)
             ht = ""
             if sau:
                 try:
@@ -563,3 +952,4 @@ def chay_nen(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, sau=None):
             log(f"  ! tự động lỗi: {e}")
             _tt(du_an, dang=False, loi=str(e)[:300], luc_xong=time.time())
     threading.Thread(target=ch, daemon=True).start()
+
