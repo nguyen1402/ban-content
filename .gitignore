@@ -1,6 +1,7 @@
 cache/
 ra/
-tools/
+tools/*
+!tools/gwt/
 keyapi.txt
 __pycache__/
 *.pyc

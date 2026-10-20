@@ -186,6 +186,87 @@ def doc_omni(canh, ref=OMNI_REF, batch=16, num_step=32, toc_do=1.0):
     return canh
 
 
+def _vua_do_dai(wav, dai_cu):
+    """Kéo giãn / nén (giữ cao độ) file giọng cho vừa đúng độ dài cũ -> mốc giờ cả bài không đổi. Lệch quá 35% thì để nguyên."""
+    import subprocess
+    from common import FFMPEG
+    dai_moi = thoi_luong(wav)
+    if not dai_moi or not dai_cu or abs(dai_moi - dai_cu) < 0.03:
+        return False
+    r = dai_moi / dai_cu
+    if not 0.65 <= r <= 1.35:
+        log(f"    ! {os.path.basename(wav)}: bản đọc lại dài {dai_moi:.2f}s, câu cũ {dai_cu:.2f}s — lệch quá nhiều, giữ nguyên")
+        return False
+    tam = wav[:-4] + "._vua.wav"
+    p = subprocess.run([FFMPEG, "-v", "error", "-y", "-i", wav, "-af", f"atempo={r:.5f}", "-c:a", "pcm_s16le", tam],
+                       capture_output=True, creationflags=0x08000000 if os.name == "nt" else 0)
+    if p.returncode != 0 or not os.path.isfile(tam):
+        return False
+    os.replace(tam, wav)
+    return True
+
+
+def sua_cau_sai(du_an, bao=None):
+    """19/10 user: nút "Sửa câu đọc sai" — soát lại mọi câu đã đọc (soat_giong: nuốt / méo / sai âm / ngắt sai), câu sai
+    đọc lại (giữ bản ít lỗi nhất), GIỮ ĐÚNG ĐỘ DÀI câu cũ (atempo) rồi ghép lại ra/<dự án>/giong_doc.wav TẠI CHỖ ->
+    mốc giờ không đổi, các bản nháp đang dùng file giọng này nhận luôn (mở lại bản nháp). Trả {thay, con_loi, loi}."""
+    import json
+    import shutil
+    import ghep
+    import soat_giong
+    from common import doc_json, thu_muc_du_an
+    bao = bao or (lambda m: log(m))
+    cache, out = thu_muc_du_an(du_an)
+    lc = doc_json(os.path.join(out, "lan_chay.json"), {}) or {}
+    ref = lc.get("giong") or OMNI_REF
+    toc_do, num_step = float(lc.get("toc_do") or 1.0), int(lc.get("num_step") or 32)
+    nhan = nhan_giong(ref, toc_do, num_step)
+    thu_muc = os.path.join(cache, "giong_omni", nhan) if nhan else os.path.join(cache, "giong_omni")
+    canh = [dict(c) for c in doc_json(os.path.join(out, "tu_khoa.json"), []) or [] if c.get("text")]
+    if not canh or not os.path.isdir(thu_muc):
+        raise ValueError("dự án chưa có giọng đọc (chạy bước đọc giọng trước)")
+    if not os.path.isfile(ref):
+        raise ValueError(f"không thấy clip mẫu giọng {ref} — không đọc lại được")
+    truoc = {}
+    for c in canh:
+        f = os.path.join(thu_muc, f"{c['id']:04d}.wav")
+        if os.path.isfile(f):
+            st = os.stat(f)
+            truoc[c["id"]] = (st.st_size, st.st_mtime, thoi_luong(f))
+    bao(f"Soát {len(truoc)} câu đã đọc…")
+    tts_py = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tts", "omnivoice_tts.py")
+
+    def doc_lai(jobs_json, out_dir, seed):
+        n = len(json.load(open(jobs_json, encoding="utf-8")))
+        bao(f"Đọc lại {n} câu sai (seed {seed})…")
+        return _chay_hien_log([OMNI_PY, tts_py, "--jobs-json", jobs_json, "--out-dir", out_dir, "--ref", ref,
+                               "--batch", "16", "--num-step", str(num_step), "--rate", str(toc_do),
+                               "--name-fmt", "{:04d}.wav", "--seed", str(seed)], n)[0]
+    soat_giong.soat_va_doc_lai(canh, thu_muc, doc_lai)
+    doi = []
+    for c in canh:
+        f = os.path.join(thu_muc, f"{c['id']:04d}.wav")
+        if c["id"] in truoc and os.path.isfile(f):
+            st = os.stat(f)
+            if (st.st_size, st.st_mtime) != truoc[c["id"]][:2]:
+                _vua_do_dai(f, truoc[c["id"]][2])
+                doi.append(c["id"])
+        c["giong"] = f
+    da = doc_json(os.path.join(thu_muc, "_soat.json"), {}) or {}
+    loi = {int(k): v.get("loi") for k, v in da.items() if v.get("loi")}
+    if doi:
+        wav = os.path.join(out, "giong_doc.wav")
+        bk = os.path.join(out, "giong_doc.truoc_sua.wav")
+        if os.path.isfile(wav) and not os.path.isfile(bk):
+            shutil.copyfile(wav, bk)
+        ghep.noi_giong(canh, wav)
+        _ghi_dau(canh, thu_muc)
+        bao(f"Đã thay {len(doi)} câu và ghép lại giong_doc.wav (giữ nguyên mốc giờ)")
+    else:
+        bao("Không câu nào được thay")
+    return {"thay": doi, "con_loi": sorted(loi), "loi": {k: [x[1] for x in v][:3] for k, v in loi.items()}}
+
+
 def doc_tat_ca(canh, giong=GIONG, resource_id=RESOURCE_ID, toc_do="1.0", luong=5):
     import capcut_tts_core as T
     eng = T.TTSEngine(T.base_device_from(None), voice=giong, resource_id=resource_id,

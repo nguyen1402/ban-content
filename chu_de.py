@@ -7,7 +7,7 @@ Trả về danh sách chủ đề:
   - ten: tên ngắn tiếng Việt
   - canh_tu, canh_den: ranh giới cảnh (liền mạch, không chồng lấn, phủ hết mọi cảnh)
   - mo_ta_en: mô tả hình ảnh bằng tiếng Anh
-  - tu_khoa_en: 4-6 từ khoá tiếng Anh tìm video
+  - tu_khoa_en: 5-6 từ khoá tiếng Anh tìm video trên YouTube — hình ảnh CHUNG (vật + hành động / bối cảnh), không tên riêng
   - tranh: những thứ không được hiện
 Ràng buộc: mỗi chủ đề dài 30s - 2 phút, phủ hết mọi cảnh.
 Tự kiểm tra:
@@ -33,7 +33,7 @@ def _hash_kich_ban(canh):
     """Hash ngắn gọn biểu diễn nội dung và thời lượng toàn bộ kịch bản."""
     raw = "|".join(f"{c['id']}:{c.get('bat_dau', 0):.2f}:{c.get('dai', 0):.2f}:{str(c.get('text', '')).strip()}"
                   for c in canh)
-    return hashlib.md5(raw.encode("utf-8")).hexdigest()[:16]
+    return hashlib.md5(("nd3|" + raw).encode("utf-8")).hexdigest()[:16]   # nd2: chia theo NỘI DUNG (18/10)
 
 
 def _danh_sach_canh_text(canh):
@@ -56,45 +56,94 @@ def _tao_prompt(canh_lot, canh_dau_id, canh_cuoi_id, tong_giay, loi_truoc=""):
     if loi_truoc:
         nhac_loi = f"\nLƯU Ý LỖI Ở LƯỢT TRƯỚC: {loi_truoc}\nHãy sửa lại để đảm bảo không lặp lại lỗi trên!\n"
 
-    return f"""Bạn là một chuyên gia biên kịch và đạo diễn hình ảnh cho video tư liệu đỉnh cao.
-Nhiệm vụ của bạn là phân tích toàn bộ kịch bản được đánh số theo cảnh dưới đây thành các CHỦ ĐỀ (mỗi chủ đề là một phân đoạn nội dung liền mạch).
+    return f"""Bạn dựng hình cho video tư liệu: footage thật (video quay ngoài đời) chạy suốt theo lời đọc.
+Hãy chia kịch bản dưới đây thành các ĐOẠN NỘI DUNG liền nhau. Mỗi đoạn là một khối lời kể xoay quanh MỘT ĐỐI TƯỢNG NHÌN
+THẤY ĐƯỢC; đổi đối tượng chính thì sang đoạn mới. KHÔNG có giới hạn thời lượng: đoạn dài hay ngắn tuỳ nội dung.
 {nhac_loi}
-KỊCH BẢN (gồm các cảnh từ {canh_dau_id} đến {canh_cuoi_id}, tổng thời lượng ~{tong_giay:.1f} giây):
+KỊCH BẢN (cảnh {canh_dau_id} đến {canh_cuoi_id}, ~{tong_giay:.0f} giây):
 {ds_text}
 
-RÀNG BUỘC BẮT BUỘC:
-1. PHỦ TOÀN BỘ CÁC CẢNH: Bắt đầu từ cảnh {canh_dau_id} đến cảnh {canh_cuoi_id}. Các chủ đề phải nối tiếp nhau LIỀN MẠCH, KHÔNG CHỒNG LẤN, KHÔNG BỎ SÓT CẢNH NÀO (ví dụ chủ đề 1 từ {canh_dau_id} đến 5, chủ đề 2 từ 6 đến 12...).
-2. THỜI LƯỢNG MỖI CHỦ ĐỀ: khoảng 30 giây đến 2 phút (tính theo tổng số giây các cảnh thuộc chủ đề đó).
-3. ĐẦU RA LÀ JSON ARRAY, mỗi phần tử có đúng các trường sau:
-- "ten": Tên ngắn gọn bằng tiếng Việt mô tả nội dung chủ đề (để người dựng đọc).
-- "canh_tu": Số nguyên, id cảnh bắt đầu của chủ đề.
-- "canh_den": Số nguyên, id cảnh kết thúc của chủ đề (canh_tu <= canh_den).
-- "phan_loai": Phân loại bản chất nội dung của chủ đề này (chọn đúng 1 trong các loại sau):
-    * "mo_ta_ai_slow": Đoạn miêu tả diễn biến kịch tính, sự kiện, câu chuyện thực tế (CẦN TẠO CHUỖI ẢNH AI SLOW từng bước nối tiếp).
-    * "tu_lieu_lich_su": Đoạn mốc thời gian, tài liệu lịch sử trong quá khứ (cần thẻ mốc thời gian tinh gọn / ảnh tư liệu).
-    * "mo_phong_so_lieu": Đoạn số liệu quy mô, so sánh hai mặt, cơ chế (cần Biểu đồ cột Remotion).
-    * "dia_danh_ban_do": Đoạn nhắc địa danh, vị trí địa lý, lan rộng (cần Bản đồ Remotion xuất hiện sớm).
-    * "broll_tu_nhien": Đoạn phong cảnh, thiên nhiên, đời sống thông thường.
-- "can_ai_slow": boolean (true nếu đoạn này có cảnh cần mô tả ảnh AI slow bám theo từng vế lời kể).
-- "mo_ta_ai_slow": Ghi chú ngắn tiếng Việt về chuỗi hình ảnh AI slow nối tiếp cần thực hiện (ví dụ: "Cảnh xe bồn chở cá -> Cận cảnh bầy cá săn mồi -> Xe đổ cá xuống hồ"). Nếu không cần thì để "".
-- "mo_ta_en": Đoạn mô tả hình ảnh bằng tiếng Anh (visual description) về những gì nên xuất hiện trong chủ đề này (dùng để chấm điểm hình ảnh).
-- "tu_khoa_en": Danh sách 4-6 từ khoá tìm kiếm video trên YouTube bằng tiếng Anh, CHUYÊN DÙNG ĐỂ TÌM FOOTAGE B-ROLL / CINEMATIC / TÀI LIỆU SẠCH ĐẸP (ví dụ: ["flaco owl central park b-roll 4k", "eurasian eagle owl flying cinematic", "central park trees raw footage", "owl perched branch close up 4k"]). Tuyệt đối KHÔNG tạo từ khoá dính vlog, review, reaction, podcast hay người ngồi nói chuyện.
-- "tranh": Những thứ KHÔNG ĐƯỢC xuất hiện trong hình ảnh của chủ đề này (ví dụ: "cá mập khi đang nói về cá chép; xe hơi hiện đại khi nói về thế kỷ 18").
+MỖI ĐOẠN có các trường:
+- "ten": tên ngắn tiếng Việt; GIỮ NGUYÊN tên riêng (người, con vật có tên như "Curry", "Rice", địa danh) — không dịch.
+- "canh_tu", "canh_den": số nguyên — đoạn chạy từ cảnh nào tới cảnh nào. Các đoạn nối tiếp LIỀN MẠCH, không chồng, không
+  sót cảnh ({canh_dau_id} -> {canh_cuoi_id}).
+- "loai": "ke" nếu PHẦN LỚN câu của đoạn KỂ / TẢ sự vật, sự việc, diễn biến, con vật, nơi chốn cụ thể — kể cả khi đoạn
+  mở bằng / xen MỘT câu hỏi, câu "thử tưởng tượng", câu bình luận. "binh_luan" CHỈ khi gần như TOÀN BỘ đoạn là ý kiến,
+  câu hỏi, chuyển ý, tóm tắt, kêu gọi đăng ký / bình luận, bài học (không tả sự vật cụ thể nào mới). Đoạn kể về báo chí
+  đưa tin, dư luận, quan chức ra quyết định, họp hành, công bố nghiên cứu cũng là "binh_luan" (hình phải lấy từ đối tượng
+  của câu chuyện mà các tin / quyết định đó nói tới — không quay báo, giấy tờ, phòng họp).
+- "doi_tuong": (bắt buộc với "ke") THỨ NGƯỜI XEM PHẢI THẤY TRÊN HÌNH — con vật / người / nơi chốn / vật thể cụ thể + bối
+  cảnh (ví dụ "đàn dê hoang trên sườn đồi đá của đảo nhiệt đới", "hai con dingo trên bãi biển"). CẤM dùng khái niệm
+  trừu tượng hay thể loại: tin tức, dư luận, bài học, kết luận, ý kiến, tranh cãi, câu hỏi, chính sách, kế hoạch, sự kiện.
+- "bang_chung": (bắt buộc với "ke") 3-12 chữ COPY NGUYÊN VĂN từ lời kể của đoạn cho thấy đối tượng đó.
+- "ke_thua_canh": (bắt buộc với "binh_luan") số id MỘT CẢNH thuộc đoạn "ke" mà đoạn bình luận này đang bàn tới (thường là
+  đoạn kể ngay trước; câu kêu gọi đăng ký / chuyển ý thì lấy đoạn kể ngay trước). Đoạn bình luận KHÔNG tự đặt đối tượng:
+  nó dùng hình của đoạn kể đó.
+- "mo_ta_en": (với "ke") một câu TIẾNG ANH tả khung hình của đối tượng (dùng để chấm hình).
+- "tu_khoa_en": (với "ke") ĐỦ 5-6 từ khoá (không ít hơn 5) TIẾNG ANH tìm video YouTube về đúng đối tượng, ngắn 2-5 từ: vật / con vật / người +
+  hành động hoặc bối cảnh (ví dụ "feral goats on rocky hillside", "dingo walking on beach"). Không tên riêng người, không
+  tên sự kiện, không chữ cinematic / b-roll / 4k / footage / animation.
+- "tranh": những thứ KHÔNG được hiện (ví dụ "cá mập khi đang nói về cá chép").
 
-Chỉ trả về JSON array hợp lệ, không có markdown phụ hay lời dẫn:
+Chỉ trả về JSON array hợp lệ, không markdown, không lời dẫn:
 [
-  {{
-    "ten": "...",
-    "canh_tu": {canh_dau_id},
-    "canh_den": ...,
-    "phan_loai": "mo_ta_ai_slow",
-    "can_ai_slow": true,
-    "mo_ta_ai_slow": "Xe bồn chở cá -> Cận cảnh cá trong bồn -> Xe đổ cá xuống hồ",
-    "mo_ta_en": "...",
-    "tu_khoa_en": ["...", "...", "...", "..."],
-    "tranh": "..."
-  }}
+  {{"ten": "...", "canh_tu": {canh_dau_id}, "canh_den": 0, "loai": "ke", "doi_tuong": "...", "bang_chung": "...",
+    "mo_ta_en": "...", "tu_khoa_en": ["...", "..."], "tranh": "..."}},
+  {{"ten": "...", "canh_tu": 0, "canh_den": 0, "loai": "binh_luan", "ke_thua_canh": 0}}
 ]"""
+
+
+# 18/10: chữ làm YouTube trả video flycam du lịch / quảng cáo thay vì đúng đối tượng — AI có lỡ viết thì gỡ ra
+_CHU_CAM = re.compile(r"\b(cinematic|b-?roll|4k|uhd|8k|hdr|footage|stock|mockup|animation|visualization|archive|raw)\b", re.I)
+
+
+def _bo_chu_cam(q):
+    return re.sub(r"\s+", " ", _CHU_CAM.sub(" ", str(q))).strip()
+
+
+_TRUU_TUONG = re.compile(r"tin tức|dư luận|bài học|kết luận|ý kiến|tranh cãi|câu hỏi|chính sách|kế hoạch|sự kiện|"
+                         r"thông tin|vấn đề|nghịch lý|phân tích|bình luận|quan điểm|tổng kết|lời kêu gọi|"
+                         # 18/10 đo cho_digo: "quan chức họp bàn và báo chí đưa tin", "tài liệu nghiên cứu trên bàn" lọt lưới
+                         r"báo chí|bài báo|tờ báo|quan chức|chính quyền|họp|hội nghị|tài liệu|giấy tờ|văn bản|hồ sơ|"
+                         r"bàn làm việc|văn phòng|máy tính|màn hình|biểu đồ|số liệu|dữ liệu|nghiên cứu khoa học", re.I)
+_TRUU_TUONG_EN = re.compile(r"\b(newspaper|news|headline|article|document|paper|desk|office|meeting|press conference|"
+                            r"official|politician|government|computer|screen|chart|graph|data|report|study)s?\b", re.I)
+
+
+BINH_LUAN_DAI = 60.0        # đoạn bình luận dài hơn bấy nhiêu giây thừa kế nhiều đoạn kể (luân phiên hình)
+_HU = set(("những trong không người được nhưng chúng cũng chính trước thành nhiều khoảng trên dưới quanh giữa cùng "
+            "hai ba một các của với và đã đang sẽ là có này đó hình như khi rồi lại vào ra lên xuống bên cạnh nơi "
+            "hòn con cái chiếc").split())   # chữ hư / chữ quá chung
+
+
+def _chuan(t):
+    return re.sub(r"[^\w]+", " ", str(t or "").lower()).strip()
+
+
+def _kiem_noi_dung(sach, canh_dict):
+    """18/10 user: 'đoạn bình luận mà AI nói nội dung chính là tin tức thì sai bét' -> lý do lỗi ('' = đạt)."""
+    loi = []
+    for it in sach:
+        if it["loai"] == "binh_luan":
+            if it.get("ke_thua_canh") is None:
+                loi.append(f"đoạn bình luận '{it['ten']}' thiếu ke_thua_canh")
+            continue
+        dt = it.get("doi_tuong") or ""
+        if not dt:
+            loi.append(f"đoạn kể '{it['ten']}' thiếu doi_tuong")
+        elif _TRUU_TUONG.search(dt):
+            loi.append(f"doi_tuong '{dt}' là khái niệm trừu tượng / giấy tờ / họp hành, phải là thứ của CÂU CHUYỆN nhìn "
+                       f"thấy được (con vật, nơi chốn, sự vật) — đoạn chỉ có tin tức / quyết định / nghiên cứu thì là binh_luan")
+        elif _TRUU_TUONG_EN.search(it.get("mo_ta_en") or "") or any(_TRUU_TUONG_EN.search(k) for k in it.get("tu_khoa_en") or []):
+            loi.append(f"đoạn '{it['ten']}': mo_ta_en / tu_khoa_en tả báo chí, giấy tờ, họp, màn hình — phải là đối tượng của câu chuyện")
+        if len(it.get("tu_khoa_en") or []) < 4:
+            loi.append(f"đoạn '{it['ten']}' chỉ có {len(it.get('tu_khoa_en') or [])} từ khoá, cần 5-6")
+        loi_doan = _chuan(" ".join(str(canh_dict.get(c, {}).get("text") or "") for c in range(it["canh_tu"], it["canh_den"] + 1)))
+        bc = _chuan(it.get("bang_chung"))
+        chu_bc = bc.split()
+        if not bc or (bc not in loi_doan and sum(w in loi_doan.split() for w in chu_bc) < 0.7 * len(chu_bc)):
+            loi.append(f"bang_chung '{it.get('bang_chung')}' không có nguyên văn trong lời kể của đoạn '{it['ten']}'")
+    return "; ".join(loi[:6])
 
 
 def _kiem_tra_ket_qua(raw_items, canh_dau_id, canh_cuoi_id):
@@ -125,15 +174,24 @@ def _kiem_tra_ket_qua(raw_items, canh_dau_id, canh_cuoi_id):
             tk = [str(s).strip() for s in tk if str(s).strip()]
         else:
             tk = []
+        tk = [x for x in (_bo_chu_cam(x) for x in tk) if x]
 
         pl = str(it.get("phan_loai") or "broll_tu_nhien").strip()
         can_ai = bool(it.get("can_ai_slow") or pl == "mo_ta_ai_slow")
         mo_ta_ai = str(it.get("mo_ta_ai_slow") or "").strip()
 
+        try:
+            ktc = int(it.get("ke_thua_canh")) if it.get("ke_thua_canh") is not None else None
+        except (TypeError, ValueError):
+            ktc = None
         sach.append({
             "ten": str(it.get("ten") or f"Chủ đề {idx + 1}").strip(),
             "canh_tu": ctu,
             "canh_den": cden,
+            "loai": "binh_luan" if str(it.get("loai") or "").strip() == "binh_luan" else "ke",
+            "doi_tuong": str(it.get("doi_tuong") or "").strip(),
+            "bang_chung": str(it.get("bang_chung") or "").strip(),
+            "ke_thua_canh": ktc,
             "phan_loai": pl,
             "can_ai_slow": can_ai,
             "mo_ta_ai_slow": mo_ta_ai,
@@ -181,6 +239,7 @@ def _tu_chuan_hoa_ranh_gioi(ds, canh_dau_id, canh_cuoi_id):
         if i == len(ds) - 1:
             it_den = canh_cuoi_id
         ket_qua.append({
+            **it,                                            # 18/10: giữ loai / doi_tuong / bang_chung / ke_thua_canh
             "ten": it["ten"],
             "canh_tu": cur_tu,
             "canh_den": it_den,
@@ -314,6 +373,10 @@ def _gop_va_cat_chu_de(ds, canh_dict, canh_dau_id, canh_cuoi_id):
 
 
 def _hoi_mot_luot(canh_lot, canh_dau_id, canh_cuoi_id):
+    return _hoi_mot_luot_nd(canh_lot, canh_dau_id, canh_cuoi_id)
+
+
+def _hoi_mot_luot_cu(canh_lot, canh_dau_id, canh_cuoi_id):
     """Gửi một lượt kịch bản tới Gemini (fallback ChatGPT nếu lỗi).
 
     Kiểm tra và hỏi lại một lần nếu kết quả không hợp lệ.
@@ -341,12 +404,156 @@ def _hoi_mot_luot(canh_lot, canh_dau_id, canh_cuoi_id):
     return ds_sach
 
 
+def _hoi_mot_luot_nd(canh_lot, canh_dau_id, canh_cuoi_id):
+    """Như _hoi_mot_luot_cu nhưng kiểm thêm NỘI DUNG (đối tượng nhìn thấy, bằng chứng nguyên văn, thừa kế) — sai thì hỏi
+    lại tối đa 2 lượt kèm lý do; vẫn sai ở vài đoạn thì đoạn đó đổi thành "binh_luan" thừa kế đoạn kể gần nhất."""
+    canh_dict = {c["id"]: c for c in canh_lot}
+    tong_giay = sum(float(c.get("dai") or 0.0) for c in canh_lot)
+    loi_truoc, ds_sach = "", []
+    for lan in range(3):
+        log(f"  [chu_de] Hỏi AI chia đoạn nội dung cảnh {canh_dau_id} → {canh_cuoi_id}" + (f" (lượt {lan + 1})" if lan else "") + "...")
+        parsed = rut_json(hoi_llm(_tao_prompt(canh_lot, canh_dau_id, canh_cuoi_id, tong_giay, loi_truoc=loi_truoc), timeout=300))
+        hop_le, ds, ly_do = _kiem_tra_ket_qua(parsed, canh_dau_id, canh_cuoi_id)
+        if not hop_le:
+            ds = _tu_chuan_hoa_ranh_gioi(ds, canh_dau_id, canh_cuoi_id) if ds else ds
+        ly_do = ly_do or _kiem_noi_dung(ds, canh_dict) if ds else (ly_do or "không ra JSON")
+        if ds:
+            ds_sach = ds
+        if not ly_do:
+            return ds_sach
+        log(f"  [chu_de] ! đoạn nội dung chưa đạt: {ly_do[:200]}")
+        loi_truoc = ly_do
+    # hết lượt: CHỈ đoạn kể không có đối tượng nhìn thấy được (thiếu / trừu tượng) mới chuyển sang thừa kế; câu trích lệch
+    # thì vẫn giữ là đoạn kể (18/10 đo: đổi kiểu cũ làm "dingo thả trên Townshend" mượn hình hai nhà sinh thái học)
+    for it in ds_sach:
+        dt = it.get("doi_tuong") or ""
+        if it["loai"] == "ke" and (not dt or _TRUU_TUONG.search(dt) or _TRUU_TUONG_EN.search(it.get("mo_ta_en") or "")):
+            it["loai"], it["ke_thua_canh"] = "binh_luan", None
+    return ds_sach
+
+
+_P_THUA_KE = """Video tư liệu có các ĐOẠN KỂ, mỗi đoạn có một đối tượng hiện trên hình:
+{ke}
+
+Các ĐOẠN BÌNH LUẬN dưới đây không có hình riêng: hình của chúng phải lấy từ đoạn kể có ĐỐI TƯỢNG mà lời bình luận ĐANG
+BÀN TỚI (con vật / người / sự vật được nhắc hoặc được ám chỉ trong lời — không phải cứ đoạn ngay trước). Ví dụ lời bàn về
+viên thuốc độc trong người hai con chó thì chọn đoạn có dingo; lời kêu gọi đăng ký / chuyển ý thì chọn đoạn kể ngay trước.
+Đoạn bình luận dài / tổng kết nhắc nhiều đối tượng thì chọn 2-4 đoạn kể, đối tượng nhắc nhiều nhất trước.
+{bl}
+
+Chỉ trả JSON: {{"<id đoạn bình luận>": [<id đoạn kể>, ...], ...}}"""
+
+
+def _hoi_thua_ke(ds, ke, canh_dict):
+    """18/10 user (đoạn bình luận mượn sai hình: bàn về dingo mà ra san hô / chim): hỏi AI RIÊNG một câu cho mọi đoạn bình
+    luận — đoạn đó đang bàn về đối tượng của đoạn kể nào. Trả {id bình luận: [id đoạn kể]}; lỗi -> {}."""
+    bl = [it for it in ds if it["loai"] == "binh_luan"]
+    if not bl or not ke:
+        return {}
+    ds_ke = "\n".join(f"#{k['id']}: {k.get('doi_tuong') or k.get('ten')}" for k in ke)
+    ds_bl = "\n\n".join(f"BÌNH LUẬN #{it['id']}: " + " ".join(
+        str(canh_dict.get(c, {}).get("text") or "") for c in range(it["canh_tu"], it["canh_den"] + 1))[:1500] for it in bl)
+    try:
+        j = rut_json(hoi_llm(_P_THUA_KE.format(ke=ds_ke, bl=ds_bl), timeout=240))
+    except Exception:                                        # noqa: BLE001
+        j = None
+    if not isinstance(j, dict):
+        log("  [chu_de] ! không hỏi được đoạn bình luận thừa kế đoạn nào -> so chữ")
+        return {}
+    ra = {}
+    for k, v in j.items():
+        so = re.findall(r"\d+", str(k))
+        if so and isinstance(v, list):
+            ra[int(so[-1])] = [int(x) for x in v if str(x).strip().lstrip("#").isdigit() or isinstance(x, int)]
+    return ra
+
+
+def _hoan_tat(ds, canh_dict):
+    """Gán id / mốc giờ; đoạn bình luận thừa kế (kho_cd + đối tượng + mô tả + từ khoá) của đoạn kể nó bàn tới."""
+    for idx, it in enumerate(ds, 1):
+        it["id"] = idx
+        it["dai"] = _tinh_thoi_luong_chu_de(it, canh_dict)
+        c_dau, c_cuoi = canh_dict.get(it["canh_tu"], {}), canh_dict.get(it["canh_den"], {})
+        it["bat_dau"] = round(float(c_dau.get("bat_dau") or 0.0), 2)
+        it["ket_thuc"] = round(float(c_cuoi.get("bat_dau") or 0.0) + float(c_cuoi.get("dai") or 0.0), 2)
+        it["so_canh"] = it["canh_den"] - it["canh_tu"] + 1
+    ke = [it for it in ds if it["loai"] == "ke"]
+    if not ke:                                               # không đoạn kể nào (hiếm): đoạn đầu làm đoạn kể
+        ds[0]["loai"] = "ke"
+        ke = [ds[0]]
+    def cap_chu(t):                                          # cặp âm tiết liền nhau (bãi biển, choi choi, con dingo…)
+        w = _chuan(t).split()                                # bỏ chữ hư ("trên", "hai con"…) — đo 18/10: làm nhiễu
+        return ({a + " " + b for a, b in zip(w, w[1:]) if not (a in _HU or b in _HU)}
+                | {x for x in w if len(x) >= 4 and x not in _HU})
+
+    for it in ds:
+        if it["loai"] == "ke":
+            it["kho_cd"] = it["id"]
+            it["kho_ds"] = [it["id"]]
+    tra_loi = _hoi_thua_ke(ds, ke, canh_dict)
+    for it in ds:
+        if it["loai"] == "ke":
+            continue
+        loi = " ".join(str(canh_dict.get(c, {}).get("text") or "") for c in range(it["canh_tu"], it["canh_den"] + 1))
+        cl = cap_chu(loi)
+        diem = sorted(((len(cl & cap_chu(k.get("doi_tuong", ""))), -abs(k["id"] - it["id"]), k)   # chỉ ĐỐI TƯỢNG (tên đoạn
+                                                                                                 # như "Nghịch lý…" gây nhiễu)
+                       for k in ke), key=lambda x: (-x[0], -x[1]))
+        nhac = [k for d, _, k in diem if d > 0]                # đoạn kể có đối tượng được NHẮC trong lời bình luận
+        ai_chon = next((k for k in ke if it.get("ke_thua_canh") is not None
+                        and k["canh_tu"] <= it["ke_thua_canh"] <= k["canh_den"]), None)
+        theo_id_ke = {k["id"]: k for k in ke}
+        hoi_rieng = [theo_id_ke[i] for i in (tra_loi.get(it["id"]) or []) if i in theo_id_ke]   # GIỮ thứ tự AI xếp
+        if hoi_rieng:                                        # câu hỏi RIÊNG cho đoạn bình luận (chính xác nhất)
+            # 18/10 user (A): kiểm lại AI bằng SỐ LẦN lời bình luận nhắc tới đối tượng của từng đoạn kể — đoạn KHÔNG được
+            # nhắc (vd khu nghỉ dưỡng trong "bài học" chỉ nói dingo, rừng, san hô) bị loại; nhắc nhiều nhất lên đầu
+            loi_c = " " + _chuan(loi) + " "
+            nhac_so = {k["id"]: sum(loi_c.count(" " + w + " ") for w in cap_chu(k.get("doi_tuong", ""))) for k in ke}
+            # GIỮ thứ tự AI; chỉ loại đoạn AI chọn mà lời KHÔNG nhắc tới (khi có đoạn được nhắc), rồi bù đoạn được nhắc nhiều
+            # nhất (đo: xếp hoàn toàn theo số lần nhắc bị nhiễu — "sinh thái" kéo về "khu nghỉ dưỡng sinh thái")
+            ai_nhac = [k for k in hoi_rieng if nhac_so[k["id"]] > 0]
+            khac = sorted((k for k in ke if k not in hoi_rieng and nhac_so[k["id"]] > 0),
+                          key=lambda k: (-nhac_so[k["id"]], abs(k["id"] - it["id"])))
+            ung = ai_nhac + khac if (ai_nhac or khac) else hoi_rieng
+            if it.get("dai", 0) > BINH_LUAN_DAI:              # dài: mỗi ĐỐI TƯỢNG một kho (không 4 kho cùng là dingo)
+                gon, da_co = [], []
+                for k in ung:
+                    w_ = cap_chu(k.get("doi_tuong", ""))
+                    if not any(len(w_ & x) >= max(1, min(len(w_), len(x)) // 2) for x in da_co):
+                        gon.append(k)
+                        da_co.append(w_)
+                ung = gon or ung
+            cha = ung[0]
+            kho_ds = [k["id"] for k in ung][:4 if it.get("dai", 0) > BINH_LUAN_DAI else 1]
+            it.update(kho_cd=cha["id"], kho_ds=kho_ds, thua_ke=cha["id"], doi_tuong=cha.get("doi_tuong", ""),
+                      mo_ta_en=cha.get("mo_ta_en", ""), tu_khoa_en=list(cha.get("tu_khoa_en") or []), tranh=cha.get("tranh", ""))
+            continue
+        if nhac:
+            cha = ai_chon if ai_chon in nhac else nhac[0]     # AI chọn mà lời có nhắc -> tin AI (trùng chữ dễ nhiễu:
+            #                                                   "sinh thái" khớp nhầm "khu nghỉ dưỡng sinh thái")
+        else:
+            cha = ai_chon or next((k for k in reversed(ke) if k["id"] < it["id"]), None) or next(k for k in ke if k["id"] > it["id"])
+        kho_ds = [cha["id"]]
+        if it.get("dai", 0) > BINH_LUAN_DAI:                   # dài / tổng kết: thêm các đoạn kể khác được nhắc (tối đa 4)
+            kho_ds += [k["id"] for k in nhac if k["id"] != cha["id"]][:3]
+        it.update(kho_cd=cha["id"], kho_ds=kho_ds, thua_ke=cha["id"], doi_tuong=cha.get("doi_tuong", ""),
+                  mo_ta_en=cha.get("mo_ta_en", ""), tu_khoa_en=list(cha.get("tu_khoa_en") or []), tranh=cha.get("tranh", ""))
+    return ds
+
+
+CHIA_THEO_CHU_THE = True    # 19/10 user: chia đoạn theo CHỦ THỂ của cả video (chu_the.py: một lần hỏi AI + dò tên cục bộ)
+#                             thay cho hỏi AI chia đoạn theo nội dung; False = cách cũ
+
+
 def chia_chu_de(du_an, buoc_lai=False):
     """Hàm chính: Đọc tu_khoa.json của dự án, chia kịch bản thành các chủ đề.
 
     Kết quả lưu vào ra/<dự án>/chu_de.json.
     Nếu kịch bản không đổi thì nạp lại từ cache.
     """
+    if CHIA_THEO_CHU_THE:
+        import chu_the
+        return chu_the.chia_doan(du_an, hoi_lai=buoc_lai)
     _, out = thu_muc_du_an(du_an)
     duong_tu_khoa = os.path.join(out, "tu_khoa.json")
     canh = doc_json(duong_tu_khoa, []) or []
@@ -418,8 +625,8 @@ def chia_chu_de(du_an, buoc_lai=False):
     else:
         ds_raw = _hoi_mot_luot(canh, canh_dau_id, canh_cuoi_id)
 
-    # Gộp chủ đề ngắn (< 30s) và cắt đôi chủ đề dài (> 120s)
-    ds_chu_de = _gop_va_cat_chu_de(ds_raw, canh_dict, canh_dau_id, canh_cuoi_id)
+    # 18/10 user: chia theo NỘI DUNG — không gộp / cắt theo thời lượng; đoạn bình luận thừa kế đoạn kể
+    ds_chu_de = _hoan_tat(ds_raw, canh_dict)
 
     # Lưu kết quả
     ghi_json(duong_chu_de, {
@@ -429,7 +636,8 @@ def chia_chu_de(du_an, buoc_lai=False):
     })
     log(f"  [chu_de] Hoàn tất chia {len(ds_chu_de)} chủ đề -> lưu {duong_chu_de}")
     for it in ds_chu_de:
-        log(f"    * Chủ đề {it['id']}: [{it['bat_dau']}s - {it['ket_thuc']}s] ({it['dai']}s, cảnh {it['canh_tu']}→{it['canh_den']}) - {it['ten']}")
+        log(f"    * Đoạn {it['id']} [{it['bat_dau']}s - {it['ket_thuc']}s] cảnh {it['canh_tu']}→{it['canh_den']} "
+            f"{'KỂ' if it['loai'] == 'ke' else 'bình luận -> đoạn ' + str(it.get('thua_ke'))}: {it['ten']} | thấy: {it.get('doi_tuong', '')[:60]}")
 
     return ds_chu_de
 
@@ -439,6 +647,6 @@ def doc_chu_de(du_an):
     _, out = thu_muc_du_an(du_an)
     duong = os.path.join(out, "chu_de.json")
     da = doc_json(duong)
-    if isinstance(da, dict) and da.get("chu_de"):
+    if isinstance(da, dict) and da.get("chu_de") and (da.get("nguon") == "chu_the") == CHIA_THEO_CHU_THE:
         return da["chu_de"]
     return chia_chu_de(du_an)

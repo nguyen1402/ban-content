@@ -238,10 +238,10 @@ def hoi_llm(prompt, timeout=240):
     return _hoi_llm_chatgpt(prompt, timeout=timeout)
 
 
-def hoi_nhieu(prompts, timeout=240, on_xong=None):
+def hoi_nhieu(prompts, timeout=240, on_xong=None, ai=None):
     """Hỏi AI nhiều lô cùng lúc (Gemini hay ChatGPT làm chính theo AI_CHINH). Trả list text theo thứ tự `prompts`.
-    on_xong(i, text) gọi ngay khi lô i xong."""
-    if AI_CHINH != "gemini":
+    on_xong(i, text) gọi ngay khi lô i xong. ai="gemini"/"chatgpt": ép AI chính cho lần hỏi này."""
+    if (ai or AI_CHINH) != "gemini":
         return _hoi_nhieu_chatgpt(prompts, timeout, on_xong)
     ra = _hoi_nhieu_gemini(prompts, timeout, on_xong)
     thieu = [i for i, t in enumerate(ra) if not t]

@@ -9,6 +9,14 @@ Cảnh ĐỊA ĐIỂM (loai=dia_diem có dia_danh_en, từ mo_ta_canh.py): đo�
 phóng vào + khoanh viền địa danh (nen_ban_do.dung_clip_vetinh) — 12/10 user chọn thay cho ảnh phong cảnh."""
 import os
 
+
+def _phong_ai():
+    """Phóng ảnh Gemini trong bản nháp: 1.0 khi đã xoá được logo, 1.2 (giấu logo) khi chưa."""
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import anh_ve
+    return anh_ve.PHONG_ANH_AI
+
 SEC = 1_000_000
 
 
@@ -54,7 +62,8 @@ def tai(du_an, ban_do=True):
             if dl <= int(0.2 * SEC):
                 continue
             c["_os"].append((t0, dl, {"clip": f, "anh": d["loai"] == "anh", "vao": float(d.get("vao") or 0.0),
-                                      "phong": float(m.get("phong") or 1.0) if d["loai"] == "video" else 1.0}))
+                                      "phong": float(m.get("phong") or 1.0) if d["loai"] == "video"
+                                      else (_phong_ai() if m.get("nguon") == "gemini" else 1.0)}))   # 19/10: 120% chỉ khi chưa xoá logo
             het = t0 + dl
         tong = max(tong, c["_t1"] / SEC)
         canh.append(c)

@@ -1,0 +1,10 @@
+gwt-mini.exe — GeminiWatermarkTool (bản dòng lệnh rút gọn cho Windows x64), xoá logo ✦ nhìn thấy của ảnh Gemini.
+Nguồn:     https://github.com/allenk/GeminiWatermarkTool  (tác giả AllenK / kwyshell, giấy phép MIT)
+Bản:       v0.3.2 (28/07/2026) — gwt-mini-windows-x64.zip, do GitHub Actions dựng từ mã nguồn công khai (build.yml)
+Tải lại:   https://github.com/allenk/GeminiWatermarkTool/releases/download/v0.3.2/gwt-mini-windows-x64.zip
+SHA256 zip: 785e55d1779f47b0cd0369bd3955523b8ff42af0bc2f53003edc32183145525a (khớp SHA256SUMS.txt của bản phát hành)
+Dùng trong: chinh_sua/anh_ve.py (xoa_logo) — thiếu file này thì máy quay về cách phóng ảnh AI 120% giấu logo.
+Chỉ xoá logo nhìn thấy; dấu ẩn SynthID giữ nguyên.
+
+MIT License — Copyright (c) AllenK (kwyshell). Xem toàn văn: https://github.com/allenk/GeminiWatermarkTool/blob/main/LICENSE
+SHA256 exe: b67d3a6c6795159bcca71bf164d7a866e9082139617364ade9597a2b7f90277a

@@ -21,55 +21,14 @@ PHUONG_TIEN = {"may_bay", "tau_thuy", "tau_hoa", "xe", "di_bo", "tu_lan", "khac"
 HANH_DONG = {"bay_toi", "tan_cong", "bao_vay", "lan_ra", "sinh_soi", "bo_chay", "an", "mang_di"}
 DONG_THE = """- "the": a HIGHLIGHT CARD (real photo + short caption) for an IMPORTANT idea. Fields: "anh", "chu", "moc".
 """
-_P = """You are the lead visual director and editor of a premium documentary series (style: Vox, Netflix, Bloomberg Quicktake, Johnny Harris). B-roll footage plays while the narrator speaks. Your job is to select sentences to trigger dynamic visual layers (cinematic AI storytelling reconstructions, maps, data visualizations, timeline milestones). At most ONE layer per sentence.
+_P = """You are the lead visual director and editor of a premium documentary series (style: Vox, Netflix, Bloomberg Quicktake, Johnny Harris). B-roll footage plays while the narrator speaks. Your job is to select sentences to trigger dynamic visual layers (maps, data visualizations, timeline milestones). At most ONE layer per sentence.
 
-CRITICAL DIRECTIVE ON MAXIMUM AI IMAGE COVERAGE & MULTI-SHOT ACTION DECOMPOSITION:
-The user explicitly requires: "Mật độ ảnh AI phải tăng phủ lên bất kể chỗ nào có giải thích, so sánh, mô tả trừu tượng, ẩn dụ, hoặc kể lại một quá trình, hành động nào đó... có những đoạn mô tả hành động, quá trình thì phải slow vài tấm ảnh để thể hiện được quá trình đấy, khớp theo voice: đến hành động A thì hiện ảnh A, hành động B đến ảnh B".
-
-MANDATORY RULES:
-1. Whenever a sentence describes an ACTION, PROCESS, BIOLOGICAL BEHAVIOR, PREDATION, ESCAPE, PHYSICAL MOVEMENT, or SEQUENTIAL INTERVENTION:
-   You MUST generate a 2-to-3 shot continuous sequence ("ve_1", "ve_2", "ve_3") to portray the full progression in slow motion:
-   * "ve_1": Beginning / Setup (Khởi đầu hành động, e.g. xe bồn đậu cạnh bờ hồ, hoặc cá chép bắt đầu cắm đầu húc bùn).
-   * "moc_1": 2-5 words COPIED VERBATIM from the sentence where action 1 starts.
-   * "ve_2": Main Action / Climax Close-up (Cận cảnh diễn biến cốt lõi, e.g. van xả mở ra cá săn mồi lao qua vòi, hoặc mang cá lọc giun phun bùn cát mù mịt).
-   * "moc_2": 2-5 words COPIED VERBATIM from the sentence where action 2 starts (e.g. "thả xuống", "phun bùn cát", "lao ra").
-   * "ve_3" (if sentence has a 3rd stage/impact): Consequence / Result (Kết quả/hậu quả, e.g. cá săn mồi khổng lồ quẫy đuôi lặn xuống lòng hồ, hoặc nước đục ngầu che khuất ánh sáng).
-   * "moc_3": 2-5 words COPIED VERBATIM from the sentence where action 3 starts.
-   CRITICAL: "moc_1", "moc_2", "moc_3" MUST be exact substrings from the sentence so visual cuts sync seamlessly with the narrator voice!
-
-2. DO NOT use "giai_thich" (cards with step text) for physical actions, wildlife hunts, or mechanical events; ALWAYS use "tai_hien" multi-shot cinematic AI imagery!
-
-3. Also generate 'tai_hien' for:
-   - Any explanation or reasoning (giải thích nguyên nhân, hậu quả).
-   - Any comparison, metaphor, or analogy (so sánh, ẩn dụ, ví von, hình tượng hóa).
-   - Any abstract description or atmosphere (mô tả trừu tượng, cảm giác, khí hậu).
-   - Mentioning any specific object, vehicle, creature, device, facility, or landmark.
-
-Aim for 65-85% of sentences having "tai_hien" so the video is visually saturated with stunning cinematic AI imagery!
-
-Kinds of Visual Layers:
-- "tai_hien": CINEMATIC AI VISUAL STORYTELLING (PHÂN CẢNH TÁI HIỆN BẰNG AI).
-  Generate photorealistic AI cinematic imagery for ANY sentence that describes: action, process, wildlife behavior, predation, ecological damage, flooding, escape, historical events, scientific experiments, or dramatic scenes.
+- "so_sanh": KEY NUMBER shown as big white text on a dark overlay (19/10 user: no charts).
+  ONLY for one striking figure, or two figures compared, that the narrator says (e.g. "300 con", "3.000 USD mỗi ngày").
   Fields:
-  * "ve_1": Establishing / shot 1 (English, photorealistic, 16:9, e.g. "Wide cinematic shot of a specialized tanker truck parked by an Australian lake at dawn, 8k documentary photograph, award-winning lighting, no text").
-  * "moc_1": 2-5 words verbatim from sentence.
-  * "ve_2": Action / shot 2 (English, photorealistic, 16:9, e.g. "Action close-up shot of the tanker release valve opening, huge predatory fish tumbling out in a rush of water, authentic, no text").
-  * "moc_2": 2-5 words verbatim from sentence (e.g. "thả xuống một hồ").
-  * "ve_3" (optional): Climax/result / shot 3 (English, photorealistic, 16:9, e.g. "Underwater cinematic shot of the massive predatory fish diving into the deep blue lake water, splashing ripples, authentic, no text").
-  * "moc_3" (optional): 2-5 words verbatim from sentence (e.g. "quét sạch kẻ xâm lấn").
-  * "tieu_de": Short Vietnamese description.
-  * "moc": Same as moc_1.
-
-- "so_sanh": DIVERSE DATA VISUALIZATION (BIỂU ĐỒ & ĐỒ THỊ SỐ LIỆU ĐA DẠNG).
-  ONLY for dry technical parameters, measurements, or budgets. Choose the best format ("dang"):
-  * "song": Smooth Wave Trend Curve (ĐỒ THỊ LƯỢN SÓNG). Ideal for percentages, efficiency, filter rates, trends, or levels (e.g. "Hiệu suất lọc cá 88% vs 99.9%").
-  * "con_so": Single Big Number / Metric Callout (CON SỐ ĐƠN LẺ). Ideal when there is ONE technical statistic to highlight (e.g. "15 triệu USD", "500.000 tấn rác"). No boxes, pure bold white numbers with clean label below.
-  * "cot": Comparative Bar Chart (BIỂU ĐỒ CỘT). Ideal for comparing two contrasting quantities (Count vs Weight, Standard vs Actual).
-  Fields:
-  * "tieu_de": Clean Vietnamese title.
-  * "dang": "song" | "con_so" | "cot".
-  * "ben_a": {{"ten": "Label A", "gia_tri": "Value A"}}.
-  * "ben_b": {{"ten": "Label B", "gia_tri": "Value B"}} (omit if dang is "con_so").
+  * "tieu_de": short Vietnamese title (what the number is about).
+  * "ben_a": {{"ten": "short label", "gia_tri": "the figure as written, digits"}}.
+  * "ben_b": {{"ten": "...", "gia_tri": "..."}} only when two figures are compared.
   * "moc": 2-6 words from sentence.
 
 - "su_kien": HISTORICAL YEAR OR TIMELINE DATE (CHỮ MỐC THỜI GIAN TINH GỌN).
@@ -86,45 +45,141 @@ Kinds of Visual Layers:
   Movement or spread between two distant locations. Fields: "tu", "den", "tu_vi", "den_vi", "phuong_tien".
 
 Rules:
-- High priority to "tai_hien" for any narrative, descriptive or action scenes to keep the video visually rich!
-- For data, flexibly choose between "song", "con_so", and "cot" to prevent monotony.
 - Every layer MUST have "moc": 2-8 words copied EXACTLY from the sentence where it starts.
 - Return ONLY JSON array: [{{"cau": <sentence index>, "kieu": "<kind>", "moc": "...", ...fields}}]
 
 PASSAGE:
 {ds}"""
 
+# 19/10 user ("nội dung cần tổng quát"): ảnh AI hỏi RIÊNG, lệnh ngắn một việc, KHÔNG ví dụ riêng của phim nào
+_P_AI = """You plan AI-generated still photos for a documentary video. Real b-roll footage already plays under the narration;
+an AI photo is added only where the viewer needs to SEE a specific moment of the story.
 
-def hoi(cau, out, co_the=True):
-    """[{cau(int), kieu, moc, ...}] — mỗi câu tối đa một lớp; câu nằm trong den_cau của sơ đồ trước thì bỏ lớp khác."""
+{ho_so}
+Read the narration (each line: index. [spoken seconds] sentence) and split it into the SCENES a viewer should see:
+- FEW images (about one per 30-40 seconds of narration at most): only the KEY MOMENTS of the story that real stock
+  footage rarely shows — a specific event or action (an animal released from a boat, a capsule held in a gloved hand, a
+  predator cornering prey, a helicopter hunt). A sentence that only says a subject exists, lives somewhere, roams or
+  looks like something gets NO image (footage already shows it). Opinion, questions, transitions, summaries,
+  statistics, money, news / public reaction and abstract reasoning get NO image.
+- Consecutive sentences about the same moment form ONE scene with ONE image: "cau" = its first sentence, "den_cau" = its
+  last sentence (at most 3 sentences).
+- "ve_1": ONE simple English description, max 25 words: camera angle + main subject + what it does + where. One clear
+  idea a viewer understands in one second; do not cram details. It must include what the action is aimed at or about,
+  with the narration's numbers. Sensible camera: a person acting on something -> from behind them toward it; a moving
+  vehicle -> from outside; an object or detail -> close-up of the object itself.
+- A scene spoken for more than 8 seconds may get "ve_2" (and "ve_3") for its next moments, each with its own "moc_n".
+- Describe the SPECIFIC action of that moment in your own words; take only the subject's short look and the place from
+  the story bible — never paste the bible description, and never give two images the same description.
+Return ONLY a JSON array, one object per image, exactly in this form ("cau" / "den_cau" are sentence NUMBERS):
+[{{"cau": 4, "den_cau": 5, "ve_1": "<english shot>", "moc_1": "<2-5 words copied verbatim from sentence 4 where the image
+starts>", "thoi_dai": "<a year, a period or present day>", "tieu_de": "<short Vietnamese title>"}}]
+
+NARRATION:
+{ds}"""
+
+
+VE_AI_HOAN_THIEN = False    # 19/10 user: BỎ vẽ ảnh AI ở bước ✨ ("không phù hợp") — tự tạo ảnh rồi chèn thẳng vào bản nháp
+#                             ở nút 🎨 Tạo ảnh chèn bản nháp (giao diện Dựng). True = bật lại lệnh ảnh AI + danh sách 📝
+AI_DIEU_PHOI = "gemini"      # 19/10 user: lên kế hoạch ảnh bằng Gemini (ChatGPT hay bỏ đối tượng bị ngắm); hỏng -> ChatGPT
+KIEU_TAT = {"khoanh_vung"}   # 18/10 user: bỏ Remotion bản đồ vệ tinh zoom vào lãnh thổ
+AI_CACH_GIAY = 0.0          # 18/10 user: bỏ giới hạn cách 20 s — chỗ nào kể quá trình / chuỗi hành động là có ảnh slow         # 18/10 user: hai chuỗi ảnh AI tái hiện cách nhau ít nhất bấy nhiêu giây (thay mật độ 65-85%)
+_KHONG_AI = __import__("re").compile(r"\?")   # 19/10 user: bỏ danh sách từ gõ tay — câu hỏi thì không vẽ, còn lại AI tự xét
+
+
+def _khong_hop_ai(x, c):
+    """Lý do loại một lớp ảnh AI tái hiện ('' = giữ): câu không có hành động nhìn thấy được."""
+    tx = str(c.get("text") or "")
+    if _KHONG_AI.search(tx):
+        return "câu hỏi"
+    if not str(x.get("ve_1") or x.get("ve") or "").strip():
+        return "thiếu mô tả ảnh"
+    return ""                                                # 19/10: lệnh ảnh AI riêng tự xét câu nào cần ảnh
+
+
+_P_HO_SO = """Read this documentary narration (Vietnamese) and write a STORY BIBLE so that every AI image of the video looks
+like the same real story. Only VISIBLE recurring things: places, animals, people, vehicles, key objects.
+  * "boi_canh": the real settings — for each: "noi" (place as named) and "mo_ta_en" (English: landscape, vegetation,
+    terrain, climate, typical light).
+  * "nhan_vat": recurring subjects — for each: "ten" (as named in the script) and "mo_ta_en" (English, FIXED look reused in
+    every image, SHORT (max 12 words): species / number / colour / one key marking or clothing / vehicle colour; invent plausible
+    fixed details when the script does not say). Note changes of look over time explicitly. People wear ordinary clothes
+    of their role and era unless the script says otherwise.
+Only JSON: {{"boi_canh": [{{"noi": "...", "mo_ta_en": "..."}}], "nhan_vat": [{{"ten": "...", "mo_ta_en": "..."}}]}}
+
+NARRATION:
+{kb}"""
+
+
+def ho_so(cau, out):
+    """19/10 user (ảnh lệch bối cảnh / nhân vật đổi dạng giữa các ảnh): MỘT lần hỏi cho cả kịch bản -> khối chữ
+    "STORY BIBLE" gắn vào mọi lần điều phối. Lưu ra/<dự án>/ho_so_truyen.json theo băm kịch bản. Lỗi -> ""."""
+    kb = " ".join(str(c.get("text") or "") for c in cau)[:30000]
+    k = hashlib.md5(("hs3|" + kb).encode("utf-8")).hexdigest()[:16]
+    p_luu = os.path.join(out, "ho_so_truyen.json")
+    da = doc_json(p_luu, {}) or {}
+    j = da.get("ho_so") if da.get("_k") == k else None
+    if not isinstance(j, dict):
+        log("[ĐP] lập hồ sơ câu chuyện (bối cảnh + ngoại hình cố định của nhân vật)…")
+        try:
+            j = rut_json((hoi_nhieu([_P_HO_SO.format(kb=kb)], timeout=300, ai=AI_DIEU_PHOI) or [""])[0] or "")
+        except Exception:                                    # noqa: BLE001
+            j = None
+        if not isinstance(j, dict):
+            log("[ĐP] ! không lập được hồ sơ câu chuyện — điều phối không có hồ sơ")
+            return ""
+        ghi_json(p_luu, {"_k": k, "ho_so": j})
+    dong = [f"  - SETTING {x.get('noi', '')}: {x.get('mo_ta_en', '')}" for x in j.get("boi_canh") or [] if isinstance(x, dict)]
+    dong += [f"  - {x.get('ten', '')}: {x.get('mo_ta_en', '')}" for x in j.get("nhan_vat") or [] if isinstance(x, dict)]
+    if not dong:
+        return ""
+    return ("STORY BIBLE — use these SHORT looks so the same subject looks the same in every image (keep shots simple):\n" + "\n".join(dong) + "\n")
+
+
+def hoi(cau, out, co_the=True, toan_bo=None):
+    """[{cau(int), kieu, moc, ...}] — mỗi câu tối đa một lớp; câu nằm trong den_cau của sơ đồ trước thì bỏ lớp khác.
+    toan_bo: mọi câu của kịch bản (cho hồ sơ câu chuyện) khi `cau` chỉ là một phần."""
     lots = [cau[i:i + CAU_MOI_DOAN] for i in range(0, len(cau), CAU_MOI_DOAN)]
-    p_hoi = [_P.format(ds=chr(10).join(f"{c['i']}. {c['text']}" for c in lot))
-             for lot in lots]
+    hs = ho_so(toan_bo or cau, out) if VE_AI_HOAN_THIEN else ""
+    ds_lot = [chr(10).join(f"{c['i']}. [{max(0.5, float(c.get('t1', 0)) - float(c.get('t0', 0))):.0f}s] {c['text']}" for c in lot)
+              for lot in lots]
+    p_hoi = [_P.format(ds=d) for d in ds_lot] + ([_P_AI.format(ho_so=hs, ds=d) for d in ds_lot] if VE_AI_HOAN_THIEN else [])
     khoa = [hashlib.md5(p.encode("utf-8")).hexdigest()[:16] for p in p_hoi]
+    khoa_ai = set(khoa[len(lots):])
     p_luu = os.path.join(out, "dieu_phoi_hoi.json")
     da = doc_json(p_luu, {}) or {}
     can = [k for k, kk in enumerate(khoa) if rut_json(da.get(kk) or "") is None]
-    log(f"[ĐP] điều phối lớp minh hoạ: hỏi ChatGPT {len(can)}/{len(lots)} đoạn (còn lại dùng câu trả lời đã lưu)…")
+    log(f"[ĐP] điều phối lớp minh hoạ + ảnh AI: hỏi {AI_DIEU_PHOI} {len(can)}/{len(p_hoi)} lệnh (còn lại dùng câu trả lời đã lưu)…")
     if can:
-        for k, r in zip(can, hoi_nhieu([p_hoi[k] for k in can], timeout=300)):
+        for k, r in zip(can, hoi_nhieu([p_hoi[k] for k in can], timeout=300, ai=AI_DIEU_PHOI)):
             if rut_json(r or "") is not None:
                 da[khoa[k]] = r
         ghi_json(p_luu, da)
     co = {c["i"] for c in cau}
+    phu_ai = set()
     ra, phu = [], set()
     for kk in khoa:
         for x in (rut_json(da.get(kk) or "") or []):
-            if not isinstance(x, dict) or x.get("kieu") not in KIEU:
+            if not isinstance(x, dict) or (x.get("kieu") not in KIEU and kk not in khoa_ai):
+                continue
+            if kk in khoa_ai:                                # lệnh ảnh AI: mọi phần tử là ảnh AI
+                x = dict(x, kieu="tai_hien", moc=x.get("moc") or x.get("moc_1"))
+                for f_ in ("cau", "den_cau"):                # AI đôi khi ghi nguyên văn câu thay cho số câu
+                    if not str(x.get(f_, "")).strip().isdigit():
+                        x[f_] = next((c["i"] for c in cau if str(x.get(f_) or "").strip()[:40] in c["text"]), None)
+            elif x.get("kieu") == "tai_hien":                # lệnh chung không còn vẽ ảnh AI
                 continue
             try:
                 i = int(x.get("cau"))
                 den = int(x.get("den_cau") or i)
             except (TypeError, ValueError):
                 continue
-            if i not in co or i in phu:
+            la_ai = x["kieu"] in ("tai_hien", "dien_canh")   # 19/10 user: câu có cả mốc thời gian + hành động giữ CẢ HAI
+            phu_ = phu_ai if la_ai else phu
+            if i not in co or i in phu_:
                 continue
-            x = dict(x, cau=i, den_cau=max(i, min(den, i + 2)) if x["kieu"] in ("dien_canh", "cau_tao", "quy_trinh", "vong_doi", "mo_phong") else i)
-            phu.update(range(i, x["den_cau"] + 1))
+            x = dict(x, cau=i, den_cau=max(i, min(den, i + 2)) if x["kieu"] in ("dien_canh", "cau_tao", "quy_trinh", "vong_doi", "mo_phong", "tai_hien") else i)
+            phu_.update(range(i, x["den_cau"] + 1))
             ra.append(x)
 
     # Lọc chất lượng cao & tăng tối đa mật độ AI Storytelling theo yêu cầu người dùng
@@ -132,11 +187,13 @@ def hoi(cau, out, co_the=True):
     ra_loc = []
     cuoi_bando, dem_bando = -999, 0
     cuoi_taihien, dem_taihien = -999, 0
+    cau_theo_i = {c["i"]: c for c in cau}
+    t_ai_cuoi, bo_ai = -1e9, {}
     cuoi_callout = -999
 
     for x in sorted(ra, key=lambda z: z["cau"]):
         k = x["kieu"]
-        if k in KIEU_BO:
+        if k in KIEU_BO or k in KIEU_TAT:
             continue
         # Khống chế bản đồ: tối đa 3 lần/video, cách nhau tối thiểu 20 câu
         if k in ("khoanh_vung", "duong_di", "lan_rong", "ban_do_ve"):
@@ -145,12 +202,20 @@ def hoi(cau, out, co_the=True):
             dem_bando += 1
             cuoi_bando = x["den_cau"]
             ra_loc.append(x)
-        # Tái hiện tư liệu AI: Nâng tối đa mật độ (tối đa 80 lần/video), không ép khoảng cách
+        # 18/10 user (ảnh AI "vớ vẩn, không cần thiết"): chỉ câu có CHỦ THỂ + HÀNH ĐỘNG nguyên văn, không phải câu
+        # bình luận / hỏi / kêu gọi / chuyển ý / số liệu; các chuỗi ảnh cách nhau >= AI_CACH_GIAY (thay trần 80 lần)
         elif k in ("tai_hien", "dien_canh"):
-            if dem_taihien >= 80 or (x["cau"] <= cuoi_taihien):
+            ly_do = _khong_hop_ai(x, cau_theo_i.get(x["cau"]) or {})
+            if ly_do:
+                bo_ai[ly_do] = bo_ai.get(ly_do, 0) + 1
+                continue
+            t_ = float((cau_theo_i.get(x["cau"]) or {}).get("t0") or 0)
+            if x["cau"] <= cuoi_taihien or t_ - t_ai_cuoi < AI_CACH_GIAY:
+                bo_ai["gần chuỗi trước"] = bo_ai.get("gần chuỗi trước", 0) + 1
                 continue
             dem_taihien += 1
             cuoi_taihien = x["den_cau"]
+            t_ai_cuoi = t_
             ra_loc.append(x)
         # Các HUD callout (so_sanh, su_kien, giai_thich, con_so, song): cách nhau tối thiểu 2 câu
         elif k in ("so_sanh", "su_kien", "giai_thich", "quy_trinh", "con_so", "song"):
@@ -161,6 +226,10 @@ def hoi(cau, out, co_the=True):
         else:
             ra_loc.append(x)
     ra = ra_loc
+    if bo_ai:
+        log("    ảnh AI tái hiện bị loại: " + ", ".join(f"{k} {v}" for k, v in bo_ai.items()))
+    if VE_AI_HOAN_THIEN:
+        ra = _ap_ke_hoach_ai(ra, cau, out, toan_bo or cau)
 
     _bu_tieu_de(ra, out)
     dem = {}
@@ -168,6 +237,67 @@ def hoi(cau, out, co_the=True):
         dem[x["kieu"]] = dem.get(x["kieu"], 0) + 1
     log("    " + ", ".join(f"{k} {v}" for k, v in sorted(dem.items())))
     return ra
+
+
+KE_HOACH_AI = "anh_ai_ke_hoach.json"
+
+
+def _khoa_cau(cau):
+    return hashlib.md5("|".join(f"{c['i']}:{c.get('text', '')}" for c in cau).encode("utf-8")).hexdigest()[:16]
+
+
+def _ap_ke_hoach_ai(ra, cau, out, toan_bo):
+    """19/10 user: DANH SÁCH CHỖ VẼ ẢNH AI do người dùng duyệt (thêm / bỏ / sửa trên giao diện 📝).
+    Chưa có (hoặc lời đã đổi) -> ghi đề xuất của AI làm danh sách. Đã có -> ảnh AI lấy ĐÚNG theo danh sách (bỏ mục bị
+    tắt; mục người dùng thêm mà chưa có câu mô tả -> hỏi AI viết một lượt)."""
+    p = os.path.join(out, KE_HOACH_AI)
+    k = _khoa_cau(cau)
+    theo_i = {c["i"]: c for c in cau}
+    ai = [x for x in ra if x.get("kieu") == "tai_hien"]
+    khac = [x for x in ra if x.get("kieu") != "tai_hien"]
+    da = doc_json(p, {}) or {}
+    if da.get("_k") != k or not isinstance(da.get("ds"), list):
+        ds = [{f: x[f] for f in ("cau", "den_cau", "ve_1", "ve_2", "ve_3", "moc_1", "moc_2", "moc_3", "thoi_dai", "tieu_de", "moc")
+               if x.get(f) not in (None, "")} for x in ai]
+        ghi_json(p, {"_k": k, "ds": ds, "duyet": False})
+        log(f"    danh sách chỗ vẽ ảnh AI: {len(ds)} chỗ (sửa ở 📝 Chỗ vẽ ảnh AI)")
+        return ra
+    ds = [dict(y) for y in da["ds"] if isinstance(y, dict) and not y.get("bo") and int(y.get("cau") or 0) in theo_i]
+    thieu = [y for y in ds if not str(y.get("ve_1") or "").strip()]
+    if thieu:
+        hs = ho_so(toan_bo, out)
+        t = (hoi_nhieu([_P_VE_TAY.format(ho_so=hs, ds="\n".join(
+            f"{y['cau']}: " + " ".join(theo_i[j]["text"] for j in range(int(y["cau"]), int(y.get("den_cau") or y["cau"]) + 1)
+                                        if j in theo_i) for y in thieu))], timeout=200, ai=AI_DIEU_PHOI) or [""])[0]
+        j = rut_json(t or "") or {}
+        for y in thieu:
+            y["ve_1"] = str((j.get(str(y["cau"])) if isinstance(j, dict) else "") or "").strip()
+        da_ds = [dict(z) for z in da["ds"]]
+        for z in da_ds:                                       # lưu câu mô tả vừa viết để người dùng thấy / sửa
+            m = next((y for y in thieu if y["cau"] == z.get("cau") and y.get("den_cau") == z.get("den_cau")), None)
+            if m and m["ve_1"]:
+                z["ve_1"] = m["ve_1"]
+        ghi_json(p, dict(da, ds=da_ds))
+    td = [(int(y["cau"]), y["thoi_dai"]) for y in ds if y.get("thoi_dai")]
+    moi = []
+    for y in ds:
+        if not str(y.get("ve_1") or "").strip():
+            continue
+        i = int(y["cau"])
+        den = max(i, min(int(y.get("den_cau") or i), i + 2))
+        moc = y.get("moc_1") or y.get("moc") or " ".join(str(theo_i[i]["text"]).split()[:4])
+        if not y.get("thoi_dai") and td:                      # chỗ người dùng thêm: thời đại của chỗ gần nhất
+            y["thoi_dai"] = min(td, key=lambda z: abs(z[0] - i))[1]
+        moi.append(dict(y, kieu="tai_hien", cau=i, den_cau=den, moc=moc, moc_1=moc, tay=True))
+    log(f"    ảnh AI theo danh sách đã duyệt: {len(moi)} chỗ (AI đề xuất {len(ai)})")
+    return khac + moi
+
+
+_P_VE_TAY = """For each numbered narration line below (a documentary scene) write ONE simple English photo description,
+max 25 words: camera angle + main subject + what it does + where. One clear idea; include what the action is aimed at.
+{ho_so}
+{ds}
+Return ONLY JSON: {{"<number>": "<description>"}}"""
 
 
 def _bu_tieu_de(ra, out):

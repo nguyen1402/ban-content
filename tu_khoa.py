@@ -253,6 +253,26 @@ def tim_ban_do(d):
             "google_maps": "https://www.google.com/maps/search/" + urllib.parse.quote(en or vi)}
 
 
+def bu_tu_khoa(du_an):
+    """19/10: từ khoá từng cảnh không hỏi trước khi đọc giọng nữa — chế độ tìm theo cảnh gọi hàm này để hỏi bù
+    (cache cache/du_an/<dự án>/tu_khoa.json) rồi ghi các trường vào ra/<dự án>/tu_khoa.json. Đã có thì thôi."""
+    from common import thu_muc_du_an
+    cache, out = thu_muc_du_an(du_an)
+    p = os.path.join(out, "tu_khoa.json")
+    ds = doc_json(p, []) or []
+    if not ds or any(x.get("video") for x in ds):
+        return ds
+    ctx = doc_json(os.path.join(cache, "ten.json"), {}) or {}
+    canh = [dict(x) for x in ds]
+    lam_tu_khoa(canh, ctx, os.path.join(cache, "tu_khoa.json"))
+    for x, c in zip(ds, canh):
+        k = c.get("tu_khoa") or {}
+        x.update(noi_dung=k.get("noi_dung", ""), video=k.get("video", []), video_vi=k.get("video_vi", []),
+                 anh=k.get("anh", []))
+    ghi_json(p, ds)
+    return ds
+
+
 def xuat(canh, out):
     """tu_khoa.json (cho giao diện) + tu_khoa.md (đọc/in) trong ra/<dự án>/."""
     ds = []

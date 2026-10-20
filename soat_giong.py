@@ -24,6 +24,10 @@ from common import FFMPEG, log
 
 MO_HINH = "nguyenvulebinh/wav2vec2-base-vietnamese-250h"
 LAN_DOC_LAI = 3
+PHIEN_BAN = 2               # 19/10: thêm chấm TỪNG ÂM TIẾT -> kết quả soát cũ (bản 1) phải soát lại
+NGUONG_AM = -2.0            # 19/10 user ("khoảng hai trăm năm trước… thức ăn dự phòng" lọt): điểm căn chỉnh ép của một âm
+#                             tiết dưới ngưỡng = nuốt / đọc méo. Đo cho_digo 3.415 âm: 99% >= -1,3; "dự" bị nuốt -5,5,
+#                             "đưa" bị nuốt -13, "già" đọc thành "ra" -4,0
 NGAT_SAI = 0.30
 NGAT_SO = 0.20
 SO = set("không một mốt hai ba bốn tư năm lăm sáu bảy tám chín mười mươi trăm nghìn ngàn triệu tỷ tỉ linh lẻ rưỡi "
@@ -76,6 +80,58 @@ def nghe(wav):
     return [(w["word"], w["start_offset"] * buoc, w["end_offset"] * buoc) for w in kq.word_offsets]
 
 
+def cham_am(text, wav):
+    """[(âm tiết kịch bản, điểm)] — căn chỉnh ÉP từng âm tiết của kịch bản vào file giọng (CTC forced alignment trên
+    wav2vec2): điểm = trung bình log-xác suất các ký tự trên các khung được căn vào. Âm bị nuốt / méo -> điểm rất thấp
+    (bộ nghe tự do bỏ sót được vì một âm thiếu bị coi là nghe nhầm). Từ nước ngoài bỏ qua."""
+    import unicodedata
+    import librosa
+    import numpy as np
+    import soundfile as sf
+    import torch
+    import torchaudio.functional as F
+    pr, md, dev = _may()
+    a, sr = sf.read(wav, dtype="float32")
+    if a.ndim > 1:
+        a = a.mean(1)
+    a = librosa.resample(a, orig_sr=sr, target_sr=16000)
+    x = pr(a, sampling_rate=16000, return_tensors="pt").input_values.to(dev)
+    with torch.no_grad():
+        lp = torch.log_softmax(md(x).logits[0].float(), -1).cpu()
+    voc = pr.tokenizer.get_vocab()
+    sep, blank = voc.get("|"), pr.tokenizer.pad_token_id
+    am = []
+    for t in str(text).split():
+        for p_ in re.split(r"-", t):
+            s_ = unicodedata.normalize("NFC", re.sub(r"[^\w]", "", p_.lower()))
+            if s_ and not _ngoai(s_):
+                am.append(s_)
+    ids, cua = [], []
+    for k, s_ in enumerate(am):
+        for ch in s_:
+            if ch in voc:
+                ids.append(voc[ch])
+                cua.append(k)
+        if sep is not None and k < len(am) - 1:
+            ids.append(sep)
+            cua.append(-1)
+    if not ids or len(ids) >= lp.shape[0]:
+        return []
+    ali, sc = F.forced_align(lp.unsqueeze(0), torch.tensor([ids], dtype=torch.int32), blank=blank)
+    diem = [[] for _ in am]
+    ti, truoc = -1, None
+    for tok, s_ in zip(ali[0].tolist(), sc[0].tolist()):
+        if tok == blank:
+            truoc = None
+            continue
+        if tok != truoc:
+            ti += 1
+            truoc = tok
+        if 0 <= ti < len(cua) and cua[ti] >= 0:
+            diem[cua[ti]].append(float(s_))
+    return [(s_, float(np.mean(d)) if d else -99.0) for s_, d in zip(am, diem)]
+
+
 def _lang(wav, d=0.2):
     err = subprocess.run([FFMPEG, "-hide_banner", "-nostats", "-i", wav, "-af", f"silencedetect=noise=-38dB:d={d}",
                           "-f", "null", "-"], capture_output=True, timeout=120,
@@ -125,11 +181,18 @@ def soat_cau(text, wav):
         sau = toks[k + 1][0].lower()
         if (so(k) and so(k + 1) and d >= NGAT_SO) or (d >= NGAT_SAI and sau not in NOI):
             loi.append(("ngat", f"«{toks[k][0]} ‖ {toks[k + 1][0]}» lặng {d:.2f}s"))
+    try:                                                     # 19/10: chấm từng âm tiết (bắt nuốt / méo MỘT âm)
+        am = cham_am(text, wav)
+        for k, (s_, d_) in enumerate(am):
+            if d_ < NGUONG_AM:
+                loi.append(("meo", f"«{' '.join(x for x, _ in am[max(0, k - 2):k + 3])}» âm «{s_}» điểm {d_:.1f}"))
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! chấm âm tiết lỗi: {str(e)[:100]}")
     return loi
 
 
 def _diem(loi):
-    return sum(2 if l_ in ("nuot", "chen") else 1 for l_, _ in loi)
+    return sum(2 if l_ in ("nuot", "chen", "meo") else 1 for l_, _ in loi)
 
 
 def soat_va_doc_lai(canh, thu_muc, lenh_doc):
@@ -153,7 +216,7 @@ def soat_va_doc_lai(canh, thu_muc, lenh_doc):
         if not os.path.isfile(wav):
             continue
         m = da.get(str(c["id"]))
-        if m and m.get("dau") == dau(wav) and m.get("text") == c["text"]:
+        if m and m.get("dau") == dau(wav) and m.get("text") == c["text"] and m.get("v") == PHIEN_BAN:
             loi = [tuple(x) for x in m["loi"]]
         else:
             try:
@@ -161,7 +224,7 @@ def soat_va_doc_lai(canh, thu_muc, lenh_doc):
             except Exception as e:                           # noqa: BLE001
                 log(f"    ! soát giọng cảnh {c['id']} lỗi: {str(e)[:100]}")
                 continue
-            da[str(c["id"])] = {"dau": dau(wav), "text": c["text"], "loi": loi}
+            da[str(c["id"])] = {"dau": dau(wav), "text": c["text"], "loi": loi, "v": PHIEN_BAN}
         if loi:
             loi_cua[c["id"]] = loi
     _ghi(p_cache, da)
@@ -169,7 +232,7 @@ def soat_va_doc_lai(canh, thu_muc, lenh_doc):
         log(f"    soát giọng: {len(canh)} câu, không câu nào nuốt chữ / ngắt sai")
         return 0
     log(f"    soát giọng: {len(loi_cua)}/{len(canh)} câu lỗi "
-        f"({sum(1 for v in loi_cua.values() for x in v if x[0] != 'ngat')} chỗ nuốt/méo, "
+        f"({sum(1 for v in loi_cua.values() for x in v if x[0] != 'ngat')} chỗ nuốt/méo/sai âm, "
         f"{sum(1 for v in loi_cua.values() for x in v if x[0] == 'ngat')} chỗ ngắt sai) -> đọc lại tối đa {LAN_DOC_LAI} lượt")
     for cid, loi in sorted(loi_cua.items()):
         log(f"      cảnh {cid}: " + "; ".join(x[1] for x in loi[:3]))
@@ -210,7 +273,7 @@ def soat_va_doc_lai(canh, thu_muc, lenh_doc):
             os.makedirs(os.path.dirname(goc), exist_ok=True)
             shutil.copyfile(dich, goc)
         shutil.copyfile(f_moi, dich)
-        da[str(cid)] = {"dau": dau(dich), "text": theo_id[cid]["text"], "loi": loi}
+        da[str(cid)] = {"dau": dau(dich), "text": theo_id[cid]["text"], "loi": loi, "v": PHIEN_BAN}
         thay += 1
     _ghi(p_cache, da)
     shutil.rmtree(tam, ignore_errors=True)

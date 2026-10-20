@@ -239,6 +239,148 @@ def danh_dau_logo(du_an):
     return n
 
 
+NGUONG_KHUNG_SB = 0.12      # 18/10: khung storyboard khớp mô tả cảnh từ mức này (đo cho_digo: ~p90-p97 điểm khung)
+NGUONG_KHUNG_THAT = 0.10    # khung THẬT (2 khung/giây) khớp từ mức này khi cắt sát
+KHOANG_TOI_DA = 25.0        # một khoảng tải tối đa bấy nhiêu giây
+LOC_CHU_KHI_CAT = False     # 18/10 user: KHÔNG lọc phụ đề / chữ khi cắt mảnh (tự zoom bỏ chữ, logo); đo: 3 s/clip
+MANH_GIAY = 7.0             # 19/10: đoạn băm gộp < 2 s nên dài tới ~6,6 s -> mảnh 7 s (đủ phủ trọn một đoạn, dùng 2 lần)
+
+
+def khoang_khop(t, s, tong, toi_da=3):
+    """18/10 user ("chỉ lấy mỗi chỗ khớp mô tả cảnh"): [(bd, kt, điểm đỉnh)] — các DÃY khung storyboard liền nhau có
+    điểm >= NGUONG_KHUNG_SB (cho hở 1 khung), nới nửa khoảng cách khung + 1 s mỗi bên; dãy dài thì lấy cửa sổ
+    KHOANG_TOI_DA quanh đỉnh. s: điểm mỗi khung (đã lấy max theo các cảnh). Storyboard ~120 khung/video bất kể độ dài
+    (đo: video 2 phút cách 1 s, 10 phút 5 s, 40 phút 20 s) -> video dài định vị thô, cắt sát lại ở cat_sat_khop."""
+    import numpy as np
+    t, s = np.asarray(t, float), np.asarray(s, float)
+    if not len(t):
+        return []
+    buoc = float(np.median(np.diff(t))) if len(t) > 1 else 2.0
+    tot = np.nonzero(s >= NGUONG_KHUNG_SB)[0]
+    ra, i = [], 0
+    while i < len(tot):
+        j = i
+        while j + 1 < len(tot) and tot[j + 1] - tot[j] <= 2:
+            j += 1
+        a, b = int(tot[i]), int(tot[j])
+        dinh = a + int(np.argmax(s[a:b + 1]))
+        bd, kt = max(0.0, t[a] - buoc / 2 - 1), min(float(tong), t[b] + buoc / 2 + 1)
+        if kt - bd > KHOANG_TOI_DA:
+            bd = max(0.0, t[dinh] - KHOANG_TOI_DA / 2)
+            kt = min(float(tong), bd + KHOANG_TOI_DA)
+        ra.append((round(float(bd), 1), round(float(kt), 1), float(s[dinh])))
+        i = j + 1
+    return sorted(ra, key=lambda x: -x[2])[:toi_da]
+
+
+def cat_sat_khop(du_an, kid, Q):
+    """18/10: clip vừa tải (khoảng định vị thô từ storyboard, có nới) -> chấm KHUNG THẬT 2 khung/giây với mô tả các
+    cảnh của chủ đề (Q: ma trận vector cảnh), cắt MỌI dãy khớp thành các mảnh ~MANH_GIAY (mỗi mảnh 1 mục kho riêng
+    "<kid>_m<i>"; khoảng thô -> trang_thai "tach", xoá file). Không khớp / toàn phụ đề -> "loi". Trả (giây giữ, số mảnh)."""
+    import numpy as np
+    from PIL import Image
+    import nhung_siglip
+    m = doc_kho(du_an).get(kid) or {}
+    f = m.get("file", "")
+    if m.get("trang_thai") != "xong" or m.get("cat_sat") or not os.path.isfile(f):
+        return 0.0, 0
+    W, H = 256, 144
+    buf = subprocess.run([FFMPEG, "-v", "error", "-i", f, "-vf", f"fps=2,scale={W}:{H}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                         capture_output=True, timeout=180, creationflags=0x08000000 if os.name == "nt" else 0).stdout
+    n = len(buf) // (W * H * 3)
+    if n < 2:
+        return 0.0, 0
+    khung = [np.frombuffer(buf, np.uint8, W * H * 3, k * W * H * 3).reshape(H, W, 3) for k in range(n)]
+    E_khung = nhung_siglip.nhung_anh([Image.fromarray(x) for x in khung])
+    best = (E_khung @ np.asarray(Q).T).max(1)
+    try:                                                     # 18/10 user: lẫn hoạt hình / game -> khung đó coi như không khớp
+        import loc_minh_hoa
+        xau_k = (loc_minh_hoa.diem_hoat_hinh(E_khung) > loc_minh_hoa.NGUONG_HOAT_HINH)
+        _ = loc_minh_hoa.la_game(E_khung[:1])                # nạp vector mẫu game
+        xau_k = xau_k | ((((E_khung @ loc_minh_hoa._V["game"].T).max(1)   # noqa: SLF001
+                           - (E_khung @ loc_minh_hoa._V["t"].T).max(1)) > loc_minh_hoa.LE_GAME))   # noqa: SLF001
+        best = np.where(xau_k, -1.0, best)
+    except Exception:                                        # noqa: BLE001
+        pass
+    try:                                                     # 19/10 user: khúc ẢNH TĨNH phóng / lia chậm -> không cắt mảnh
+        import loc_minh_hoa
+        for a_, b_ in loc_minh_hoa.keo_tinh("goc_" + kid, f):
+            best[max(0, int(a_ * 2)):min(n, int(np.ceil(b_ * 2)) + 1)] = -1.0
+    except Exception:                                        # noqa: BLE001
+        pass
+    runs, k = [], 0
+    while k < n:
+        if best[k] >= NGUONG_KHUNG_THAT:
+            j = k
+            while j + 1 < n and best[j + 1] >= NGUONG_KHUNG_THAT:
+                j += 1
+            runs.append((k, j))
+            k = j + 1
+        else:
+            k += 1
+    if not runs:
+        _cap_nhat_kho(du_an, kid, trang_thai="loi", loi="không có khung khớp mô tả cảnh", cat_sat=True)
+        return 0.0, 0
+    # 18/10 user: hình băm theo NHỊP NGHỈ của giọng (đoạn 0,8-5,5 s, trung vị ~2 s) và mỗi clip dùng tối đa 2 lần
+    # -> cắt MỌI dãy khớp thành các mảnh ~MANH_GIAY (mỗi mảnh = 1 clip riêng, đủ dài cho nhịp dài nhất, dùng được 2 lần);
+    # dãy ngắn hơn thì nới hai bên cho đủ (không chồng mảnh trước). Mảnh > 25% khung có chữ (phụ đề) -> bỏ.
+    try:
+        import loc_chu
+    except Exception:                                        # noqa: BLE001
+        loc_chu = None
+    if not LOC_CHU_KHI_CAT:
+        loc_chu = None
+    tong_giay = n / 2
+    bd_goc = float(m.get("giay_bat_dau") or 0) - 1.5         # _cat_khoang_local đã nới 1,5 s đầu
+    manh, toi = [], 0.0
+    for a, b in runs:
+        t0, t1 = max(a / 2, toi), (b + 1) / 2
+        if t1 - t0 < 1.5:
+            continue
+        if t1 - t0 < MANH_GIAY:                              # nới cho đủ một mảnh
+            thieu = MANH_GIAY - (t1 - t0)
+            t0, t1 = max(toi, t0 - thieu / 2), min(tong_giay, t1 + thieu / 2)
+            if t1 - t0 < MANH_GIAY:
+                t0 = max(toi, t1 - MANH_GIAY)
+        so = max(1, int(round((t1 - t0) / MANH_GIAY)))
+        d = (t1 - t0) / so
+        manh += [(t0 + q * d, t0 + (q + 1) * d) for q in range(so)]
+        toi = t1
+    giu, so_giu, so_chu = 0.0, 0, 0
+    base = f[:-4]
+    for q, (t0, t1) in enumerate(manh):
+        k0, k1 = int(t0 * 2), max(int(t0 * 2) + 1, int(t1 * 2))
+        if loc_chu is not None:
+            try:
+                co = [loc_chu.dien_tich_chu(np.ascontiguousarray(x)) > loc_chu.NGUONG_DIEN_TICH for x in khung[k0:k1]]
+                if co and sum(co) / len(co) > 0.25:
+                    so_chu += 1
+                    continue
+            except Exception:                                # noqa: BLE001
+                pass
+        dich = f"{base}_m{q}.mp4"
+        p = subprocess.run([FFMPEG, "-v", "error", "-y", "-ss", f"{t0:.2f}", "-i", f, "-t", f"{t1 - t0:.2f}", "-an",
+                            "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", dich],
+                           capture_output=True, timeout=180, creationflags=0x08000000 if os.name == "nt" else 0)
+        if p.returncode != 0 or not os.path.isfile(dich) or os.path.getsize(dich) < 5000:
+            continue
+        w, h = _kich_thuoc(dich)
+        _cap_nhat_kho(du_an, f"{kid}_m{q}", **{**m, "file": dich, "dai": _do_dai(dich) or round(t1 - t0, 2), "rong": w, "cao": h,
+                                               "cat_sat": True, "manh_cua": kid,
+                                               "diem_khop": round(float(best[k0:k1].max()), 3),
+                                               "giay_bat_dau": round(max(0.0, bd_goc + t0), 2),
+                                               "giay_ket_thuc": round(max(0.0, bd_goc + t1), 2), "luc": time.time()})
+        giu += t1 - t0
+        so_giu += 1
+    try:                                                     # khoảng thô đã tách thành mảnh -> bỏ file thô
+        os.remove(f)
+    except OSError:
+        pass
+    _cap_nhat_kho(du_an, kid, trang_thai="tach" if so_giu else "loi", cat_sat=True, so_manh=so_giu,
+                  loi="" if so_giu else ("đoạn khớp có phụ đề / chữ" if so_chu else "không cắt được mảnh"))
+    return giu, so_giu
+
+
 def chon_khoang_video(t, e, qv, tong, min_dai=20.0, max_dai=40.0, toi_da_khoang=4):
     """Giai đoạn 3: Chọn 1–4 khoảng tốt nhất (20–40s) dựa vào điểm chấm ảnh xem trước (storyboard) so với mô tả chủ đề qv.
     Các khoảng không chồng nhau. Hai khoảng cách nhau dưới 10 giây thì gộp làm một."""
@@ -335,7 +477,11 @@ def _cat_khoang_local(file_goc, bd, kt, dich):
     return False, thoi_luong
 
 
-def _tai_video_goc(vid, file_goc):
+TAI_GOC_TOI_DA = 1200        # giây cho MỘT lần tải video gốc (19/10: video 20 phút tải riêng mất 126 s; 5 luồng chia mạng)
+TAI_LAI_CHO = 30            # video lỗi: chờ bấy nhiêu giây rồi tải lại TỪNG VIDEO MỘT sau đợt tải chính
+
+
+def _tai_video_goc(vid, file_goc, chi_hinh=False):
     """Tải 1 video YouTube 720p hoàn chỉnh bằng bộ tải gốc yt-dlp (nhanh 10-15s, không bị bóp băng thông)."""
     if os.path.isfile(file_goc) and os.path.getsize(file_goc) > 50000:
         return True
@@ -354,15 +500,21 @@ def _tai_video_goc(vid, file_goc):
 
     # yt-dlp: bỏ --no-part vì --no-part khiến yt-dlp không nhận diện được file .part đã tải xong một phần,
     # dẫn đến HTTP Error 416 (Requested range not satisfiable) khi cố resume stream đã đủ.
+    # 18/10: --concurrent-fragments 4 (DASH tải 4 phần cùng lúc); chi_hinh: chỉ luồng hình (mảnh cắt ra đều tắt tiếng)
     lenh = [YTDLP, *YT_JS, "--no-playlist", "--no-warnings",
-            "--retries", "5", "--fragment-retries", "5",
-            "-f", "bv*+ba/b", "-S", f"res:{CHIEU_CAO},vcodec:h264,acodec:m4a",
+            "--retries", "5", "--fragment-retries", "5", "--concurrent-fragments", "4",
+            "-f", "bv*/b" if chi_hinh else "bv*+ba/b", "-S", f"res:{CHIEU_CAO},vcodec:h264,acodec:m4a",
             "--merge-output-format", "mp4", "--ffmpeg-location", os.path.dirname(FFMPEG) or ".",
             "-o", file_goc, f"https://www.youtube.com/watch?v={vid}"]
     err_cuoi = ""
     for lan in range(2):
-        p = subprocess.run(lenh, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=300,
-                           creationflags=0x08000000 if os.name == "nt" else 0)
+        try:                                                 # 19/10: 300 s cứng cắt video dài khi 5 luồng chia mạng
+            p = subprocess.run(lenh, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, timeout=TAI_GOC_TOI_DA,
+                               creationflags=0x08000000 if os.name == "nt" else 0)
+        except subprocess.TimeoutExpired:
+            err_cuoi = f"ERROR: quá thời gian tải ({TAI_GOC_TOI_DA} s)"
+            _don_dep_tam()
+            continue
         if p.returncode == 0 and os.path.isfile(file_goc) and os.path.getsize(file_goc) > 50000:
             return True
         if p.stderr:
@@ -372,9 +524,18 @@ def _tai_video_goc(vid, file_goc):
         time.sleep(2 * (lan + 1))
 
     if err_cuoi:
-        dong_loi = [line for line in err_cuoi.splitlines() if "ERROR:" in line or "Sign in" in line]
-        msg = dong_loi[-1] if dong_loi else err_cuoi.splitlines()[-1]
-        log(f"    ! yt-dlp {vid}: {msg[:140]}")
+        # 19/10 user (log chỉ còn "ERROR:"): lỗi yt-dlp có thể nhiều dòng -> ghép từ dòng ERROR đầu tới hết; lưu bản đầy đủ
+        dong = [x.strip() for x in err_cuoi.splitlines() if x.strip()]
+        dau = next((k for k, x in enumerate(dong) if "ERROR" in x or "Sign in" in x), max(0, len(dong) - 3))
+        msg = " | ".join(dong[dau:])
+        log(f"    ! yt-dlp {vid}: {msg[:300]}")
+        try:
+            thu_loi = os.path.join(os.path.dirname(os.path.dirname(thu_goc)), "loi_tai")
+            os.makedirs(thu_loi, exist_ok=True)
+            with open(os.path.join(thu_loi, f"{vid_safe}.txt"), "w", encoding="utf-8") as f:
+                f.write(" ".join(lenh) + chr(10) * 2 + err_cuoi)
+        except OSError:
+            pass
     _don_dep_tam()
     return False
 
@@ -434,7 +595,8 @@ def tai_khoang_video(du_an, vid, bd, kt, tieu_de="", kenh="", chu_de_id=None, ta
     return kid
 
 
-def tai_khoang_cuon(du_an, ds_khoang, ten_buoc="tai_khoang", max_cung_luc=3, on_tien_do=None):
+def tai_khoang_cuon(du_an, ds_khoang, ten_buoc="tai_khoang", max_cung_luc=3, on_tien_do=None, sau_moi_video=None,
+                    chi_hinh=False):
     """Tải các khoảng video theo cơ chế Batch-per-source:
     Gom các khoảng theo từng video nguồn (vid). Với mỗi video nguồn:
     1. Tải bản 720p một lần bằng bộ tải gốc yt-dlp (nhanh 10-15s, không bị bóp băng thông).
@@ -459,7 +621,9 @@ def tai_khoang_cuon(du_an, ds_khoang, ten_buoc="tai_khoang", max_cung_luc=3, on_
     kids = []
     khoa_local = threading.Lock()
 
-    def xu_ly_video(vid, danh_sach):
+    that_bai = []
+
+    def xu_ly_video(vid, danh_sach, lan_cuoi=False):
         vid_safe = re.sub(r"[^\w-]", "", vid)[:30]
         # Lọc các khoảng chưa có
         can_cat = []
@@ -467,7 +631,8 @@ def tai_khoang_cuon(du_an, ds_khoang, ten_buoc="tai_khoang", max_cung_luc=3, on_
             kid = f"v_{vid_safe}_{int(it['bd'])}"
             dich = os.path.join(thu, kid + ".mp4")
             with khoa_local:
-                kids.append(kid)
+                if kid not in kids:                          # lần tải lại (video lỗi) không thêm trùng
+                    kids.append(kid)
             if kho.get(kid, {}).get("trang_thai") == "xong" and os.path.isfile(dich) and os.path.getsize(dich) > 10000:
                 with khoa_local:
                     xong[0] += 1
@@ -489,10 +654,15 @@ def tai_khoang_cuon(du_an, ds_khoang, ten_buoc="tai_khoang", max_cung_luc=3, on_
 
         # 1. Tải video gốc 720p về tệp tạm
         file_goc = os.path.join(thu, f"goc_{vid_safe}.mp4")
-        ok_goc = _tai_video_goc(vid, file_goc)
+        ok_goc = _tai_video_goc(vid, file_goc, chi_hinh=chi_hinh)
 
+        if not ok_goc and not lan_cuoi:                      # 19/10: lỗi nhất thời -> tải lại từng video một ở cuối
+            with khoa_local:
+                that_bai.append((vid, danh_sach))
+            log(f"    ! chưa tải được video gốc {vid_safe} -> thử lại sau đợt tải chính")
+            return
         if not ok_goc:
-            log(f"    ! không tải được video gốc {vid_safe} -> đánh dấu lỗi các khoảng")
+            log(f"    ! không tải được video gốc {vid_safe} (đã thử lại) -> đánh dấu lỗi các khoảng")
             for it, kid, dich in can_cat:
                 _cap_nhat_kho(du_an, kid, trang_thai="loi", loi="Không tải được video gốc", tay=True)
                 with khoa_local:
@@ -525,11 +695,21 @@ def tai_khoang_cuon(du_an, ds_khoang, ten_buoc="tai_khoang", max_cung_luc=3, on_
                 os.remove(file_goc)
         except Exception:
             pass
+        if sau_moi_video:                                    # 18/10: xử lý tiếp (cắt sát) NGAY khi video này xong,
+            try:                                             # chạy chồng lên lúc các video khác còn đang tải
+                sau_moi_video(vid, [kid for _, kid, _ in can_cat])
+            except Exception as e:                           # noqa: BLE001
+                log(f"    ! xử lý sau tải {vid_safe}: {str(e)[:100]}")
 
-    so_luong_thread = min(max(1, max_cung_luc), len(theo_vid), 3)
+    so_luong_thread = min(max(1, max_cung_luc), len(theo_vid), 5)   # 18/10: tối đa 5 video cùng lúc (trước: 3)
     with ThreadPoolExecutor(max_workers=so_luong_thread) as executor:
         for vid, ds_it in theo_vid.items():
             executor.submit(xu_ly_video, vid, ds_it)
+    if that_bai:
+        log(f"    tải lại {len(that_bai)} video lỗi, từng video một (chờ {TAI_LAI_CHO} s)…")
+        time.sleep(TAI_LAI_CHO)
+        for vid, ds_it in that_bai:
+            xu_ly_video(vid, ds_it, lan_cuoi=True)
 
     return kids
 
@@ -725,6 +905,13 @@ def cat_canh(du_an, canh_id):
     return cat
 
 
+def _phong_ai():
+    import sys
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "chinh_sua"))
+    import anh_ve
+    return anh_ve.PHONG_ANH_AI
+
+
 def _sua_nhap(thu, files):
     """Sửa bản nháp sau khi pycapcut ghi:
       * TẮT 'hút vào đoạn chính' (config.maintrack_adsorb) — bật thì CapCut dồn các đoạn sát nhau, mất khoảng trống
@@ -810,7 +997,9 @@ def tao_nhap(du_an, ten, drafts_dir, dung=None):
             else:
                 if dl <= 0:
                     continue
-                seg = draft.VideoSegment(mat, trange(t0, dl))
+                ph = _phong_ai() if m.get("nguon") == "gemini" else 1.0   # 19/10: 120% giấu ✦ chỉ khi chưa xoá được logo
+                seg = draft.VideoSegment(mat, trange(t0, dl),
+                                         clip_settings=draft.ClipSettings(scale_x=ph, scale_y=ph) if ph > 1.0 else None)
             script.add_segment(seg, track_name="hinh")
             het = t0 + dl
             n += 1

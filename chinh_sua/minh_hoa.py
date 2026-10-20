@@ -29,6 +29,21 @@ AM_HANH_DONG = {"xuat_hien": "pop", "an": "pop", "sinh_soi": "pop", "bay_toi": "
 HOAT_CANH = 1.0
 GIU_CUOI = 2.0
 KHOANG_NGAT = 4.0
+DI_TRUOC = 0.1             # 18/10 user: hình hiện TRƯỚC lời 0,1 s (hằng bị xoá ở e47e14b mà code còn dùng -> thêm lại)
+def lenh_ve(ve, thoi_dai="", co_mau=False):
+    """Câu lệnh vẽ đầy đủ của một ảnh AI tái hiện (✨ và nút 🎨 Vẽ lại trên giao diện dùng chung)."""
+    import anh_ve
+    p = (f"{str(ve).strip().rstrip('.')}. Wide 16:9 landscape photograph. {anh_ve.phong_cach(thoi_dai)} "
+         f"Absolutely NO text, NO letters, NO words.")      # 19/10 user: phong cách cố định + đúng thời đại
+    if co_mau:
+        p = ("The attached image is an EARLIER shot of the same story. Any subject that also appears in this "
+             "shot must look exactly the same (same species, body shape, colours, markings, clothing, vehicle), "
+             "same place, weather and light. Do NOT copy its framing and do NOT add subjects that this shot "
+             "does not describe — follow the new camera position, subjects and counts below: " + p)
+    return p
+
+
+SOAT_VE_LAI = 0             # 19/10: soát ảnh bằng Gemini chấm sai cả hai chiều (đo 4 ảnh cho_digo) -> TẮT
 KHOANG_GIUA = 0.5          # 17/10: khoảng đệm 0.5s đạt chuẩn 19-20 cảnh AI Storytelling (25-30% thời lượng)
 
 
@@ -466,8 +481,8 @@ def _render_so_do(jobs):
         if not (os.path.isfile(out) and os.path.getsize(out) > 5000):
             viec.append({"comp": "MinhHoa", "giay": giay, "out": out, "props": pr})
     if viec:
-        log(f"    Remotion dựng {len(viec)} sơ đồ minh hoạ…")
-        nen_ban_do._render(viec, thu)                                    # noqa: SLF001
+        log(f"    Remotion dựng {len(viec)} sơ đồ minh hoạ (biểu đồ số liệu / mốc thời gian / HUD)…")
+        nen_ban_do._render(viec, thu, ten="sơ đồ minh hoạ")                # noqa: SLF001
     return {k: (v if os.path.isfile(v) and os.path.getsize(v) > 5000 else None) for k, v in ra.items()}
 
 
@@ -492,6 +507,16 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
 
         if k in ("tai_hien", "dien_canh"):
             # 18/10 user: Ảnh AI chuyển thẳng sang CapCut timeline (không render Remotion)
+            # 18/10 user ("tích tắc là hết câu ảnh đã mất, nháy 1 cái footage"): phủ cả quãng nghỉ cuối câu tới khi câu sau
+            # bắt đầu (mốc câu là ước tính, giọng thật thường kéo quá t1 một chút)
+            ke_ = theo_i.get(ds_c[-1]["i"] + 1)
+            if ke_ and 0 <= ke_["t0"] - kt < 1.5:
+                kt = ke_["t0"]
+                dai = round(max(1.8, kt - bd), 2)
+            t_m = _tim(ds_c, x.get("moc_1") or x.get("moc"))     # 19/10: ảnh 1 hiện đúng lúc giọng tới cụm của nó
+            if t_m is not None and bd + 0.8 < t_m - DI_TRUOC < kt - 2.0:
+                bd = round(t_m - DI_TRUOC, 2)
+                dai = round(kt - bd, 2)
             ung_ai.append((bd, dai, "tai_hien", x, ds_c))
             continue
 
@@ -547,9 +572,8 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
             prev_end = round(prev[0] + prev[1], 2)
             if u[0] < prev_end:
                 prev[1] = round(max(1.8, u[0] - prev[0]), 2)
-            elif u[0] - prev_end < 0.6:
-                u[0] = prev_end
-                u[1] = round(max(2.0, u[4][-1]["t1"] - u[0]), 2)
+            elif u[0] - prev_end < 1.5:                      # 18/10: hở ngắn giữa hai chuỗi -> kéo chuỗi trước nối liền
+                prev[1] = round(u[0] - prev[0], 2)           # (không lộ footage một nhịp, chuỗi sau vẫn đúng mốc câu)
         nhan_ai.append(u)
 
     def _uu(u):
@@ -567,6 +591,15 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
             continue
         nhan_hud.append(u)
     nhan_hud.sort(key=lambda z: z[0])
+    gon_hud = []                                             # 19/10 user (C): câu có cả mốc thời gian + ảnh AI giữ cả hai
+    for u in nhan_hud:
+        dau_ai = [a[0] for a in nhan_ai if u[0] - 0.05 <= a[0] < u[0] + u[1] and a[0] - u[0] >= 1.2]
+        if dau_ai:
+            u[1] = round(min(dau_ai) - u[0], 2)
+        if any(a[0] < u[0] + u[1] - 0.05 and u[0] < a[0] + a[1] for a in nhan_ai):
+            continue                                         # vẫn chồng ảnh AI (HUD có nền video, sẽ che ảnh) -> bỏ HUD
+        gon_hud.append(u)
+    nhan_hud = gon_hud
 
     diem_cat = sorted(list(set(
         [round(t / SEC, 3) for cc in canh for (t, d, o) in cc.get("_os", [])] +
@@ -614,6 +647,7 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
 
     for u in nhan_ai:
         u[3]["_dai"] = u[1]
+        u[3]["_text"] = " ".join(str(c.get("text") or "") for c in u[4])   # cho bước soát ảnh
     for u in nhan_hud:
         u[3]["_dai"] = u[1]
 
@@ -649,20 +683,38 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
         import hashlib, anh_ve
         PUB = os.path.join(ROOT, "remotion", "public")
         os.makedirs(PUB, exist_ok=True)
-        ds_ten = []
+        ds_ten, ve_ds = [], []
+        mau = None                                           # 19/10 user: ảnh 1 là NGUYÊN LIỆU cho ảnh 2-3 (cùng vật chính)
         for i, p in enumerate(prompts):
-            kid = hashlib.md5(p.encode("utf-8")).hexdigest()[:14]
+            kid = hashlib.md5(((mau or "") + "|" + p).encode("utf-8")).hexdigest()[:14]
             ten_f = f"tai_hien_{kid}_{i}.png"
             f_anh = os.path.join(PUB, ten_f)
             if not (os.path.isfile(f_anh) and os.path.getsize(f_anh) > 5000):
-                p_full = f"{p}, 16:9 aspect ratio, 8k documentary photograph, award-winning cinematic lighting, authentic, photorealistic, absolutely NO text, NO letters, NO words."
+                p_full = lenh_ve(p, x.get("thoi_dai"), co_mau=bool(mau))
                 try:
-                    f_anh = anh_ve.ve_prompt(p_full, PUB, ten_f, timeout=120)
+                    f_anh = anh_ve.ve_prompt(p_full, PUB, ten_f, tep=[mau] if mau else None, timeout=120)
                 except Exception as e:
                     log(f"    ! vẽ tái hiện [{i+1}] lỗi: {e}")
                     f_anh = None
+                # 19/10 user ("ảnh trông ngu"): Gemini xem lại ảnh vừa vẽ; trượt -> vẽ lại kèm đúng lỗi (tối đa SOAT_VE_LAI)
+                for _l in range(SOAT_VE_LAI if f_anh and os.path.isfile(f_anh) else 0):
+                    dat, loi = anh_ve.soat(f_anh, x.get("_text"), p)
+                    if dat:
+                        break
+                    log(f"    ảnh tái hiện câu {x.get('cau')} [{i+1}] trượt soát: {loi[:140]} -> vẽ lại")
+                    try:
+                        f2 = anh_ve.ve_prompt(p_full + " FIX these problems of the previous attempt: " + loi, PUB,
+                                              f"_soat_{kid}_{_l}.png", tep=[mau] if mau else None, timeout=120)
+                    except Exception:                         # noqa: BLE001
+                        f2 = None
+                    if not (f2 and os.path.isfile(f2)):
+                        break
+                    os.replace(f2, f_anh)
             if f_anh and os.path.isfile(f_anh):
                 ds_ten.append(f_anh)
+                ve_ds.append(p)
+                mau = mau or f_anh                           # mọi ảnh sau lấy ẢNH ĐẦU làm mẫu (không trôi dần)
+        x["_ve_ds"] = ve_ds                                  # 19/10 user: lưu câu mô tả từng ảnh (sửa tay trên giao diện)
         return ds_ten
 
     log(f"    vẽ {len(bdv)} bản đồ, kiểm tra/vẽ {len(th)} chuỗi ảnh AI…")
@@ -718,13 +770,16 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
             "bd": bd,
             "dai": dai,
             "ds_anh": ds_anh,
+            "ve": list(x.get("_ve_ds") or []),               # câu mô tả từng ảnh, cùng thứ tự ds_anh
+            "thoi_dai": x.get("thoi_dai") or "",
+            "text": x.get("_text") or "",
             "phan_doan": phan_doan,
             "mo_ta": f"ảnh AI: {x.get('tieu_de') or 'chuỗi phân cảnh'}",
             "am": sfx_th
         })
 
     # ---- sơ đồ HUD trên nền video tối (chỉ render Remotion cho HUD/bản đồ)
-    jobs, ma_am = [], {}
+    jobs, ma_am, chu_phu = [], {}, []
     for n, (bd, dai, k, x, ds_c) in enumerate(nhan_hud):
         if k == "ban_do_ve":
             if x.get("_anh"):
@@ -738,29 +793,21 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
         if k not in SO_DO:
             continue
         pr = {"kieu": k, "nen": bang_giay._clips(canh, bd, bd + dai)}                      # noqa: SLF001
-        if k in ("so_sanh", "song", "con_so"):
-            jobs.append((n, dai, {
-                "kieu": "so_sanh",
-                "nen": pr["nen"],
-                "tieu_de": x.get("tieu_de") or "",
-                "ben_a": x.get("ben_a"),
-                "ben_b": x.get("ben_b"),
-                "dang": x.get("dang") or (k if k in ("song", "con_so") else ""),
-                "theme": x.get("theme")
-            }))
-            ma[n] = f"đồ thị/biểu đồ số liệu: {x.get('tieu_de')}"
-            ma_am[n] = [{"t": round(bd + 0.2, 2), "kieu": "hit", "ly_do": "biểu đồ số liệu"}]
+        # 19/10 user: KHÔNG dựng Remotion viết chữ lên video (biểu đồ cột / sóng, số, mốc năm) — thay bằng LỚP PHỦ ĐEN + CHỮ
+        # TRẮNG CapCut đặt chồng lên footage thật (dung_hoan_chinh.dat_chu_phu; chữ sửa tay được trong CapCut)
+        if k in ("so_sanh", "song", "con_so", "cot"):
+            ben = [b for b in (x.get("ben_a"), x.get("ben_b")) if isinstance(b, dict) and str(b.get("gia_tri") or "").strip()]
+            if ben:
+                chu_phu.append({"kieu": "chu_phu", "cau": x["cau"], "bd": bd, "dai": dai, "mo_ta": f"số liệu: {x.get('tieu_de')}",
+                                "tieu_de": str(x.get("tieu_de") or ""),
+                                "cot": [{"so": str(b["gia_tri"]), "nhan": str(b.get("ten") or "")} for b in ben],
+                                "am": [{"t": round(bd + 0.2, 2), "kieu": "hit", "ly_do": "số liệu"}]})
             continue
         elif k == "su_kien":
-            jobs.append((n, dai, {
-                "kieu": "su_kien",
-                "nen": pr["nen"],
-                "nam": str(x.get("nam") or ""),
-                "tieu_de": x.get("tieu_de") or "",
-                "cac_nam": x.get("cac_nam")
-            }))
-            ma[n] = f"mốc sự kiện: {x.get('nam')}"
-            ma_am[n] = [{"t": round(bd + 0.15, 2), "kieu": "whoosh", "ly_do": "mốc sự kiện"}]
+            if str(x.get("nam") or "").strip():
+                chu_phu.append({"kieu": "chu_phu", "cau": x["cau"], "bd": bd, "dai": dai, "mo_ta": f"mốc: {x.get('nam')}",
+                                "tieu_de": "", "cot": [{"so": str(x["nam"]).upper(), "nhan": ""}],
+                                "am": [{"t": round(bd + 0.15, 2), "kieu": "whoosh", "ly_do": "mốc sự kiện"}]})
             continue
         elif k in ("giai_thich", "quy_trinh"):
             jobs.append((n, dai, {"kieu": "giai_thich", "nen": pr["nen"], "tieu_de": x.get("tieu_de") or "", "cac_buoc": x.get("cac_buoc") or x.get("buoc") or x.get("muc") or []}))
@@ -784,7 +831,7 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
         jobs.append((n, dai, pr))
 
     clip.update(_render_so_do(jobs) if jobs else {})
-    ra = []
+    ra = list(chu_phu)
     for n, (bd, dai, k, x, ds_c) in enumerate(nhan_hud):
         if clip.get(n):
             ra.append({"kieu": k, "cau": x["cau"], "bd": bd, "dai": dai, "file": clip[n], "mo_ta": ma.get(n, ""),

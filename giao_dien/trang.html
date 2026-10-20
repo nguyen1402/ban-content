@@ -57,6 +57,7 @@ dialog::backdrop{background:#000a}dialog video{width:100%;display:block;border-r
   <button class="p" id="mothumuc">Mở thư mục kết quả</button>
   <span class="sub" style="margin:0" id="trangthai_dau"></span>
   <button class="p" id="nutck" title="Tài khoản Gemini / ChatGPT (cookie) — kho riêng của bán-content">🍪 Cookie</button>
+  <a class="p" href="/doi_thu" target="_blank" title="Quét giờ đăng của kênh đối thủ + tìm video đột biến của kênh ít sub cùng ngách" style="padding:6px 12px;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:var(--ink)">📈 Đối thủ</a>
   <button class="p" id="nutflow" title="Hồ sơ Chrome để vẽ ảnh bằng Google Flow (Nano Banana, 0 điểm)">🎨 Hồ sơ Flow</button>
   <button class="p" id="nutflow_hl" title="Nhập câu tạo ảnh rồi tạo hàng loạt ảnh thông qua script Flow">🖼️ Tạo hàng loạt ảnh Flow</button>
 </header>
@@ -164,8 +165,10 @@ dialog::backdrop{background:#000a}dialog video{width:100%;display:block;border-r
     <div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
       <div class="row"><b style="font-size:14px">Nghe giọng đã đọc của dự án</b>
         <select id="bogiong" class="grow" style="max-width:420px"></select><button class="p" id="tailaigiong">↻</button>
+        <button id="suagiong" title="Soát lại mọi câu đã đọc (nuốt chữ, đọc méo, sai âm, ngắt sai); câu sai được đọc lại, giữ bản tốt nhất, giữ đúng độ dài câu cũ rồi ghép lại giọng đọc của dự án — các bản nháp dùng giọng này nhận luôn (mở lại bản nháp trong CapCut).">🔁 Sửa câu đọc sai</button>
         <span class="sub" id="ttgiong" style="margin:0"></span></div>
       <audio id="amcanh" controls style="margin-top:8px;width:100%;display:none"></audio>
+      <div class="sub" id="ttsuagiong" style="margin-top:6px;white-space:pre-line"></div>
       <div id="dsgiong" style="max-height:300px;overflow:auto;margin-top:6px"></div>
     </div>
   </section>
@@ -177,7 +180,7 @@ dialog::backdrop{background:#000a}dialog video{width:100%;display:block;border-r
       <label>Chạy thử N cảnh đầu <input type="number" id="gioihan" value="0" min="0" style="width:80px"> <span class="sub" style="margin:0">(0 = cả kịch bản)</span></label>
       <label class="gy" style="margin:0"><input type="checkbox" id="taonhap" checked> Tạo bản nháp CapCut</label>
       <input type="text" id="tennhap" class="grow" placeholder="Tên bản nháp CapCut" style="max-width:300px">
-      <button id="chay">▶ Chạy</button><button id="lamlai" title="Xoá dữ liệu riêng của dự án (giọng, từ khoá, bản đồ) rồi chạy lại TỪ ĐẦU.">↻ Làm lại từ đầu</button><button id="dondu" title="Dọn dự án ĐÃ LÀM XONG cho nhẹ ổ: xoá video/ảnh đã tải, kế hoạch, giọng đọc đã lưu (giữ kịch bản). Chỉ dọn sau khi đã xuất MP4 — bản nháp CapCut trỏ thẳng vào các video này.">🧹 Dọn dự án</button><button class="er" id="dung" style="display:none">■ Dừng</button>
+      <button id="chay">▶ Chạy</button><button id="lamlai" title="Xoá dữ liệu riêng của dự án (giọng, từ khoá, bản đồ) rồi chạy lại TỪ ĐẦU.">↻ Làm lại từ đầu</button><button id="donnhieu" title="Tick chọn nhiều dự án để dọn một lượt: chỉ kho đã tải (giữ giọng đọc, kịch bản) hoặc cả dự án.">🧹 Dọn nhiều dự án</button><button id="dondu" title="Dọn dự án ĐÃ LÀM XONG cho nhẹ ổ: xoá video/ảnh đã tải, kế hoạch, giọng đọc đã lưu (giữ kịch bản). Chỉ dọn sau khi đã xuất MP4 — bản nháp CapCut trỏ thẳng vào các video này.">🧹 Dọn dự án</button><button class="er" id="dung" style="display:none">■ Dừng</button>
     </div>
     <div class="row" id="buoc" style="margin-top:12px"></div>
     <pre id="log" style="display:none"></pre>
@@ -198,12 +201,19 @@ dialog::backdrop{background:#000a}dialog video{width:100%;display:block;border-r
     <div id="tukhoa" style="margin-top:10px"></div>
   </section>
 </main>
+<dialog id="hop_don" style="border:0;border-radius:12px;padding:16px 20px;max-width:760px;width:94vw;max-height:85vh;overflow:auto;background:var(--card);color:var(--ink);box-shadow:0 12px 36px #0006">
+  <div class="row" style="justify-content:space-between;margin-bottom:6px"><b>🧹 Dọn nhiều dự án</b><button class="p" onclick="$('#hop_don').close()">✕</button></div>
+  <p style="margin:0 0 8px;color:var(--mut);font-size:13px"><b>Chỉ kho</b> = xoá video/ảnh đã tải + kế hoạch ghép hình cũ, GIỮ giọng đọc, kịch bản, chia đoạn (chạy 🤖 lại sẽ tải lại). <b>Cả dự án</b> = như nút 🧹 Dọn dự án (chỉ giữ kịch bản). ⚠ Bản nháp CapCut trỏ thẳng vào video trong kho — chỉ dọn dự án đã xuất MP4.</p>
+  <table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="text-align:left;color:var(--mut)"><th><input type="checkbox" id="don_tat"></th><th>Dự án</th><th>Tổng</th><th>Kho</th><th>Mức xoá</th></tr></thead><tbody id="don_ds"></tbody></table>
+  <label style="display:block;margin-top:8px;font-size:13px"><input type="checkbox" id="don_nhap"> Xoá luôn bản nháp CapCut của các dự án đã chọn (đóng chúng trong CapCut trước)</label>
+  <div class="row" style="margin-top:10px;justify-content:flex-end;gap:8px"><span id="don_tom" class="grow" style="color:var(--mut)"></span><button class="p" id="don_het" title="Tick mọi dự án (trừ dự án đang chạy) và đặt mức xoá CẢ DỰ ÁN">☑ Chọn tất cả · xoá cả dự án</button><button class="er" id="don_lam">🧹 Dọn</button><button class="p" onclick="$('#hop_don').close()">Đóng</button></div>
+</dialog>
 <dialog id="hop"><video id="xem" controls autoplay style="display:none"></video><img id="xem_img" style="display:none;width:100%;max-height:80vh;object-fit:contain;background:#000"><div style="padding:10px 14px" class="row"><span id="chuthich" class="grow"></span><a id="xem_tai" href="#" download class="p" style="padding:4px 10px;text-decoration:none;display:none">⬇ Tải ảnh</a><button class="p" onclick="hop.close()">Đóng</button></div></dialog>
 <div class="thongbao" id="tb"></div>
 <script>
 const $=s=>document.querySelector(s);
 const hop=$('#hop');
-const BUOC=[["tach","Tách cảnh"],["tu_khoa","Từ khoá (ChatGPT)"],["giong","Đọc giọng"],["xuat","Xuất từ khoá"],["nhap","Bản nháp CapCut"]];
+const BUOC=[["tach","Tách cảnh"],["tu_khoa","Tên riêng (AI)"],["giong","Đọc giọng"],["xuat","Xuất cảnh + phụ đề"],["nhap","Bản nháp CapCut"]];
 let du='',ketqua=[],hen=null;
 function tb(m){const e=$('#tb');e.textContent=m;e.classList.add('hien');setTimeout(()=>e.classList.remove('hien'),2600)}
 async function api(p,o){const r=await fetch(p,o);if(!r.ok){let t='';try{t=await r.text()}catch(e){}const m=t.match(/<pre>([\s\S]*?)<\/pre>/i);const div=document.createElement('div');div.innerHTML=m?m[1]:'';const msg=(m?div.textContent:t.replace(/<[^>]*>/g,' ')).replace(/\s+/g,' ').trim().slice(0,160);throw new Error(msg||('mã '+r.status))}return r.json()}
@@ -512,6 +522,46 @@ $('#dondu').onclick=async()=>{if(!du)return tb('Chọn dự án');
   try{const r=await post('/api/don_du_an',{du_an:du,xoa_nhap:xn});
     tb((r.ok?'Đã dọn ':'Dọn chưa hết ')+'"'+du+'" — giải phóng '+coMB(r.giai_phong)+(r.loi.length?' · '+r.loi.join('; '):''));
     await napDuAn(du)}catch(e){tb('Lỗi: '+e.message)}};
+// 19/10 user: dọn nhiều dự án một lượt
+let dsDon=[];
+function tomDon(){let g=0,n=0;$('#don_ds').querySelectorAll('tr').forEach(r=>{const x=dsDon[+r.dataset.k];if(!r.querySelector('[data-chon]').checked)return;n++;
+  g+=r.querySelector('[data-muc]').value==='het'?x.tong:x.kho;if($('#don_nhap').checked)g+=x.nhap_dl});
+  $('#don_tom').textContent=n?`${n} dự án · giải phóng khoảng ${coMB(g)}`:'chưa chọn dự án nào'}
+$('#donnhieu').onclick=async()=>{const b=$('#donnhieu'),nhan=b.textContent;b.disabled=true;b.textContent='🧹 Đang đo dung lượng…';
+  let r;try{r=await api('/api/don_nhieu')}catch(e){b.disabled=false;b.textContent=nhan;return tb('Lỗi: '+e.message)}
+  b.disabled=false;b.textContent=nhan;
+  dsDon=(r.ds||[]).sort((a,b)=>b.tong-a.tong);
+  $('#don_ds').innerHTML=dsDon.map((x,k)=>`<tr data-k="${k}" style="border-top:1px solid var(--line)"><td><input type="checkbox" data-chon ${x.ban?'disabled':''}></td>
+    <td>${esc(x.ten)}${x.ban?` <span style="color:var(--wa)">(${esc(x.ban)})</span>`:''}${x.nhap?` <span style="color:var(--mut);font-size:12px">· ${x.nhap} bản nháp</span>`:''}</td>
+    <td>${coMB(x.tong)}</td><td>${coMB(x.kho)}</td><td><select data-muc><option value="kho">Chỉ kho</option><option value="het">Cả dự án</option></select></td></tr>`).join('');
+  $('#don_ds').querySelectorAll('input,select').forEach(e=>e.onchange=tomDon);$('#don_nhap').onchange=tomDon;
+  $('#don_tat').checked=false;$('#don_tat').onchange=()=>{$('#don_ds').querySelectorAll('[data-chon]:not(:disabled)').forEach(c=>c.checked=$('#don_tat').checked);tomDon()};
+  tomDon();$('#hop_don').showModal()};
+$('#don_het').onclick=()=>{$('#don_ds').querySelectorAll('tr').forEach(r=>{const c=r.querySelector('[data-chon]');if(c.disabled)return;
+  c.checked=true;r.querySelector('[data-muc]').value='het'});$('#don_tat').checked=true;tomDon()};
+$('#don_lam').onclick=async()=>{const ds=[];$('#don_ds').querySelectorAll('tr').forEach(r=>{if(r.querySelector('[data-chon]').checked)
+    ds.push({du_an:dsDon[+r.dataset.k].ten,muc:r.querySelector('[data-muc]').value})});
+  if(!ds.length)return tb('Chưa chọn dự án nào');
+  if(!confirm('🧹 Dọn '+ds.length+' dự án:\n\n'+ds.map(x=>'• '+x.du_an+' — '+(x.muc==='het'?'CẢ DỰ ÁN':'chỉ kho đã tải')).join('\n')+
+    ($('#don_nhap').checked?'\n\n+ xoá bản nháp CapCut của các dự án này':'')+'\n\nKHÔNG khôi phục được. Tiếp tục?'))return;
+  $('#don_lam').disabled=true;$('#don_tom').textContent='đang xoá…';
+  try{const r=await post('/api/don_nhieu',{ds,xoa_nhap:$('#don_nhap').checked});const loi=r.kq.filter(x=>x.loi.length);
+    tb((r.ok?'Đã dọn ':'Dọn chưa hết ')+ds.length+' dự án — giải phóng '+coMB(r.giai_phong)+(loi.length?' · '+loi.map(x=>x.du_an+': '+x.loi.join(', ')).join('; '):''));
+    $('#hop_don').close();await napDuAn(du)}catch(e){tb('Lỗi: '+e.message)}
+  $('#don_lam').disabled=false};
+// 19/10 user: sửa câu đọc sai rồi ghép lại giọng đọc
+let henSG=null;
+async function theoDoiSuaGiong(){clearTimeout(henSG);let t;try{t=await api('/api/sua_giong_tt?du_an='+encodeURIComponent(du))}catch(e){return}
+  const b=$('#suagiong'),dong=(t.dong||[]).slice(-4).join('\n');
+  if(t.dang){b.disabled=true;b.textContent='🔁 Đang sửa…';$('#ttsuagiong').textContent=dong;henSG=setTimeout(theoDoiSuaGiong,3000);return}
+  b.disabled=false;b.textContent='🔁 Sửa câu đọc sai';
+  if(t.loi){$('#ttsuagiong').textContent='Lỗi: '+t.loi;return}
+  if(t.kq){const k=t.kq;$('#ttsuagiong').textContent=dong+`\nĐã thay ${k.thay.length} câu`+(k.thay.length?` (cảnh ${k.thay.join(', ')})`:'')+
+    (k.con_loi.length?` · còn ${k.con_loi.length} câu chưa hết lỗi: `+k.con_loi.slice(0,12).map(i=>`${i} (${(k.loi[i]||[])[0]||''})`).join('; '):' · không còn câu lỗi')+
+    (k.thay.length?'\nMở lại bản nháp trong CapCut để nghe giọng mới.':'');}}
+$('#suagiong').onclick=async()=>{if(!du)return tb('Chọn dự án');
+  if(!confirm('Soát lại toàn bộ giọng đọc của "'+du+'", đọc lại các câu sai và GHI ĐÈ giọng đọc của dự án (bản cũ lưu ở giong_doc.truoc_sua.wav)?\nĐóng bản nháp trong CapCut trước. Mất vài phút.'))return;
+  try{await post('/api/sua_giong',{du_an:du});theoDoiSuaGiong()}catch(e){tb('Lỗi: '+e.message)}};
 function lanChay(){api('/api/trang_thai?du_an='+encodeURIComponent(du)).then(t=>{const l=t.lan_chay||{};
   if(l.giong)$('#giong').value=l.giong;if(l.toc_do)$('#tocdo').value=l.toc_do;if(l.ten_nhap)$('#tennhap').value=l.ten_nhap;
   if(l.gioi_han!==undefined)$('#gioihan').value=l.gioi_han||0;if(l.num_step)$('#numstep').value=l.num_step}).catch(()=>{})}

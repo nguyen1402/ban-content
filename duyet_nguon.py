@@ -38,6 +38,8 @@ def tim_video_theo_chu_de(du_an, nam_truoc=None, bo_kenh_lon=False, lam_moi=Fals
     ds_chu_de = chu_de.chia_chu_de(du_an)
     if not ds_chu_de:
         raise ValueError("Không chia được chủ đề từ kịch bản")
+    # 18/10: chỉ ĐOẠN KỂ có kho riêng; đoạn bình luận dùng kho của đoạn kể nó thừa kế
+    ds_chu_de = [cd for cd in ds_chu_de if cd.get("loai", "ke") != "binh_luan"] or ds_chu_de
 
     kenh_bo = doc_json(dung_tay.KENH_BO, {}) or {}
     kho = dung_tay.doc_kho(du_an)
@@ -64,14 +66,18 @@ def tim_video_theo_chu_de(du_an, nam_truoc=None, bo_kenh_lon=False, lam_moi=Fals
     def tim_cho_chu_de(cd):
         tks = cd.get("tu_khoa_en") or [cd.get("ten", "")]
         kq_cd = {}
-        for q in tks[:4]:
+        hang, so_tu = {}, {}                                 # 18/10: thứ hạng YouTube tốt nhất + số từ khoá cùng ra video
+        for q in tks:                                        # 18/10: dùng HẾT từ khoá (trước: 4 đầu)
             q_str = str(q).strip()
             if not q_str:
                 continue
             q_tim = f"{q_str} before:{nam_str}" if nam_str else q_str
             try:
                 ds = dung_tay.tim_youtube(q_tim, n=10, lam_moi=lam_moi)
-                for v in ds:
+                for r_, v in enumerate(ds):
+                    if v.get("id"):
+                        hang[v["id"]] = min(hang.get(v["id"], 99), r_)
+                        so_tu[v["id"]] = so_tu.get(v["id"], 0) + 1
                     vid = v.get("id")
                     dai = float(v.get("dai") or 0)
                     kenh = v.get("kenh") or ""
@@ -110,15 +116,23 @@ def tim_video_theo_chu_de(du_an, nam_truoc=None, bo_kenh_lon=False, lam_moi=Fals
         dung_kho_mac_dinh = len(ds_kho) >= 2
 
         ds_vid = list(kq_cd.values())
-        if bo_kenh_lon:
-            ds_vid.sort(key=lambda x: (
-                1 if x.get("xac_minh") else 0,
-                abs(float(x.get("dai") or 0) - 360),
-                -int(x.get("luot_xem") or 0) if int(x.get("luot_xem") or 0) < 500000 else 999999999
-            ))
-        else:
-            # Sắp xếp ưu tiên video chất lượng: độ dài vừa phải (2 - 15 phút), lượt xem tốt
-            ds_vid.sort(key=lambda x: (abs(float(x.get("dai") or 0) - 360), -int(x.get("luot_xem") or 0)))
+        # 18/10: xếp theo MỨC LIÊN QUAN (trước: độ dài gần 6 phút + lượt xem -> video du lịch/flycam lên đầu):
+        # điểm SigLIP ảnh thu nhỏ so với mô tả chủ đề + thưởng nhẹ khi nhiều từ khoá cùng ra + thứ hạng YouTube
+        for v in ds_vid:
+            v["diem"] = -1.0
+        try:
+            import nhung_siglip
+            import xep_hang
+            qv = nhung_siglip.vec_mo_ta(cd.get("mo_ta_en") or cd.get("ten", ""), tks)
+            co, E = xep_hang.nhung_url([v["thumb"] for v in ds_vid])
+            if co:
+                for i, d in zip(co, E @ qv):
+                    ds_vid[i]["diem"] = round(float(d), 4)
+        except Exception as e:                               # noqa: BLE001
+            log(f"    ! chấm ảnh thu nhỏ chủ đề {cd.get('id')}: {str(e)[:100]}")
+        for v in ds_vid:
+            v["diem_xep"] = v["diem"] + 0.01 * (so_tu.get(v["id"], 1) - 1) - 0.002 * hang.get(v["id"], 10)
+        ds_vid.sort(key=lambda x: -x["diem_xep"])
 
         # Nếu đã có đủ clip trong kho, mặc định không cần tick video YouTube mới để tránh tải thừa
         for idx, v in enumerate(ds_vid):
@@ -142,8 +156,58 @@ def tim_video_theo_chu_de(du_an, nam_truoc=None, bo_kenh_lon=False, lam_moi=Fals
     with ThreadPoolExecutor(4) as ex:
         ket_qua = list(ex.map(tim_cho_chu_de, ds_chu_de))
 
+    try:                                                     # 18/10: nhãn "kể lại cùng chuyện" — chỉ gắn nhãn, không ẩn
+        _gan_nhan_ke_lai(du_an, ds_chu_de, ket_qua)
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! gắn nhãn video kể lại: {str(e)[:120]}")
+    da_tick = set()                                          # tick sẵn 2 video liên quan nhất KHÔNG phải bản kể lại,
+    for cd in ket_qua:                                       # không tick lại video đã tick ở chủ đề trước
+        n = 0
+        for v in cd["videos"]:
+            v["chon"] = not cd["dung_kho"] and not v.get("ke_lai") and v["id"] not in da_tick and n < 2
+            n += v["chon"]
+            if v["chon"]:
+                da_tick.add(v["id"])
+
     _tt(du_an, buoc="tim_video", xong=len(ket_qua), tong=len(ket_qua), dang=False)
     return ket_qua
+
+
+def _gan_nhan_ke_lai(du_an, ds_chu_de, ket_qua):
+    """18/10 user: video của kênh khác KỂ LẠI ĐÚNG câu chuyện trong kịch bản (giọng AI, phụ đề — đúng chủ đề nhưng
+    dùng lại dễ dính bản quyền) -> v["ke_lai"]=True để người dùng tự quyết. Một lượt hỏi AI cho mọi tiêu đề chưa
+    phân loại; kết quả nhớ ở ra/<dự án>/ke_lai.json (id video -> true/false)."""
+    from common import hoi_llm, rut_json
+    p = os.path.join(thu_muc_du_an(du_an)[1], "ke_lai.json")
+    da = doc_json(p, {}) or {}
+    moi = {}
+    for cd in ket_qua:
+        for v in cd["videos"]:
+            if v["id"] not in da:
+                moi.setdefault(v["id"], v.get("tieu_de") or "")
+    if moi:
+        ids = list(moi)
+        tom_tat = "\n".join(f"- {c.get('ten', '')}: {c.get('mo_ta_en', '')}" for c in ds_chu_de)
+        ds = "\n".join(f"{i + 1}. {moi[k]}" for i, k in enumerate(ids))
+        prompt = (
+            "A documentary script tells ONE specific real story. Its parts:\n" + tom_tat +
+            "\n\nBelow are YouTube video titles. Which titles are videos that RETELL THIS SAME SPECIFIC STORY / EVENT "
+            "(another channel narrating the same news story or case)? Generic footage or documentaries about the same "
+            "animal, place or topic that do NOT tell this specific event are NOT retellings.\n\n" + ds +
+            '\n\nReply with JSON only: {"ke_lai": [numbers of the retelling titles]}')
+        j = rut_json(hoi_llm(prompt, timeout=120)) or {}
+        so = {int(x) for x in (j.get("ke_lai") or []) if str(x).strip().isdigit()} if isinstance(j, dict) else set()
+        if isinstance(j, dict) and "ke_lai" in j:            # AI trả lời được mới ghi nhớ (lỗi thì lần sau hỏi lại)
+            for i, k in enumerate(ids):
+                da[k] = (i + 1) in so
+            ghi_json(p, da)
+    n = 0
+    for cd in ket_qua:
+        for v in cd["videos"]:
+            v["ke_lai"] = bool(da.get(v["id"]))
+            n += v["ke_lai"]
+    if n:
+        log(f"  [duyệt nguồn] {n} video là bản KỂ LẠI cùng câu chuyện (gắn nhãn, không tick sẵn)")
 
 
 # --------------------------------------------------------------------------- 2. TÌM ẢNH TƯ LIỆU LỊCH SỬ THẬT

@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Đối thủ YouTube — Bản Content</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1c2230;--mut:#667085;--line:#e3e6ec;--ac:#2f6df6;--ac-ink:#fff;--ok:#1a9d5c;--wa:#c27803;--er:#d33a3a}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1218;--card:#171b24;--ink:#e8ecf3;--mut:#93a0b4;--line:#262c39;--ac:#5b8cff;--ac-ink:#0b0f18;--ok:#43c783;--wa:#e0a43a;--er:#ff7070}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Segoe UI",system-ui,sans-serif}
+header{display:flex;gap:12px;align-items:center;padding:12px 20px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+header a{color:var(--ac);text-decoration:none}
+main{max-width:1200px;margin:16px auto;padding:0 16px;display:grid;gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+h2{margin:0 0 6px;font-size:17px}
+.sub{color:var(--mut);font-size:13px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+input,textarea,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 9px}
+button{font:inherit;border:0;border-radius:8px;padding:7px 14px;background:var(--ac);color:var(--ac-ink);cursor:pointer}
+button.p{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button:disabled{opacity:.55;cursor:default}
+table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+th,td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:left;vertical-align:top}
+th{cursor:pointer;color:var(--mut);font-weight:600;white-space:nowrap;position:sticky;top:0;background:var(--card)}
+td.so{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+a{color:var(--ac)}
+.bieu{display:grid;gap:3px;align-items:end;height:120px;margin-top:8px}
+.cot{background:var(--ac);border-radius:3px 3px 0 0;min-height:1px;position:relative}
+.nhan{display:grid;gap:3px;font-size:11px;color:var(--mut);text-align:center}
+.tt{min-height:20px}
+.cuon{max-height:520px;overflow:auto}
+.noi{background:#1a9d5c22}
+</style>
+</head>
+<body>
+<header><b>📈 Đối thủ YouTube</b><a href="/">← Bản Content</a><span class="sub">Chỉ đọc dữ liệu công khai (yt-dlp) — không tải video, không cần khoá API. Giờ hiển thị theo giờ Việt Nam.</span></header>
+<main>
+<section class="card">
+  <h2>1. Giờ đăng của kênh đối thủ</h2>
+  <p class="sub">Dán link kênh hoặc @handle (mỗi dòng một kênh). Máy đọc giờ đăng chính xác đến giây của các video mới nhất (tab Video) và thống kê khung giờ, thứ hay đăng kèm lượt xem trung bình.</p>
+  <div class="row"><textarea id="kenh" rows="2" style="flex:1;min-width:280px" placeholder="https://www.youtube.com/@tenkenh&#10;@kenhkhac"></textarea>
+    <span class="sub">Số video</span><input id="so_vid" type="number" value="50" min="5" max="300" style="width:80px"><button id="quet">🔍 Quét giờ đăng</button></div>
+  <div class="sub tt" id="tt1"></div>
+  <div id="kq1"></div>
+</section>
+<section class="card">
+  <h2>2. Video đột biến của kênh ít sub cùng ngách</h2>
+  <p class="sub">Nhập từ khoá ngách (mỗi dòng hoặc cách nhau bởi dấu phẩy, nên dùng tiếng Anh nếu ngách quốc tế). Máy tìm video mới đăng + liên quan nhất, đọc số sub kênh, view, like, bình luận rồi giữ video của kênh nhỏ có view cao. <b>Hệ số</b> = view ÷ sub (càng cao càng đột biến so với cỡ kênh).</p>
+  <div class="row" style="margin-bottom:6px"><span class="sub">Lấy từ khoá từ kênh đối thủ:</span><input id="kenh_tk" style="flex:1;min-width:240px" placeholder="https://www.youtube.com/@kenhdoithu (tiếng Việt cũng được)">
+    <button class="p" id="ai_tk">🤖 AI lấy từ khoá (tiếng Anh)</button></div>
+  <div class="sub" id="ngach" style="margin-bottom:4px"></div>
+  <div class="row"><textarea id="tu_khoa" rows="2" style="flex:1;min-width:280px" placeholder="invasive species australia, feral animals australia"></textarea></div>
+  <div class="row" style="margin-top:6px">
+    <span class="sub">Sub tối đa</span><input id="sub_max" type="number" value="50000" style="width:100px">
+    <span class="sub">Đăng trong (ngày)</span><input id="ngay_max" type="number" value="30" style="width:70px">
+    <span class="sub">View tối thiểu</span><input id="view_min" type="number" value="10000" style="width:100px">
+    <span class="sub">Kết quả mỗi từ khoá</span><input id="n_tu" type="number" value="30" min="5" max="100" style="width:70px">
+    <label class="sub"><input type="checkbox" id="bo_short" checked> bỏ Shorts</label>
+    <label class="sub" title="Giữ video tiếng Anh và mọi tiếng khác, chỉ bỏ video tiếng Việt"><input type="checkbox" id="bo_vi" checked> bỏ video tiếng Việt</label>
+    <button id="tim">🚀 Tìm video đột biến</button><button class="p" id="csv2" style="display:none">⬇ CSV</button>
+  </div>
+  <div class="sub tt" id="tt2"></div>
+  <div id="kq2" class="cuon"></div>
+</section>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function api(p,o){const r=await fetch(p,o);if(!r.ok){let t='';try{t=await r.text()}catch(e){}throw new Error(t.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,200)||('mã '+r.status))}return r.json()}
+const post=(p,d)=>api(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
+const so=n=>n==null?'—':(+n).toLocaleString('vi-VN');
+const ngan=n=>n==null?'—':n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(n);
+async function cho(job,tt,xong){for(;;){let t;try{t=await api('/api/doi_thu/tt?job='+job)}catch(e){tt.textContent='Lỗi: '+e.message;return}
+  tt.textContent=t.dong||'';if(!t.dang){if(t.loi){tt.textContent='Lỗi: '+t.loi;return}xong(t.kq);return}await new Promise(r=>setTimeout(r,1500))}}
+function bang(ds,cot,id){
+  const th=cot.map((c,k)=>`<th data-k="${k}">${c[0]}</th>`).join('');
+  const tr=ds.map(x=>'<tr>'+cot.map(c=>`<td class="${c[2]||''}">${c[1](x)}</td>`).join('')+'</tr>').join('');
+  return `<table id="${id}"><thead><tr>${th}</tr></thead><tbody>${tr}</tbody></table>`}
+function choSapXep(id,ds,cot,ve){const t=$('#'+id);if(!t)return;t.querySelectorAll('th').forEach(h=>h.onclick=()=>{const c=cot[+h.dataset.k];if(!c[3])return;
+  const tang=h.dataset.tang!=='1';ds.sort((a,b)=>{const x=c[3](a),y=c[3](b);return (x>y?1:x<y?-1:0)*(tang?1:-1)});ve();const h2=$('#'+id).querySelectorAll('th')[+h.dataset.k];h2.dataset.tang=tang?'1':'0'})}
+function bieu(gt,nhan,mau){const max=Math.max(1,...gt.map(g=>g.so));
+  return `<div><div class="bieu" style="grid-template-columns:repeat(${gt.length},1fr)">${gt.map((g,k)=>`<div class="cot" title="${nhan[k]}: ${g.so} video · view TB ${so(g.view_tb)}" style="height:${100*g.so/max}%;${g.so?'':'opacity:.15'}"></div>`).join('')}</div>
+  <div class="nhan" style="grid-template-columns:repeat(${gt.length},1fr)">${nhan.map(n=>`<span>${n}</span>`).join('')}</div></div>`}
+// 1. giờ đăng
+$('#quet').onclick=async()=>{const ds=$('#kenh').value.split(/\n|,/).map(s=>s.trim()).filter(Boolean);if(!ds.length)return;
+  $('#quet').disabled=true;$('#kq1').innerHTML='';
+  for(const k of ds){const box=document.createElement('div');box.style.marginTop='14px';$('#kq1').appendChild(box);
+    try{const r=await post('/api/doi_thu/gio',{kenh:k,n:+$('#so_vid').value||50});
+      await cho(r.job,$('#tt1'),kq=>{const gio=Object.keys(kq.theo_gio).map(h=>kq.theo_gio[h]),thu=Object.keys(kq.theo_thu),
+        top=Object.entries(kq.theo_gio).filter(([h,v])=>v.so).sort((a,b)=>b[1].so-a[1].so).slice(0,3).map(([h,v])=>`${h}h (${v.so} video, view TB ${ngan(v.view_tb)})`).join(' · ');
+        const cot=[['Giờ đăng (VN)',x=>esc(x.gio_vn)+(x.cong_chieu?' <span class="sub">(công chiếu)</span>':''),'',x=>x.ts||0],['Thứ',x=>esc(x.thu),'',x=>x.thu],['View',x=>so(x.view),'so',x=>x.view||0],
+          ['View/ngày',x=>so(x.view_ngay),'so',x=>x.view_ngay||0],['Like',x=>so(x.like),'so',x=>x.like||0],['BL',x=>so(x.binh_luan),'so',x=>x.binh_luan||0],['TT %',x=>x.tuong_tac??'—','so',x=>x.tuong_tac||0],
+          ['Dài',x=>Math.round((x.dai||0)/60)+'′','so',x=>x.dai||0],['Tiêu đề',x=>`<a href="https://youtu.be/${x.id}" target="_blank">${esc(x.tieu_de)}</a>`]];
+        const id='b1_'+Math.random().toString(36).slice(2,7);
+        const ve=()=>{box.querySelector('.bang').innerHTML=bang(kq.ds,cot,id);choSapXep(id,kq.ds,cot,ve)};
+        box.innerHTML=`<h3 style="margin:4px 0">${esc(kq.kenh)} <span class="sub">· ${ngan(kq.sub)} sub · ${kq.ds.length} video · trung bình ${kq.cach_tb_ngay??'?'} ngày/video</span></h3>
+          <div class="sub">Giờ đăng nhiều nhất: ${top||'—'}</div>
+          <div style="display:grid;grid-template-columns:2fr 1fr;gap:18px">${bieu(gio,gio.map((_,h)=>h),'')}${bieu(thu.map(t=>kq.theo_thu[t]),thu.map(t=>t.replace('Thứ ','T').replace('Chủ nhật','CN')),'')}</div>
+          <div class="cuon bang"></div>`;ve()})}
+    catch(e){box.textContent='Lỗi: '+e.message}}
+  $('#quet').disabled=false};
+// 2. đột biến
+let kq2=[];
+const cot2=[['Ảnh',x=>x.anh?`<img src="${esc(x.anh)}" style="width:120px;border-radius:4px" loading="lazy">`:''],
+  ['Tiêu đề',x=>`<a href="https://youtu.be/${x.id}" target="_blank">${esc(x.tieu_de)}</a>`,'',x=>x.tieu_de],
+  ['Kênh',x=>x.kenh_url?`<a href="${esc(x.kenh_url)}" target="_blank">${esc(x.kenh)}</a>`:esc(x.kenh),'',x=>x.kenh],
+  ['Sub',x=>so(x.sub),'so',x=>x.sub||0],['View',x=>so(x.view),'so',x=>x.view||0],['Hệ số',x=>'×'+(x.he_so??'—'),'so',x=>x.he_so||0],
+  ['View/ngày',x=>so(x.view_ngay),'so',x=>x.view_ngay||0],['TT %',x=>x.tuong_tac??'—','so',x=>x.tuong_tac||0],
+  ['Đăng (VN)',x=>esc(x.gio_vn)+`<div class="sub">${x.tuoi_ngay??'?'} ngày</div>`,'',x=>x.ts||0]];
+function ve2(){$('#kq2').innerHTML=kq2.length?bang(kq2,cot2,'b2'):'<p class="sub">Không có video nào qua bộ lọc — nới sub tối đa / số ngày / view tối thiểu.</p>';choSapXep('b2',kq2,cot2,ve2)}
+$('#tim').onclick=async()=>{const tk=$('#tu_khoa').value.split(/\n|,/).map(s=>s.trim()).filter(Boolean);if(!tk.length)return;
+  $('#tim').disabled=true;$('#kq2').innerHTML='';$('#csv2').style.display='none';
+  try{const r=await post('/api/doi_thu/dot_bien',{tu_khoa:tk,n:+$('#n_tu').value||30,sub_max:+$('#sub_max').value||50000,ngay_max:+$('#ngay_max').value||30,
+      view_min:+$('#view_min').value||0,bo_short:$('#bo_short').checked,bo_vi:$('#bo_vi').checked});
+    await cho(r.job,$('#tt2'),kq=>{kq2=kq.ds;$('#tt2').textContent=`Đã xem ${kq.doc_duoc}/${kq.tong_tim} video — ${kq2.length} video đột biến qua bộ lọc`;ve2();$('#csv2').style.display=kq2.length?'':'none'})}
+  catch(e){$('#tt2').textContent='Lỗi: '+e.message}
+  $('#tim').disabled=false};
+$('#ai_tk').onclick=async()=>{const k=$('#kenh_tk').value.trim();if(!k)return;$('#ai_tk').disabled=true;
+  try{const r=await post('/api/doi_thu/tu_khoa',{kenh:k});await cho(r.job,$('#tt2'),kq=>{
+    $('#tu_khoa').value=kq.tu_khoa_en.join(', ');$('#ngach').innerHTML=`Kênh <b>${esc(kq.kenh)}</b> (${kq.so_video} video) — ngách: <b>${esc(kq.ngach)}</b>. Sửa từ khoá nếu cần rồi bấm Tìm.`;
+    $('#tt2').textContent=`AI đề xuất ${kq.tu_khoa_en.length} từ khoá tiếng Anh`})}catch(e){$('#tt2').textContent='Lỗi: '+e.message}
+  $('#ai_tk').disabled=false};
+$('#csv2').onclick=()=>{const h=['link','tieu_de','kenh','sub','view','he_so','view_ngay','tuong_tac_pt','dang_vn','tuoi_ngay'];
+  const d=kq2.map(x=>['https://youtu.be/'+x.id,x.tieu_de,x.kenh,x.sub,x.view,x.he_so,x.view_ngay,x.tuong_tac,x.gio_vn,x.tuoi_ngay].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+[h.join(','),...d].join('\n')],{type:'text/csv'}));a.download='video_dot_bien.csv';a.click()};
+</script>
+</body>
+</html>

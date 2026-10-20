@@ -402,13 +402,13 @@ def dung_clip_duong(viec):
     return {k: (v if v and os.path.isfile(v) and os.path.getsize(v) > 5000 else None) for k, v in ra.items()}
 
 
-def _render(jobs, thu):
+def _render(jobs, thu, ten="clip bản đồ"):
     if not jobs:
         return
     import subprocess
     import do_hoa
     from common import ghi_json
-    log(f"    Remotion dựng {len(jobs)} clip bản đồ…")
+    log(f"    Remotion render {len(jobs)} {ten}…")          # 19/10: hàm dùng chung (cả sơ đồ minh hoạ) — ghi đúng tên
     p = os.path.join(thu, "jobs.json")
     ghi_json(p, jobs)
     env = dict(os.environ)

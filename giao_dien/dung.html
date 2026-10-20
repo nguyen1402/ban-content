@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dựng tay — Bản Content</title>
 <style>
+/* 18/10: display:flex gắn thẳng vào dialog đè luật ẩn khi đóng -> bấm ✕ không tắt được; chỉ flex khi đang mở */
+#hop_duyet_nguon[open]{display:flex}
 :root{--bg:#f6f7f9;--card:#fff;--ink:#1c2230;--mut:#667085;--line:#e3e6ec;--ac:#2f6df6;--ac-ink:#fff;--ok:#1a9d5c;--wa:#c27803;--er:#d33a3a}
 @media (prefers-color-scheme:dark){:root{--bg:#0f1218;--card:#171b24;--ink:#e8ecf3;--mut:#93a0b4;--line:#262c39;--ac:#5b8cff;--ac-ink:#0b0f18;--ok:#43c783;--wa:#e0a43a;--er:#ff7070}}
 *{box-sizing:border-box}
@@ -73,11 +75,13 @@ video,iframe{width:100%;border-radius:8px;background:#000;display:block}
     <option value="chu_de" selected>Tìm theo: Chủ đề</option>
     <option value="canh">Tìm theo: Cảnh</option>
   </select>
+  <button class="p" id="xemchuthe" title="Chủ thể chính của cả video (dingo, dê, trực thăng…) + tên gọi + từ khoá tìm. Sửa trước khi bấm 🤖 — máy chỉ tìm theo các từ khoá này và gán cảnh theo tên gọi xuất hiện trong lời.">👥 Chủ thể</button>
   <button class="p" id="xemchude" title="Xem danh sách chủ đề và sửa từ khoá trước khi tìm">📋 Sửa chủ đề</button>
+  <button class="p" id="xemcotloi" style="display:none" title="Ý CỐT LÕI: những chỗ quá trình / hành động then chốt dùng ẢNH AI THAY HẲN video (toàn màn hình). Xem, sửa câu mô tả, xoá ý, rồi vẽ trước khi chạy 🤖">🎯 Ý cốt lõi</button>
   <button class="p" id="nutck_yt" title="Cài đặt Cookie YouTube để tránh bị chặn Bot và tải video 1080p/720p ổn định">🍪 Cookie YouTube</button>
   <button id="nut_duyet_nguon" style="background:#8e24aa;color:#fff;font-weight:600" title="Tìm siêu tốc (5-10s), xem thử và tự tick chọn video ưng ý theo từng chủ đề trước khi tải">🎬 Duyệt &amp; Tự chọn Video</button>
   <button id="tutim" title="Tự tìm footage SẠCH (Pexels, Pixabay, Mixkit, Coverr, Wikimedia) theo mô tả mọi cảnh, chấm điểm, tải trong ngân sách phút, khớp đoạn; cảnh thiếu thì ảnh Google bù; rồi tạo bản nháp (đoạn trỏ video gốc). Cảnh bạn đã tự dựng giữ nguyên.">🤖 Tự tìm + tải + khớp + bản nháp</button><label class="sub" title="Xong bước 🤖 thì máy chủ TỰ chạy tiếp ✨ Hoàn thiện bản nháp (diễn cảnh, bản đồ, nhạc) — một mạch tới bản cuối, đóng trang cũng được."><input type="checkbox" id="lienht"> rồi hoàn thiện luôn</label><label class="sub" title="Bỏ tick: KHÔNG tìm/tải kho video free (Pexels, Pixabay, Mixkit, Coverr) — chỉ video YouTube (Google Videos + tìm YouTube). Clip stock đã tải từ trước vẫn dùng."><input type="checkbox" id="dungstock"> dùng kho video free</label>
-  <button id="hoanthien" title="Chạy bước HOÀN THIỆN (skill chỉnh sửa) trên kế hoạch hiện tại: căn giờ theo giọng đọc, bản đồ vệ tinh cho cảnh địa điểm, bản đồ đường đi, thẻ ảnh highlight 65% kèm chữ nhấn mạnh ở mọi chỗ dẫn chứng/so sánh/nhấn mạnh, phủ màu đổi chương, chuyển cảnh -> bản nháp CapCut mới tên <tên>_hoan_chinh.">✨ Hoàn thiện bản nháp</button><label class="sub" title="Thêm nhạc nền sạch không bản quyền (tự ghép theo chương, -24dB êm nhẹ)"><input type="checkbox" id="co_nhac" checked> 🎵 Nhạc</label><label class="sub" title="Thêm SFX chuyển cảnh whoosh và điểm nhấn hit tinh gọn"><input type="checkbox" id="co_sfx" checked> 🔊 SFX</label>
+  <button id="hoanthien" title="Chạy bước HOÀN THIỆN (skill chỉnh sửa) trên kế hoạch hiện tại: căn giờ theo giọng đọc, bản đồ vệ tinh cho cảnh địa điểm, bản đồ đường đi, thẻ ảnh highlight 65% kèm chữ nhấn mạnh ở mọi chỗ dẫn chứng/so sánh/nhấn mạnh, phủ màu đổi chương, chuyển cảnh -> bản nháp CapCut mới tên <tên>_hoan_chinh.">✨ Hoàn thiện bản nháp</button><button class="p" id="mo_chen_anh" title="Chọn câu lời, viết mô tả, vẽ ảnh (Gemini), xem trước rồi giữ; bấm Chèn để thêm thẳng các ảnh đã giữ vào bản nháp CapCut đúng mốc giờ.">🎨 Tạo ảnh chèn bản nháp</button><button class="p" id="mo_ke_hoach_ai" style="display:none" title="Danh sách chỗ sẽ vẽ ảnh AI (AI đề xuất): bỏ chỗ không cần, sửa câu mô tả, thêm chỗ cần ảnh — ✨ chỉ vẽ đúng danh sách này.">📝 Chỗ vẽ ảnh AI</button><button class="p" id="mo_anh_ai" style="display:none" title="Xem từng ảnh AI của lần ✨ gần nhất cùng câu mô tả; sửa câu, vẽ lại, xem trước rồi Lưu (thay ảnh cũ) hoặc Bỏ qua.">🖼 Ảnh AI</button><label class="sub" title="Thêm nhạc nền sạch không bản quyền (tự ghép theo chương, -24dB êm nhẹ)"><input type="checkbox" id="co_nhac" checked> 🎵 Nhạc</label><label class="sub" title="Thêm SFX chuyển cảnh whoosh và điểm nhấn hit tinh gọn"><input type="checkbox" id="co_sfx" checked> 🔊 SFX</label>
   <button class="p" id="taonhap" title="Tạo bản nháp từ kế hoạch hiện có của mọi cảnh (đoạn trỏ video gốc)">📦 Chỉ tạo bản nháp</button>
 </header>
 <div class="khung">
@@ -107,6 +111,29 @@ video,iframe{width:100%;border-radius:8px;background:#000;display:block}
   </div>
 </div>
 <audio id="am" preload="auto"></audio>
+<dialog id="hopchuthe" style="border:0;border-radius:12px;padding:16px 20px;max-width:980px;width:95vw;max-height:88vh;overflow:auto;background:var(--card);color:var(--ink);box-shadow:0 12px 36px #0006">
+  <div class="row" style="justify-content:space-between;margin-bottom:8px">
+    <h2 style="margin:0;font-size:16px">👥 Chủ thể của video <span class="sub" style="font-weight:400" id="ct_tom"></span></h2>
+    <button class="p" onclick="$('#hopchuthe').close()" style="padding:2px 8px">✕</button>
+  </div>
+  <p class="sub" style="margin-bottom:10px">Máy chỉ tìm footage theo <b>từ khoá</b> của các chủ thể này. Cảnh nào nhắc <b>tên gọi</b> của chủ thể nào thì chiếu chủ thể đó (không nhắc ai: theo cảnh trước). Thêm tên gọi nếu lời dùng tên khác (biệt danh, tên riêng). Chủ thể quan trọng hơn để lên trên.</p>
+  <div id="ds_chuthe" style="display:grid;gap:10px"></div>
+  <div style="margin-top:12px;border:1px dashed var(--line);border-radius:8px;padding:8px 10px">
+    <b>Từ khoá tìm thêm</b> <span class="sub">— cách nhau bởi dấu phẩy. Mỗi từ khoá là <b>một chủ thể độc lập</b>: tìm đúng y nguyên, có kho hình riêng, chọn được ở ô ＋ của từng câu bên dưới (không tự dò theo tên).</span>
+    <textarea id="ct_them" rows="2" style="width:100%;margin-top:4px" placeholder="vd: poison capsule, dingo carcass, goat skeleton"></textarea>
+  </div>
+  <div class="row" style="margin:16px 0 4px;gap:10px;align-items:center"><h3 style="margin:0;font-size:14px">Mọi câu đọc và chủ thể đang chiếu <span class="sub" style="font-weight:400" id="ct_kn_tom"></span></h3>
+    <label class="sub" style="margin:0"><input type="checkbox" id="ct_loc_kn"> chỉ câu không nhắc tên chủ thể nào</label></div>
+  <p class="sub" style="margin:0 0 6px">Một câu có thể chiếu <b>nhiều chủ thể</b> (chủ thể đầu là chính; vế nào nhắc tên chủ thể nào thì chiếu chủ thể đó, còn lại chia đều theo thứ tự). Bấm ✕ để bỏ, ô <b>＋</b> để thêm — câu đã sửa tay hiện <b>viền xanh</b> và thắng cách dò tên; <b>↺</b> trả về tự dò. Câu <i>chữ nghiêng</i> không nhắc tên ai (đang theo câu trước). Bấm <b>Lưu</b> để áp.</p>
+  <div id="ds_khong_nhac" style="display:grid;gap:3px;max-height:45vh;overflow:auto"></div>
+  <div class="row" style="margin-top:14px;justify-content:flex-end;gap:8px">
+    <button class="p" id="ct_them">＋ Thêm chủ thể</button>
+    <button class="p" id="ct_lap_lai">🔄 AI lập lại</button>
+    <button id="ct_luu" style="background:var(--ok);color:#fff">💾 Lưu</button>
+    <button id="ct_tim">▶ Lưu &amp; bắt đầu tìm</button>
+    <button class="p" onclick="$('#hopchuthe').close()">Đóng</button>
+  </div>
+</dialog>
 <dialog id="hopchude" style="border:0;border-radius:12px;padding:16px 20px;max-width:920px;width:94vw;max-height:85vh;overflow:auto;background:var(--card);color:var(--ink);box-shadow:0 12px 36px #0006">
   <div class="row" style="justify-content:space-between;margin-bottom:8px">
     <h2 style="margin:0;font-size:16px">📋 Danh sách chủ đề kịch bản <span class="sub" style="font-weight:400">— sửa từ khoá trước khi tìm</span></h2>
@@ -121,7 +148,70 @@ video,iframe{width:100%;border-radius:8px;background:#000;display:block}
     <button class="p" onclick="$('#hopchude').close()">Đóng</button>
   </div>
 </dialog>
-<dialog id="hop_duyet_nguon" style="border:0;border-radius:12px;padding:16px 20px;max-width:1100px;width:96vw;max-height:88vh;overflow:hidden;display:flex;flex-direction:column;background:var(--card);color:var(--ink);box-shadow:0 12px 36px #0006">
+<dialog id="hop_chen_anh" style="border:0;border-radius:12px;padding:16px 20px;max-width:1150px;width:96vw;max-height:90vh;overflow:auto;background:var(--card);color:var(--ink);box-shadow:0 12px 36px #0006">
+  <div class="row" style="justify-content:space-between;margin-bottom:8px">
+    <h2 style="margin:0;font-size:16px">🎨 Tạo ảnh chèn bản nháp</h2>
+    <button class="p" onclick="$('#hop_chen_anh').close()" style="padding:2px 8px">✕</button>
+  </div>
+  <p class="sub" style="margin-bottom:8px">Bấm một câu bên trái để chọn mốc giờ → viết mô tả ảnh → <b>🎨 Vẽ</b> → ưng thì <b>✅ Giữ</b>. Xong bấm <b>📥 Chèn</b>: các ảnh đã giữ được thêm vào bản nháp đã chọn (một track mới phía trên, ảnh 120%). <b>Đóng bản nháp trong CapCut trước khi chèn.</b></p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div id="ca_cau" style="max-height:62vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px"></div>
+    <div style="display:grid;gap:8px;align-content:start">
+      <div class="sub" id="ca_chon">Chưa chọn câu.</div>
+      <div class="row" style="gap:6px"><span class="sub">Bắt đầu (giây)</span><input id="ca_bd" type="number" step="0.1" style="width:90px"><span class="sub">Dài (giây)</span><input id="ca_dai" type="number" step="0.1" value="4" style="width:80px"></div>
+      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><label class="p" style="cursor:pointer;margin:0;padding:4px 10px;border:1px solid var(--line);border-radius:6px">🖼 Tải ảnh gốc lên<input type="file" id="ca_tep" accept="image/png,image/jpeg,image/webp" style="display:none"></label>
+        <span class="sub" id="ca_goc_tt">Không có ảnh gốc: vẽ mới theo mô tả. Có ảnh gốc: ô dưới là <b>yêu cầu sửa</b> ảnh đó.</span></div>
+      <div id="ca_goc_xem" style="display:none;position:relative"><img id="ca_goc_anh" style="max-width:220px;border-radius:6px;border:2px solid var(--ac)">
+        <button class="er" id="ca_goc_bo" style="position:absolute;top:2px;left:2px;padding:0 6px">✕</button></div>
+      <textarea id="ca_ve" rows="3" placeholder="Mô tả ảnh (tiếng Anh hoặc Việt): góc máy + nhân vật + hành động + nơi chốn — hoặc yêu cầu sửa ảnh gốc"></textarea>
+      <div class="row" style="gap:6px"><button id="ca_ve_btn">🎨 Vẽ</button><span class="sub" id="ca_tt"></span></div>
+      <div id="ca_xem" style="display:none"><img id="ca_anh" style="width:100%;border-radius:6px">
+        <div class="row" style="gap:6px;margin-top:4px"><button id="ca_giu" style="background:var(--ok);color:#fff">✅ Giữ</button><button class="p" id="ca_sua_tiep" title="Lấy ảnh vừa vẽ làm ảnh gốc, viết yêu cầu sửa rồi bấm Vẽ">✏️ Sửa tiếp ảnh này</button><button class="p" id="ca_bo">Bỏ qua</button></div></div>
+      <div class="row" style="gap:6px;margin-top:6px;align-items:center"><b>Ảnh đã giữ</b><button class="p" id="ca_mo_thu" style="padding:2px 8px">📂 Mở thư mục ảnh</button><button class="p" id="ca_xoa_logo" style="padding:2px 8px" title="Xoá logo ✦ Gemini cho các ảnh đã giữ từ trước (ảnh vẽ mới đã tự xoá)">🧽 Xoá logo ảnh đã giữ</button></div>
+      <div class="sub" id="ca_thu" style="word-break:break-all"></div>
+      <div id="ca_ds" style="display:grid;gap:6px"></div>
+      <div class="row" style="gap:6px;margin-top:6px"><span class="sub">Bản nháp</span><select id="ca_nhap" style="flex:1"></select><button id="ca_chen">📥 Chèn vào bản nháp</button></div>
+    </div>
+  </div>
+</dialog>
+<dialog id="hop_kh_ai" style="border:0;border-radius:12px;padding:16px 20px;max-width:1000px;width:96vw;max-height:88vh;overflow:auto;background:var(--card);color:var(--ink);box-shadow:0 12px 36px #0006">
+  <div class="row" style="justify-content:space-between;margin-bottom:8px">
+    <h2 style="margin:0;font-size:16px">📝 Chỗ vẽ ảnh AI <span class="sub" style="font-weight:400" id="kh_tom"></span></h2>
+    <button class="p" onclick="$('#hop_kh_ai').close()" style="padding:2px 8px">✕</button>
+  </div>
+  <p class="sub" style="margin-bottom:10px">Toàn bộ lời đọc theo câu. Ô <b>xanh</b> là chỗ sẽ vẽ ảnh AI (phủ từ câu đầu tới câu cuối của ô): bỏ tick <b>Vẽ</b> để bỏ, sửa câu mô tả (tiếng Anh, ngắn: góc máy + nhân vật + hành động + nơi chốn). Câu chưa có ảnh: bấm <b>＋ vẽ ảnh ở đây</b> — để trống mô tả thì AI viết giúp lúc ✨. Xong bấm <b>💾 Lưu</b> rồi chạy ✨.</p>
+  <div id="ds_kh_ai" style="display:grid;gap:4px"></div>
+  <div class="row" style="margin-top:14px;justify-content:flex-end;gap:8px">
+    <span class="sub" id="kh_tt" style="flex:1"></span>
+    <button class="p" id="kh_lap">🔄 AI đề xuất lại</button>
+    <button id="kh_luu" style="background:var(--ok);color:#fff">💾 Lưu</button>
+    <button class="p" onclick="$('#hop_kh_ai').close()">Đóng</button>
+  </div>
+</dialog>
+<dialog id="hop_anh_ai" style="border:0;border-radius:12px;padding:16px 20px;max-width:1100px;width:96vw;max-height:88vh;overflow:auto;background:var(--card);color:var(--ink);box-shadow:0 12px 36px #0006">
+  <div class="row" style="justify-content:space-between;margin-bottom:8px">
+    <h2 style="margin:0;font-size:16px">🖼 Ảnh AI của bước ✨ <span class="sub" style="font-weight:400" id="aai_tom"></span></h2>
+    <button class="p" onclick="$('#hop_anh_ai').close()" style="padding:2px 8px">✕</button>
+  </div>
+  <p class="sub" style="margin-bottom:10px">Không ưng ảnh nào thì sửa <b>câu mô tả</b> (tiếng Anh, ngắn: góc máy + nhân vật + hành động + nơi chốn) rồi bấm <b>🎨 Vẽ lại</b>. Ảnh mới hiện bên cạnh để xem trước: <b>✅ Lưu</b> thay ảnh cũ (bản nháp CapCut dùng luôn — mở lại bản nháp), <b>Bỏ qua</b> giữ ảnh cũ. Phong cách ảnh và thời đại tự thêm khi vẽ.</p>
+  <div id="ds_anh_ai" style="display:grid;gap:12px"></div>
+</dialog>
+<dialog id="hopcotloi" style="border:0;border-radius:12px;padding:16px 20px;max-width:1000px;width:95vw;max-height:88vh;overflow:auto;background:var(--card);color:var(--ink);box-shadow:0 12px 36px #0006">
+  <div class="row" style="justify-content:space-between;margin-bottom:8px">
+    <h2 style="margin:0;font-size:16px">🎯 Ý cốt lõi — ảnh AI thay hẳn video <span class="sub" style="font-weight:400" id="cl_tom_tat"></span></h2>
+    <button class="p" onclick="$('#hopcotloi').close()" style="padding:2px 8px">✕</button>
+  </div>
+  <p class="sub" style="margin-bottom:10px">AI chọn các chỗ tả <b>quá trình / hành động then chốt</b> của cả video. Ở các đoạn này bản thô dùng <b>ảnh AI toàn màn hình</b>, mốc đổi ảnh khớp nhịp nghỉ của giọng; nút 🤖 không tìm footage cho đó. Sửa câu mô tả (tiếng Anh), bỏ tick ý không cần, xoá ảnh thừa rồi <b>Lưu</b> → <b>Vẽ ảnh</b>.</p>
+  <div id="ds_cotloi" style="display:grid;gap:10px"></div>
+  <div class="row" style="margin-top:14px;justify-content:flex-end;gap:8px">
+    <span class="sub" id="cl_tt" style="flex:1"></span>
+    <button class="p" id="cl_lap_lai">🔄 AI chọn lại</button>
+    <button id="cl_luu" style="background:var(--ok);color:#fff">💾 Lưu</button>
+    <button id="cl_ve">🎨 Vẽ ảnh còn thiếu</button>
+    <button class="p" onclick="$('#hopcotloi').close()">Đóng</button>
+  </div>
+</dialog>
+<dialog id="hop_duyet_nguon" style="border:0;border-radius:12px;padding:16px 20px;max-width:1100px;width:96vw;max-height:88vh;overflow:hidden;flex-direction:column;background:var(--card);color:var(--ink);box-shadow:0 12px 36px #0006">
   <div class="row" style="justify-content:space-between;margin-bottom:6px">
     <h2 style="margin:0;font-size:17px">🎬 Duyệt &amp; Tự chọn Video theo Chủ đề <span class="sub" style="font-weight:400">— tìm siêu tốc 5–10s, xem thử và tick chọn trước khi tải</span></h2>
     <button class="p" onclick="$('#hop_duyet_nguon').close()" style="padding:2px 8px">✕</button>
@@ -192,6 +282,101 @@ video,iframe{width:100%;border-radius:8px;background:#000;display:block}
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// 19/10 user: tạo ảnh rồi chèn thẳng vào bản nháp (thay khâu vẽ ảnh AI ở ✨)
+let caCau=[],caThu='',caCauChon=null,caGoc='';
+function datGoc(f,url){caGoc=f||'';$('#ca_goc_xem').style.display=caGoc?'':'none';if(caGoc)$('#ca_goc_anh').src=url;
+  $('#ca_goc_tt').innerHTML=caGoc?'Đang dùng <b>ảnh gốc</b> — ô dưới là <b>yêu cầu sửa</b> ảnh này.':'Không có ảnh gốc: vẽ mới theo mô tả. Có ảnh gốc: ô dưới là <b>yêu cầu sửa</b> ảnh đó.'}
+const caFmt=s=>{s=+s||0;return Math.floor(s/60)+':'+String((s%60).toFixed(1)).padStart(4,'0')};
+async function napChenAnh(){let r;try{r=await api('/api/chen_anh?du_an='+encodeURIComponent(DU))}catch(e){return tb('Lỗi: '+e.message)}
+  caCau=r.cau||[];
+  $('#ca_cau').innerHTML=caCau.map((c,k)=>`<div data-ca="${k}" style="display:grid;grid-template-columns:52px 1fr;gap:6px;padding:3px 4px;border-radius:5px;cursor:pointer"><span class="sub">${caFmt(c.t0)}</span><span style="font-size:13px">${esc(c.text)}</span></div>`).join('')||'<p class="sub">Chưa có câu lời (chưa đọc giọng?).</p>';
+  $('#ca_cau').querySelectorAll('[data-ca]').forEach(o=>o.onclick=()=>{const k=+o.dataset.ca,c=caCau[k],ke=caCau[k+1];caCauChon=c.i;
+    $('#ca_cau').querySelectorAll('[data-ca]').forEach(x=>x.style.background='');o.style.background='#2f6df622';
+    $('#ca_chon').innerHTML=`Câu ${c.i}: <i>${esc(c.text)}</i>`;$('#ca_bd').value=(+c.t0).toFixed(1);$('#ca_dai').value=(ke?Math.max(1,ke.t0-c.t0):4).toFixed(1)});
+  $('#ca_thu').innerHTML=`Lưu ở: <code>${esc(r.thu||'')}</code> — tên file là mốc giờ (vd <code>00m12.5s_cau3.png</code>), kéo thả thẳng vào timeline CapCut đang mở.`;
+  $('#ca_nhap').innerHTML=(r.nhap||[]).map(n=>`<option>${esc(n)}</option>`).join('')||'<option value="">(chưa có bản nháp)</option>';
+  $('#ca_ds').innerHTML=(r.ds||[]).map(y=>`<div class="row" style="gap:8px;align-items:center;border:1px solid var(--line);border-radius:6px;padding:4px">
+    <img src="${y.url}" style="width:96px;border-radius:4px"><span class="sub" style="flex:1">${caFmt(y.bd)} · ${(+y.dai).toFixed(1)}s · ${esc((y.ve||'').slice(0,80))}${(y.da_chen||[]).length?` · <b>đã chèn: ${esc(y.da_chen.join(', '))}</b>`:''}</span>
+    <button class="er" data-ca-xoa="${esc(y.file)}" style="padding:1px 7px">✕</button></div>`).join('')||'<p class="sub">Chưa có ảnh nào.</p>';
+  $('#ca_ds').querySelectorAll('[data-ca-xoa]').forEach(b=>b.onclick=async()=>{await post('/api/chen_anh/xoa',{du_an:DU,file:b.dataset.caXoa});napChenAnh()})}
+$('#mo_chen_anh').onclick=()=>{$('#hop_chen_anh').showModal();napChenAnh()};
+$('#ca_ve_btn').onclick=async()=>{const ve=$('#ca_ve').value.trim();if(!ve)return tb('Viết mô tả ảnh trước');
+  const b=$('#ca_ve_btn');b.disabled=true;$('#ca_tt').textContent='đang vẽ… (~30-60 s)';
+  try{const k=await post('/api/anh_ai/ve_thu',{du_an:DU,ve,goc:caGoc});caThu=k.thu;$('#ca_anh').src=k.url;$('#ca_xem').style.display='';$('#ca_tt').textContent=''}
+  catch(e){$('#ca_tt').textContent='Lỗi: '+e.message}b.disabled=false};
+$('#ca_xoa_logo').onclick=async()=>{try{const r=await post('/api/chen_anh/xoa_logo',{du_an:DU});tb(`Đã xoá logo ${r.so} ảnh`);napChenAnh()}catch(e){tb('Lỗi: '+e.message)}};
+$('#ca_mo_thu').onclick=()=>post('/api/chen_anh/mo_thu_muc',{du_an:DU}).catch(e=>tb('Lỗi: '+e.message));
+$('#ca_bo').onclick=()=>{caThu='';$('#ca_xem').style.display='none'};
+$('#ca_tep').onchange=async e=>{const f=e.target.files[0];if(!f)return;const fd=new FormData();fd.append('du_an',DU);fd.append('tep',f);
+  try{const r=await api('/api/chen_anh/tai_len',{method:'POST',body:fd});datGoc(r.file,r.url);tb('Đã tải ảnh gốc — viết yêu cầu sửa rồi bấm Vẽ')}catch(err){tb('Lỗi: '+err.message)}e.target.value=''};
+$('#ca_goc_bo').onclick=()=>datGoc('');
+$('#ca_sua_tiep').onclick=()=>{if(!caThu)return;datGoc(caThu,$('#ca_anh').src);$('#ca_ve').value='';$('#ca_ve').focus()};
+$('#ca_giu').onclick=async()=>{if(!caThu)return;try{await post('/api/chen_anh/giu',{du_an:DU,thu:caThu,ve:$('#ca_ve').value,bd:+$('#ca_bd').value||0,dai:+$('#ca_dai').value||4,cau:caCauChon});
+  if(caGoc===caThu)datGoc('');caThu='';$('#ca_xem').style.display='none';tb('Đã giữ ảnh');napChenAnh()}catch(e){tb('Lỗi: '+e.message)}};
+$('#ca_chen').onclick=async()=>{const nhap=$('#ca_nhap').value;if(!nhap)return tb('Chưa có bản nháp');
+  if(!confirm(`Chèn các ảnh đã giữ (chưa chèn) vào bản nháp "${nhap}"?\nĐÓNG bản nháp này trong CapCut trước, nếu không CapCut sẽ ghi đè mất.`))return;
+  try{const r=await post('/api/chen_anh/chen',{du_an:DU,nhap});tb(`Đã chèn ${r.so} ảnh vào "${nhap}" (track ${r.track}) — mở lại bản nháp trong CapCut`);napChenAnh()}catch(e){tb('Lỗi: '+e.message)}};
+// 19/10 user: danh sách chỗ vẽ ảnh AI — AI đề xuất, người dùng thêm / bỏ / sửa
+let khAI=[],khCau=[],henKH=null;
+function veKH(){
+  const theoDau={};khAI.forEach((y,k)=>{theoDau[y.cau]=theoDau[y.cau]||[];theoDau[y.cau].push(k)});
+  const phu=new Set();khAI.forEach(y=>{if(!y.bo)for(let i=y.cau;i<=(y.den_cau||y.cau);i++)phu.add(i)});
+  const fmt=s=>{s=+s||0;return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0')};
+  $('#ds_kh_ai').innerHTML=khCau.map(c=>{
+    const o=(theoDau[c.i]||[]).map(k=>{const y=khAI[k];return `<div data-kh="${k}" style="border:2px solid ${y.bo?'var(--line)':'var(--ok)'};border-radius:8px;padding:8px;margin:2px 0 4px 28px;display:grid;gap:5px;opacity:${y.bo?.55:1}">
+      <div class="row" style="gap:8px;align-items:center"><label class="sub" style="margin:0"><input type="checkbox" data-ve ${y.bo?'':'checked'}> <b>Vẽ</b></label>
+        <span class="sub">câu ${y.cau} → <input type="number" data-den value="${y.den_cau||y.cau}" min="${y.cau}" max="${y.cau+2}" style="width:56px"> ${y.tay?'· <i>bạn thêm</i>':''}</span>
+        <button class="er" data-xoa style="padding:1px 7px;margin-left:auto" title="Xoá hẳn chỗ này">✕</button></div>
+      <textarea data-mt rows="2" style="width:100%" placeholder="Để trống: AI viết mô tả lúc ✨">${esc(y.ve_1||'')}</textarea></div>`}).join('');
+    return `<div style="display:grid;grid-template-columns:44px 1fr auto;gap:6px;align-items:start;${phu.has(c.i)?'background:#1a9d5c14;':''}border-radius:6px;padding:2px 4px">
+      <span class="sub">${fmt(c.t0)}</span><span>${c.i}. ${esc(c.text)}</span>
+      ${phu.has(c.i)?'':`<button class="p" data-them="${c.i}" style="padding:1px 8px;font-size:12px">＋ vẽ ảnh ở đây</button>`}</div>${o}`}).join('');
+  $('#ds_kh_ai').querySelectorAll('[data-kh]').forEach(o=>{const k=+o.dataset.kh;
+    o.querySelector('[data-ve]').onchange=e=>{docKH();khAI[k].bo=!e.target.checked;veKH()};
+    o.querySelector('[data-xoa]').onclick=()=>{docKH();khAI.splice(k,1);veKH()};
+    o.querySelector('[data-den]').onchange=()=>{docKH();veKH()}});
+  $('#ds_kh_ai').querySelectorAll('[data-them]').forEach(b=>b.onclick=()=>{docKH();const i=+b.dataset.them;
+    khAI.push({cau:i,den_cau:i,ve_1:'',tay:true});khAI.sort((a,b)=>a.cau-b.cau);veKH()});
+  const so=khAI.filter(y=>!y.bo).length;$('#kh_tom').textContent=`— ${so} chỗ sẽ vẽ / ${khCau.length} câu`;
+}
+function docKH(){$('#ds_kh_ai').querySelectorAll('[data-kh]').forEach(o=>{const y=khAI[+o.dataset.kh];if(!y)return;
+  y.ve_1=o.querySelector('[data-mt]').value.trim();y.den_cau=Math.max(y.cau,Math.min(y.cau+2,+o.querySelector('[data-den]').value||y.cau))})}
+async function napKH(){clearTimeout(henKH);let r;try{r=await api('/api/anh_ai_ke_hoach?du_an='+encodeURIComponent(DU))}catch(e){$('#kh_tt').textContent='Lỗi: '+e.message;return}
+  khCau=r.cau||[];
+  if(r.dang){$('#kh_tt').textContent='AI đang đề xuất (đọc bản thô + hỏi Gemini, vài phút)…';$('#ds_kh_ai').innerHTML='';henKH=setTimeout(napKH,4000);return}
+  if(!r.co){$('#kh_tt').textContent='Chưa có danh sách — bấm 🔄 AI đề xuất (cần bản thô từ 🤖).';$('#ds_kh_ai').innerHTML='';return}
+  $('#kh_tt').textContent='';khAI=r.ds||[];veKH()}
+$('#mo_ke_hoach_ai').onclick=()=>{$('#hop_kh_ai').showModal();napKH()};
+$('#kh_lap').onclick=async()=>{if(khAI.length&&!confirm('AI đề xuất lại từ đầu? Các chỗ bạn đã sửa / thêm sẽ mất.'))return;
+  try{await post('/api/anh_ai_ke_hoach/lap',{du_an:DU,lam_lai:true});napKH()}catch(e){tb('Lỗi: '+e.message)}};
+$('#kh_luu').onclick=async()=>{docKH();try{const r=await post('/api/anh_ai_ke_hoach/luu',{du_an:DU,ds:khAI});tb(`Đã lưu ${r.so} chỗ — chạy ✨ để vẽ`)}catch(e){tb('Lỗi: '+e.message)}};
+// 19/10 user: xem / sửa câu mô tả / vẽ lại / lưu từng ảnh AI của bước ✨
+async function moAnhAI(){
+  let r;try{r=await api('/api/anh_ai?du_an='+encodeURIComponent(DU))}catch(e){tb('Lỗi: '+e.message);return}
+  const ds=r.ds||[];$('#aai_tom').textContent=ds.length?`— ${ds.length} ảnh`:'— chưa có (chạy ✨ trước)';
+  const fmt=s=>{s=+s||0;return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0')};
+  $('#ds_anh_ai').innerHTML=ds.map((x,k)=>`<div class="card" style="display:grid;grid-template-columns:320px 1fr 320px;gap:10px;align-items:start;padding:10px" data-k="${k}">
+    <div><img src="${x.url}" style="width:320px;border-radius:6px" loading="lazy"><div class="sub">${fmt(x.bd)} · câu ${x.cau}${x.j?` · ảnh ${x.j+1}`:''}</div></div>
+    <div style="display:flex;flex-direction:column;gap:6px"><div class="sub"><i>${esc(x.text||'')}</i></div>
+      <textarea data-ve rows="4" style="width:100%">${esc(x.ve||'')}</textarea>
+      <div class="row" style="gap:6px"><button data-ve-lai>🎨 Vẽ lại</button><span class="sub" data-tt></span></div></div>
+    <div data-xem style="display:none"><img data-anh-thu style="width:320px;border-radius:6px">
+      <div class="row" style="gap:6px;margin-top:4px"><button data-luu style="background:var(--ok);color:#fff">✅ Lưu</button><button class="p" data-bo>Bỏ qua</button></div></div>
+  </div>`).join('');
+  $('#ds_anh_ai').querySelectorAll('[data-k]').forEach(o=>{
+    const x=ds[+o.dataset.k];let thu='';
+    o.querySelector('[data-ve-lai]').onclick=async e=>{const b=e.target,tt=o.querySelector('[data-tt]');
+      b.disabled=true;tt.textContent='đang vẽ… (~30-60 s)';
+      try{const k=await post('/api/anh_ai/ve_thu',{du_an:DU,ve:o.querySelector('[data-ve]').value,thoi_dai:x.thoi_dai,mau:x.mau});
+        thu=k.thu;o.querySelector('[data-anh-thu]').src=k.url;o.querySelector('[data-xem]').style.display='';tt.textContent='xem ảnh mới bên phải →'}
+      catch(err){tt.textContent='Lỗi: '+err.message}b.disabled=false};
+    o.querySelector('[data-luu]').onclick=async()=>{try{const k=await post('/api/anh_ai/luu',{du_an:DU,file:x.file,thu,ve:o.querySelector('[data-ve]').value});
+        o.querySelector('img').src=k.url;o.querySelector('[data-xem]').style.display='none';o.querySelector('[data-tt]').textContent='đã lưu ✓';x.ve=o.querySelector('[data-ve]').value}
+      catch(err){tb('Lỗi: '+err.message)}};
+    o.querySelector('[data-bo]').onclick=()=>{o.querySelector('[data-xem]').style.display='none';o.querySelector('[data-tt]').textContent='giữ ảnh cũ';thu=''};
+  });
+  if(!$('#hop_anh_ai').open)$('#hop_anh_ai').showModal();
+}
 function tb(m){const e=$('#tb');e.textContent=m;e.classList.add('hien');clearTimeout(tb.h);tb.h=setTimeout(()=>e.classList.remove('hien'),3000)}
 async function api(p,o){const r=await fetch(p,o);if(!r.ok){let t='';try{t=await r.text()}catch(e){}
   const m=t.match(/<pre>([\s\S]*?)<\/pre>/i);const div=document.createElement('div');div.innerHTML=m?m[1]:'';
@@ -341,6 +526,10 @@ const TEN_BUOC={
   chia_chu_de:'chia chủ đề',
   tim_chu_de:'tìm theo chủ đề',
   tai_khoang:'tải từng khoảng',
+  tai_du_phong:'tải dự phòng',
+  cat_sat:'cắt sát chỗ khớp',
+  cot_loi:'lập ý cốt lõi',
+  ve_cot_loi:'vẽ ảnh cốt lõi',
   tim_stock:'tìm Pexels/Pixabay',
   cham_stock:'chấm video stock',
   tai_stock:'tải video stock',
@@ -406,6 +595,14 @@ function veDsChuDe(){
           <span class="tag">${cd.dai?cd.dai.toFixed(1)+'s':''}</span>
         </div>
       </div>
+      <div style="margin-bottom:4px">${cd.loai==='binh_luan'
+        ?`<span class="tag" style="background:#6a1b9a22">bình luận</span> <span class="sub">dùng hình của đoạn ${(cd.kho_ds&&cd.kho_ds.length>1)?cd.kho_ds.join(', ')+' (luân phiên)':cd.thua_ke}: <b>${esc(cd.doi_tuong||'')}</b></span>`
+        :`<span class="tag" style="background:#2e7d3222">kể</span> <span class="sub">thấy: <b>${esc(cd.doi_tuong||'')}</b>${cd.bang_chung?` · «${esc(cd.bang_chung)}»`:''}</span>`}</div>
+      ${cd.loai==='binh_luan'?`<div style="margin:2px 0 6px;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center">
+        <span class="sub" style="font-weight:600">Dùng hình của đoạn:</span>
+        ${dsChuDe.filter(k=>k.loai!=='binh_luan').map(k=>`<label class="sub" style="display:flex;gap:3px;align-items:center;cursor:pointer;margin:0">
+          <input type="checkbox" data-cd-kho="${idx}" value="${k.id}" ${(cd.kho_ds||[cd.thua_ke]).includes(k.id)?'checked':''}>#${k.id} ${esc((k.doi_tuong||k.ten||'').slice(0,28))}</label>`).join('')}
+      </div>`:''}
       <div class="sub" style="margin-bottom:6px"><i>${esc(cd.mo_ta_en||'')}</i>${cd.tranh?` · <span style="color:var(--wa)">Tránh: ${esc(cd.tranh)}</span>`:''}</div>
       <div style="display:flex;gap:8px;align-items:center">
         <span class="sub" style="margin:0;white-space:nowrap;font-weight:600">Từ khoá:</span>
@@ -415,6 +612,126 @@ function veDsChuDe(){
   `).join('');
 }
 $('#xemchude').onclick=moHopChuDe;
+// 19/10 user: chủ thể của cả video — sửa tên gọi / từ khoá trước khi tìm
+let dsChuThe=[],ctDem={};
+function veChuThe(){
+  $('#ds_chuthe').innerHTML=dsChuThe.map((x,k)=>`<div style="border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--bg);display:grid;gap:6px" data-ct="${k}">
+    <div class="row" style="gap:8px"><b>${k+1}.</b><input data-f="ten" value="${esc(x.ten||'')}" style="flex:1;font-weight:600" placeholder="Tên chủ thể">
+      <select data-f="loai"><option value="song" ${x.loai==='song'?'selected':''}>con vật / người</option><option value="vat" ${x.loai==='vat'?'selected':''}>phương tiện / vật</option><option value="noi" ${x.loai==='noi'?'selected':''}>nơi chốn</option></select>
+      <span class="sub">${ctDem[k]?ctDem[k]+' cảnh':'0 cảnh'}</span>
+      <button class="p" data-len title="Lên trên (quan trọng hơn)" style="padding:2px 7px">↑</button><button class="er" data-xoa style="padding:2px 7px">✕</button></div>
+    <label class="sub" style="display:flex;gap:6px;align-items:center;margin:0"><span style="white-space:nowrap;font-weight:600">Tên gọi trong lời:</span><input data-f="goi" value="${esc((x.goi||[]).join(', '))}" style="flex:1"></label>
+    <label class="sub" style="display:flex;gap:6px;align-items:center;margin:0"><span style="white-space:nowrap;font-weight:600">Mô tả hình (EN):</span><input data-f="mo_ta_en" value="${esc(x.mo_ta_en||'')}" style="flex:1"></label>
+    <label class="sub" style="display:flex;gap:6px;align-items:start;margin:0"><span style="white-space:nowrap;font-weight:600;padding-top:4px">Từ khoá tìm (EN):</span><textarea data-f="tu_khoa" rows="2" style="flex:1">${esc((x.tu_khoa||[]).join(', '))}</textarea></label>
+  </div>`).join('')||'<p class="sub">Chưa có chủ thể.</p>';
+  $('#ds_chuthe').querySelectorAll('[data-ct]').forEach(o=>{const k=+o.dataset.ct;
+    o.querySelector('[data-xoa]').onclick=()=>{docChuThe();dsChuThe.splice(k,1);veChuThe()};
+    o.querySelector('[data-len]').onclick=()=>{docChuThe();if(k>0){[dsChuThe[k-1],dsChuThe[k]]=[dsChuThe[k],dsChuThe[k-1]]}veChuThe()}});
+}
+function docChuThe(){const tach=v=>v.split(',').map(s=>s.trim()).filter(Boolean);
+  dsChuThe=[...$('#ds_chuthe').querySelectorAll('[data-ct]')].map(o=>({ten:o.querySelector('[data-f=ten]').value.trim(),loai:o.querySelector('[data-f=loai]').value,
+    goi:tach(o.querySelector('[data-f=goi]').value),mo_ta_en:o.querySelector('[data-f=mo_ta_en]').value.trim(),tu_khoa:tach(o.querySelector('[data-f=tu_khoa]').value)})).filter(x=>x.ten)}
+let ctKN=[],ctTay={};
+const ctThem=()=>$('#ct_them').value.split(',').map(s=>s.trim()).filter(Boolean);
+function veKhongNhac(){const ten=[...new Set([...dsChuThe.map(x=>x.ten).filter(Boolean),...ctThem()])],loc=$('#ct_loc_kn').checked;
+  const ds=ctKN.filter(c=>!loc||!c.nhac);
+  $('#ct_kn_tom').textContent=`— ${ctKN.length} câu · ${ctKN.filter(c=>!c.nhac).length} không nhắc tên · ${Object.keys(ctTay).length} sửa tay`;
+  $('#ds_khong_nhac').innerHTML=ds.map(c=>{const cur=ctTay[c.id]||c.ds,tay=!!ctTay[c.id];
+    return `<div style="display:grid;grid-template-columns:36px 1fr 300px;gap:6px;align-items:center;border-bottom:1px solid var(--line);padding:3px 2px;${tay?'outline:2px solid var(--ok);border-radius:4px;':''}">
+    <span class="sub">${c.id}</span><span style="font-size:13px;${c.nhac?'':'font-style:italic;opacity:.8'}">${esc(c.text)}</span>
+    <div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center">${cur.map((t,j)=>`<span class="tag" style="${j?'':'font-weight:700'}">${esc(t)} <a href="#" data-bo="${c.id}" data-t="${esc(t)}" style="color:var(--er);text-decoration:none">✕</a></span>`).join('')}
+      <select data-them="${c.id}" style="width:54px"><option value="">＋</option>${ten.filter(t=>!cur.includes(t)).map(t=>`<option>${esc(t)}</option>`).join('')}</select>
+      ${tay?`<a href="#" data-auto="${c.id}" title="Trả về tự dò" style="text-decoration:none">↺</a>`:''}</div></div>`}).join('')||'<p class="sub">Không có câu nào.</p>';
+  const goc=id=>[...(ctTay[id]||ctKN.find(c=>c.id==id).ds)];
+  $('#ds_khong_nhac').querySelectorAll('[data-them]').forEach(s=>s.onchange=()=>{if(!s.value)return;const id=s.dataset.them,v=goc(id);v.push(s.value);ctTay[id]=v;veKhongNhac()});
+  $('#ds_khong_nhac').querySelectorAll('[data-bo]').forEach(a=>a.onclick=e=>{e.preventDefault();const id=a.dataset.bo,v=goc(id).filter(t=>t!==a.dataset.t);
+    if(!v.length)return tb('Câu phải có ít nhất một chủ thể (bấm ↺ để trả về tự dò)');ctTay[id]=v;veKhongNhac()});
+  $('#ds_khong_nhac').querySelectorAll('[data-auto]').forEach(a=>a.onclick=e=>{e.preventDefault();delete ctTay[a.dataset.auto];veKhongNhac()})}
+function napChuThe(r){dsChuThe=r.chu_the||[];ctDem=r.so_canh||{};$('#ct_tom').textContent=`— ${dsChuThe.length} chủ thể · ${r.tong_canh||0} cảnh`;
+  ctKN=r.canh||[];ctTay={};ctKN.forEach(c=>{if(c.tay)ctTay[c.id]=[...c.ds]});$('#ct_them').value=(r.tu_khoa_them||[]).join(', ');veChuThe();veKhongNhac()}
+$('#ct_them').onchange=()=>veKhongNhac();
+$('#ct_loc_kn').onchange=()=>veKhongNhac();
+async function moHopChuThe(){$('#ds_chuthe').innerHTML='<p class="sub">Đang nạp (lần đầu hỏi AI ~1 phút)…</p>';$('#hopchuthe').showModal();
+  try{napChuThe(await api('/api/chu_the?du_an='+encodeURIComponent(DU)))}catch(e){$('#ds_chuthe').innerHTML=`<p style="color:var(--er)">Lỗi: ${esc(e.message)}</p>`}}
+$('#xemchuthe').onclick=moHopChuThe;
+$('#ct_them').onclick=()=>{docChuThe();dsChuThe.push({ten:'',loai:'song',goi:[],mo_ta_en:'',tu_khoa:[]});veChuThe()};
+$('#ct_lap_lai').onclick=async()=>{if(!confirm('Hỏi AI lập lại danh sách chủ thể từ đầu? (mất các chỉnh sửa tay)'))return;
+  $('#ds_chuthe').innerHTML='<p class="sub">Đang hỏi AI…</p>';try{napChuThe(await post('/api/chu_the/lap',{du_an:DU}));tb('Đã lập lại chủ thể')}catch(e){tb('Lỗi: '+e.message)}};
+async function luuChuThe(){docChuThe();const r=await post('/api/chu_the/luu',{du_an:DU,chu_the:dsChuThe,gan_tay:ctTay,tu_khoa_them:ctThem()});napChuThe(r);return r}
+$('#ct_luu').onclick=async()=>{try{await luuChuThe();tb('Đã lưu chủ thể và chia lại cảnh')}catch(e){tb('Lỗi: '+e.message)}};
+$('#ct_tim').onclick=async()=>{try{await luuChuThe()}catch(e){return tb('Lỗi: '+e.message)}
+  $('#hopchuthe').close();$('#chedo_tim').value='chu_de';try{localStorage.setItem('chedo_tim','chu_de')}catch(e){}$('#tutim').click()};
+
+// ---------- 18/10: Ý cốt lõi (ảnh AI thay hẳn video ở chỗ quá trình / hành động then chốt)
+let dsCotLoi=[], henCL=null;
+function veCotLoi(r){
+  dsCotLoi=r.y||[];
+  const tong=dsCotLoi.reduce((t,y)=>t+(y.kt-y.bd),0), soAnh=dsCotLoi.reduce((t,y)=>t+(y.anh||[]).length,0);
+  const daVe=dsCotLoi.reduce((t,y)=>t+(y.anh||[]).filter(a=>a.file).length,0);
+  $('#cl_tom_tat').textContent=`— ${dsCotLoi.length} ý · ${soAnh} ảnh (đã vẽ ${daVe}) · ${Math.round(tong)}s`;
+  if(!dsCotLoi.length){$('#ds_cotloi').innerHTML='<p class="sub">Chưa có ý cốt lõi nào.</p>';return}
+  $('#ds_cotloi').innerHTML=dsCotLoi.map((y,i)=>`
+    <div style="border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--bg)">
+      <div class="row" style="justify-content:space-between;margin-bottom:4px">
+        <label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" data-cl-giu="${i}" checked><b>${i+1}. ${esc(y.ten||'')}</b></label>
+        <span class="tag">Cảnh ${y.canh[0]}–${y.canh[y.canh.length-1]} · ${y.bd.toFixed(1)}–${y.kt.toFixed(1)}s · ưu tiên ${y.uu_tien}</span>
+      </div>
+      <div class="sub" style="margin-bottom:6px">${esc(y.vi_sao||'')}</div>
+      <div style="display:grid;gap:6px">
+        ${(y.anh||[]).map((a,k)=>`
+          <div style="display:flex;gap:8px;align-items:flex-start" data-cl-anh="${i}_${k}">
+            <div style="flex:0 0 150px;aspect-ratio:16/9;background:#000;border-radius:4px;overflow:hidden;display:flex;align-items:center;justify-content:center;color:#888;font-size:11px">
+              ${a.file?`<img src="/file?p=${encodeURIComponent(a.file)}" style="width:100%;height:100%;object-fit:cover">`:'chưa vẽ'}
+            </div>
+            <div style="flex:1">
+              <div class="sub" style="font-size:11px">${(a.bd||0).toFixed(1)}–${(a.kt||0).toFixed(1)}s</div>
+              <textarea data-cl-mt="${i}_${k}" rows="2" style="width:100%;font-size:12px">${esc(a.mo_ta_en||'')}</textarea>
+            </div>
+            <button class="p" title="Xoá ảnh này" onclick="this.closest('[data-cl-anh]').remove()" style="padding:2px 7px">✕</button>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+function docCotLoiTuForm(){
+  const ra=[];
+  dsCotLoi.forEach((y,i)=>{
+    const giu=document.querySelector(`[data-cl-giu="${i}"]`);
+    if(giu&&!giu.checked)return;
+    const anh=[];
+    document.querySelectorAll(`[data-cl-anh^="${i}_"]`).forEach(el=>{
+      const k=+el.dataset.clAnh.split('_')[1];
+      const mt=(el.querySelector('textarea')||{}).value||'';
+      if(mt.trim())anh.push(Object.assign({},(y.anh||[])[k]||{},{mo_ta_en:mt.trim()}));
+    });
+    if(anh.length)ra.push(Object.assign({},y,{anh}));
+  });
+  return ra;
+}
+async function theoDoiCotLoi(){
+  clearTimeout(henCL);
+  let r;try{r=await api('/api/cot_loi/tt?du_an='+encodeURIComponent(DU))}catch(e){return}
+  if(r.dang){$('#cl_tt').textContent=`🎨 đang vẽ ${r.xong||0}/${r.tong||'?'} ảnh…`;$('#cl_ve').disabled=true;henCL=setTimeout(theoDoiCotLoi,3000)}
+  else{$('#cl_tt').textContent=r.tong?`Vẽ xong ${r.xong||0}/${r.tong} ảnh`:'';$('#cl_ve').disabled=false}
+  if($('#hopcotloi').open)veCotLoi(r);
+}
+$('#xemcotloi').onclick=async()=>{
+  $('#ds_cotloi').innerHTML='<p class="sub">Đang nạp ý cốt lõi (lần đầu AI đọc cả kịch bản, ~1-2 phút)…</p>';
+  $('#hopcotloi').showModal();
+  try{veCotLoi(await api('/api/cot_loi?du_an='+encodeURIComponent(DU)));theoDoiCotLoi()}
+  catch(e){$('#ds_cotloi').innerHTML=`<p style="color:var(--er)">Lỗi: ${esc(e.message)}</p>`}
+};
+$('#cl_lap_lai').onclick=async()=>{
+  if(!confirm('Cho AI chọn lại ý cốt lõi từ đầu? (bản đang sửa sẽ bị thay)'))return;
+  $('#ds_cotloi').innerHTML='<p class="sub">AI đang đọc lại kịch bản…</p>';
+  try{veCotLoi(await post('/api/cot_loi/lap',{du_an:DU}))}catch(e){tb('Lỗi: '+e.message)}
+};
+$('#cl_luu').onclick=async()=>{
+  try{veCotLoi(await post('/api/cot_loi/luu',{du_an:DU,y:docCotLoiTuForm()}));tb('Đã lưu ý cốt lõi')}catch(e){tb('Lỗi: '+e.message)}
+};
+$('#cl_ve').onclick=async()=>{
+  try{await post('/api/cot_loi/luu',{du_an:DU,y:docCotLoiTuForm()});await post('/api/cot_loi/ve',{du_an:DU});theoDoiCotLoi()}
+  catch(e){tb('Lỗi: '+e.message)}
+};
 $('#chialai_cd').onclick=async()=>{
   if(!confirm('Hỏi Gemini chia lại danh sách chủ đề từ đầu?'))return;
   $('#ds_chude_body').innerHTML='<p class="sub">Đang chia lại chủ đề...</p>';
@@ -435,12 +752,26 @@ function capNhatTuKhoaTuGiaoDien(){
       dsChuDe[idx].tu_khoa_en=inp.value.split(',').map(s=>s.trim()).filter(Boolean);
     }
   });
+  // 18/10: đoạn bình luận — người dùng chọn lại đoạn kể cho hình (nhiều đoạn thì luân phiên); chép đối tượng / mô tả /
+  // từ khoá của đoạn đầu tiên được chọn
+  dsChuDe.forEach((cd,idx)=>{
+    if(cd.loai!=='binh_luan')return;
+    const chon=[...document.querySelectorAll(`[data-cd-kho="${idx}"]`)].filter(x=>x.checked).map(x=>+x.value);
+    if(!chon.length)return;
+    const cu=cd.kho_ds||[cd.thua_ke];
+    const ds=[...cu.filter(i=>chon.includes(i)),...chon.filter(i=>!cu.includes(i))];   // giữ thứ tự cũ, thêm đoạn mới ở cuối
+    const cha=dsChuDe.find(k=>k.id===ds[0]);
+    if(!cha)return;
+    Object.assign(cd,{kho_ds:ds,kho_cd:ds[0],thua_ke:ds[0],doi_tuong:cha.doi_tuong||'',mo_ta_en:cha.mo_ta_en||'',
+                      tu_khoa_en:[...(cha.tu_khoa_en||[])],tranh:cha.tranh||''});
+  });
 }
 $('#luu_cd').onclick=async()=>{
   capNhatTuKhoaTuGiaoDien();
   try{
     await post('/api/chu_de/luu',{du_an:DU,chu_de:dsChuDe});
-    tb('Đã lưu từ khoá các chủ đề');
+    tb('Đã lưu từ khoá và đoạn mượn hình');
+    veDsChuDe();
   }catch(e){
     tb('Lỗi lưu từ khoá: '+e.message);
   }
@@ -567,6 +898,7 @@ async function theoDoiHoanThien(){
   if(b.dataset.cho){delete b.dataset.cho;
     if(t.loi)tb('Hoàn thiện lỗi: '+t.loi);else if(t.xong)tb(`Xong: bản nháp "${t.ten}" đã có trong CapCut`)}
 }
+$('#mo_anh_ai').onclick=moAnhAI;
 $('#hoanthien').onclick=async()=>{const goc=($('#tennhap').value.trim()||DU).replace(/_dung$|_tu_dong$/,'');const ten=goc+'_hoan_chinh';
   if(!confirm(`Hoàn thiện bản nháp từ kế hoạch hiện tại → bản nháp CapCut "${ten}" (ghi đè nếu trùng tên).\n\nGồm: căn giờ theo giọng đọc, bản đồ vệ tinh, thẻ ảnh highlight + chữ nhấn mạnh, phủ màu, chuyển cảnh. Mất khoảng 10-30 phút (tìm ảnh Google — nếu Google hỏi captcha, giải ở cửa sổ Chrome tìm ảnh). Tiếp tục?`))return;
   try{const co_nhac=!!$('#co_nhac')?.checked,co_sfx=!!$('#co_sfx')?.checked;await post('/api/dung/hoan_thien',{du_an:DU,ten,co_nhac,co_sfx});$('#hoanthien').dataset.cho='1';theoDoiHoanThien()}catch(e){tb('Lỗi: '+e.message)}};
@@ -677,7 +1009,7 @@ function chuyenDungKho(cdIdx) {
   if (cd.dung_kho) {
     (cd.videos || []).forEach(v => v.chon = false);
   } else {
-    (cd.videos || []).forEach((v, i) => v.chon = (i < 2));
+    { let n = 0; (cd.videos || []).forEach(v => { v.chon = !v.ke_lai && n < 2; n += v.chon; }); }   // 18/10: bỏ qua bản kể lại
   }
   veDuyetVid();
   capNhatThongKeDuyet();
@@ -766,6 +1098,7 @@ function veDuyetVid() {
             <div style="position:relative;aspect-ratio:16/9;background:#000;cursor:pointer" onclick="xemThuVid('${esc(v.id)}', '${esc(v.tieu_de).replace(/'/g, "\\'")}')">
               <img src="${esc(v.thumb)}" style="width:100%;height:100%;object-fit:cover" onerror="this.src='https://i.ytimg.com/vi/${esc(v.id)}/hqdefault.jpg'">
               <span style="position:absolute;bottom:4px;right:6px;background:rgba(0,0,0,0.8);color:#fff;font-size:11px;padding:1px 5px;border-radius:4px;font-weight:600">${esc(v.dai_str||'')}</span>
+              ${v.ke_lai ? '<span style="position:absolute;top:4px;left:6px;background:#e65100;color:#fff;font-size:10.5px;padding:1px 6px;border-radius:4px;font-weight:600" title="Kênh khác KỂ LẠI đúng câu chuyện trong kịch bản (thường giọng AI + phụ đề) — dùng lại dễ dính bản quyền, bạn tự quyết">🔁 Kể lại cùng chuyện</span>' : ''}
               <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.2);opacity:0;transition:.2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0">
                 <span style="background:rgba(0,0,0,0.7);color:#fff;padding:4px 8px;border-radius:6px;font-size:11px">▶ Xem thử</span>
               </div>
@@ -861,7 +1194,7 @@ function doiChonAnh(lsIdx, aIdx, checked) {
 function chonTop2Vid(cdIdx) {
   const cd = duyetData.chu_de[cdIdx];
   if (cd && cd.videos) {
-    cd.videos.forEach((v, i) => v.chon = (i < 2));
+    let n = 0; cd.videos.forEach(v => { v.chon = !v.ke_lai && n < 2; n += v.chon; });   // 18/10: bỏ qua bản kể lại
     veDuyetVid();
     capNhatThongKeDuyet();
   }

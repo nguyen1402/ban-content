@@ -63,8 +63,33 @@ def _pid_file(du_an):
     return os.path.join(common.thu_muc_du_an(du_an)[1], "chay.pid")
 
 
+def _pid_song(pid):
+    """Tiến trình còn sống? (hỏi thẳng Windows, ~0 ms — 19/10: tránh gọi PowerShell ~1 s cho mỗi chay.pid cũ)."""
+    if os.name != "nt":
+        try:
+            os.kill(int(pid), 0)
+            return True
+        except (OSError, ValueError):
+            return False
+    import ctypes
+    k = ctypes.windll.kernel32
+    h = k.OpenProcess(0x1000, False, int(pid))              # PROCESS_QUERY_LIMITED_INFORMATION
+    if not h:
+        return False
+    try:
+        ma = ctypes.c_ulong()
+        return bool(k.GetExitCodeProcess(h, ctypes.byref(ma))) and ma.value == 259   # STILL_ACTIVE
+    finally:
+        k.CloseHandle(h)
+
+
 def _pid_la_chay_py(pid, du_an):
     """Tiến trình `pid` còn sống VÀ đúng là chay.py của dự án này (tránh nhầm khi Windows tái dùng pid)."""
+    try:
+        if not _pid_song(pid):
+            return False
+    except Exception:                                        # noqa: BLE001
+        pass
     try:
         r = subprocess.run(["powershell", "-NoProfile", "-Command",
                             f"(Get-CimInstance Win32_Process -Filter 'ProcessId={int(pid)}').CommandLine"],
@@ -144,17 +169,23 @@ def thumb():
 
 
 # --------------------------------------------------------------------------- dự án + kịch bản
-@app.get("/api/du_an")
-def ds_du_an():
+def _ten_du_an():
+    """Tên mọi dự án (kịch bản + dữ liệu riêng) — không kiểm tra đang chạy (nhanh)."""
     ten = set()
     for d in (KB, ROOT):
         if os.path.isdir(d):
             for f in os.listdir(d):
-                if f.endswith(".txt") and (d == KB or f in ("kichbantest.txt", "kich_ban_thu_coc.txt")):
+                if f.endswith(".txt") and not f.endswith(".link.txt")                         and (d == KB or f in ("kichbantest.txt", "kich_ban_thu_coc.txt")):   # .link.txt = link tải, không phải dự án
                     ten.add(f[:-4])
     du = os.path.join(ROOT, "cache", "du_an")
     if os.path.isdir(du):
         ten.update(os.listdir(du))
+    return ten
+
+
+@app.get("/api/du_an")
+def ds_du_an():
+    ten = _ten_du_an()
     ra = []
     for t in sorted(ten):
         cache, out = common.thu_muc_du_an(t)
@@ -434,7 +465,7 @@ def _dung_luong(p):
     return n
 
 
-def _ke_hoach_don(t):
+def _ke_hoach_don(t, ten_tat_ca=None):
     """Những gì 🧹 Dọn dự án sẽ xoá: thư mục dự án (ra/<t>), dữ liệu riêng (cache/du_an/<t>) và các bản nháp CapCut của
     dự án (tên = tên nháp bước 1, <t>, <t>_… — trừ bản nháp thuộc dự án khác có tên dài hơn bắt đầu bằng <t>_).
     KỊCH BẢN (kich_ban/<t>.txt) và kho/bộ nhớ đệm dùng chung được GIỮ."""
@@ -454,7 +485,8 @@ def _ke_hoach_don(t):
             ten_nhap = (json.load(open(os.path.join(out, "lan_chay.json"), encoding="utf-8")) or {}).get("ten_nhap") or ""
         except (OSError, ValueError):
             pass
-        khac = [x["ten"] for x in json.loads(ds_du_an())["du_an"] if x["ten"] != t and x["ten"].startswith(t + "_")]
+        tat_ca = ten_tat_ca if ten_tat_ca is not None else _ten_du_an()
+        khac = [x for x in tat_ca if x != t and x.startswith(t + "_")]
         for f in sorted(os.listdir(dd)):
             if not os.path.isdir(os.path.join(dd, f)) or any(f == k or f.startswith(k + "_") for k in khac):
                 continue
@@ -897,6 +929,84 @@ def don_du_an():
     return json_ok({"ok": not loi, "xong": xong, "loi": loi, "giai_phong": giai})
 
 
+def _xoa_duong(ds):
+    """Xoá các tệp / thư mục -> (xong, loi, giai_phong byte)."""
+    import shutil
+    xong, loi, giai = [], [], 0
+    for p in ds:
+        if not os.path.exists(p):
+            continue
+        dl = _dung_luong(p) if os.path.isdir(p) else os.path.getsize(p)
+        hong = []
+        if os.path.isdir(p):
+            shutil.rmtree(p, onerror=lambda f, pth, e: hong.append(pth))
+        else:
+            try:
+                os.remove(p)
+            except OSError:
+                hong.append(p)
+        if hong or os.path.exists(p):
+            loi.append(f"{os.path.basename(p)}: {len(hong)} tệp không xoá được (đang mở trong CapCut?)")
+            giai += max(0, dl - (_dung_luong(p) if os.path.isdir(p) else 0))
+        else:
+            xong.append(os.path.basename(p))
+            giai += dl
+    return xong, loi, giai
+
+
+def _ds_don_nhieu():
+    """Mọi dự án có thư mục ra/<t> hoặc dữ liệu riêng cache/du_an/<t> (trừ dự án cũ không dọn được)."""
+    ten = _ten_du_an()
+    goc_ra = os.path.join(ROOT, "ra")
+    if os.path.isdir(goc_ra):
+        ten.update(f for f in os.listdir(goc_ra) if os.path.isdir(os.path.join(goc_ra, f)))
+    return sorted(t for t in ten if t and t not in common._CU and slug(t) == t)   # noqa: SLF001
+
+
+@app.get("/api/don_nhieu")
+def xem_don_nhieu():
+    """19/10 user: bảng 🧹 Dọn nhiều dự án — dung lượng từng dự án (tổng / riêng kho đã tải) + bản nháp CapCut."""
+    ra = []
+    ds = _ds_don_nhieu()
+    for t in ds:
+        muc, nhap = _ke_hoach_don(t, ds)
+        kho = os.path.join(common.thu_muc_du_an(t)[1], "kho")
+        ra.append({"ten": t, "tong": sum(x["dung_luong"] for x in muc), "kho": _dung_luong(kho) if os.path.isdir(kho) else 0,
+                   "nhap": len(nhap), "nhap_dl": sum(x["dung_luong"] for x in nhap), "ban": _dang_ban(t) or ""})
+    return json_ok({"ds": ra})
+
+
+@app.post("/api/don_nhieu")
+def don_nhieu():
+    """{ds: [{du_an, muc: "kho" | "het"}], xoa_nhap}: "kho" = chỉ kho đã tải (ra/<t>/kho) + kế hoạch ghép hình cũ
+    (dung.json, chỗ thiếu hình) — giữ giọng đọc, kịch bản, chia đoạn; "het" = như 🧹 Dọn dự án. Dự án đang chạy: bỏ qua."""
+    d = request.json or {}
+    tat_ca = _ds_don_nhieu()
+    hop_le = set(tat_ca)
+    kq, giai = [], 0
+    for y in d.get("ds") or []:
+        t = slug(str(y.get("du_an") or ""))
+        if t not in hop_le:
+            continue
+        ban = _dang_ban(t)
+        if ban:
+            kq.append({"du_an": t, "loi": [f"bỏ qua: {ban}"], "giai_phong": 0})
+            continue
+        muc, nhap = _ke_hoach_don(t, tat_ca)
+        out = common.thu_muc_du_an(t)[1]
+        if y.get("muc") == "het":
+            duong = [x["duong"] for x in muc]
+        else:
+            duong = [os.path.join(out, "kho")] + [os.path.join(out, f) for f in
+                                                 ("dung.json", "thieu_hinh.json", "thieu_chi_tiet.json")]
+        if d.get("xoa_nhap"):
+            duong += [x["duong"] for x in nhap]
+        xong, loi, g = _xoa_duong(duong)
+        giai += g
+        kq.append({"du_an": t, "loi": loi, "giai_phong": g})
+    return json_ok({"ok": not any(x["loi"] for x in kq), "kq": kq, "giai_phong": giai})
+
+
 @app.post("/api/lam_lai")
 def lam_lai():
     """Xoá DỮ LIỆU RIÊNG của dự án (giọng, nhịp, truy vấn, mốc, clip đã dựng) để lần chạy sau làm lại từ đầu.
@@ -1172,6 +1282,408 @@ def _chay_hoan_thien(t, ten, co_nhac=False, co_sfx=False):
     return ten
 
 
+def _anh_ai_ds(t):
+    out = common.thu_muc_du_an(t)[1]
+    kh = common.doc_json(os.path.join(out, "ke_hoach.json"), {}) or {}
+    return out, kh
+
+
+@app.get("/api/anh_ai")
+def anh_ai_ds():
+    """19/10 user: danh sách ảnh AI của lần ✨ gần nhất (ke_hoach.json) kèm câu mô tả để sửa tay / vẽ lại."""
+    t = slug(tham_so_q("du_an"))
+    out, kh = _anh_ai_ds(t)
+    ra = []
+    for i, y in enumerate(kh.get("anh_ai") or []):
+        ds = y.get("ds_anh") or []
+        for j, f in enumerate(ds):
+            if not os.path.isfile(f):
+                continue
+            ra.append({"i": i, "j": j, "cau": y.get("cau"), "bd": y.get("bd"), "dai": y.get("dai"), "file": f,
+                       "url": url_tep(f) + f"&v={int(os.path.getmtime(f))}", "ve": (y.get("ve") or [""] * len(ds))[j] if j < len(y.get("ve") or []) else "",
+                       "text": y.get("text") or "", "thoi_dai": y.get("thoi_dai") or "", "mau": ds[0] if j else ""})
+    return json_ok({"ds": ra})
+
+
+@app.post("/api/anh_ai/ve_thu")
+def anh_ai_ve_thu():
+    """Vẽ một ảnh THỬ theo câu mô tả đã sửa -> ảnh xem trước (chưa thay ảnh cũ)."""
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    ve = str(d.get("ve") or "").strip()
+    mau = d.get("mau") or ""
+    if not t or not ve:
+        raise HTTPError(400, "thiếu dự án / câu mô tả")
+    sys.path.insert(0, os.path.join(ROOT, "chinh_sua"))
+    import anh_ve
+    import minh_hoa
+    thu = os.path.join(common.thu_muc_du_an(t)[1], "anh_ai_thu")
+    goc = d.get("goc") or ""                                 # 19/10 user: ẢNH CỦA NGƯỜI DÙNG + yêu cầu sửa
+    if goc and trong_root(goc) and os.path.isfile(goc):
+        p = (f"Edit the attached image: {ve}. Keep everything that the request does not mention exactly as it is (same "
+             f"composition, subjects, colours, lighting). Realistic photograph, wide 16:9 landscape. Absolutely NO text, "
+             f"NO letters, NO words.")
+        tep = [goc]
+    else:
+        co_mau = bool(mau) and trong_root(mau) and os.path.isfile(mau)
+        p = minh_hoa.lenh_ve(ve, d.get("thoi_dai") or "", co_mau=co_mau)
+        tep = [mau] if co_mau else None
+    ten = hashlib.md5((p + str(time.time())).encode("utf-8")).hexdigest()[:12] + ".png"
+    f = anh_ve.ve_prompt(p, thu, ten, tep=tep, timeout=150, do_credit=False)
+    if not f or not os.path.isfile(f):
+        raise HTTPError(502, "Gemini không trả ảnh (thử lại hoặc sửa câu mô tả)")
+    return json_ok({"thu": f, "url": url_tep(f)})
+
+
+@app.post("/api/anh_ai/luu")
+def anh_ai_luu():
+    """Người dùng ưng ảnh thử -> thay ảnh cũ TẠI CHỖ (cùng đường dẫn: bản nháp CapCut + lần ✨ sau dùng luôn).
+    Ảnh gốc giữ ở <tên>.goc.png; câu mô tả mới lưu ở anh_ai_sua.json + ke_hoach.json."""
+    import shutil
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    f, thu, ve = d.get("file") or "", d.get("thu") or "", str(d.get("ve") or "").strip()
+    if not (t and trong_root(f) and os.path.isfile(f) and trong_root(thu) and os.path.isfile(thu)):
+        raise HTTPError(400, "thiếu / sai tệp")
+    goc = os.path.splitext(f)[0] + ".goc.png"
+    if not os.path.isfile(goc):
+        shutil.copy2(f, goc)
+    shutil.copy2(thu, f)
+    try:
+        os.remove(thu)
+    except OSError:
+        pass
+    out, kh = _anh_ai_ds(t)
+    for y in kh.get("anh_ai") or []:
+        ds = y.get("ds_anh") or []
+        if f in ds:
+            v = list(y.get("ve") or [""] * len(ds))
+            v += [""] * (len(ds) - len(v))
+            v[ds.index(f)] = ve
+            y["ve"] = v
+    common.ghi_json(os.path.join(out, "ke_hoach.json"), kh)
+    p_sua = os.path.join(out, "anh_ai_sua.json")
+    sua_ = common.doc_json(p_sua, {}) or {}
+    sua_[os.path.basename(f)] = ve
+    common.ghi_json(p_sua, sua_)
+    return json_ok({"ok": True, "url": url_tep(f) + f"&v={int(time.time())}"})
+
+
+procs_dx = {}                                            # dự án -> Popen "lập danh sách chỗ vẽ ảnh AI"
+
+
+def _cau_srt(out):
+    """[{i, t0, text}] từ ra/<dự án>/kich_ban_cau.srt (câu của bước ✨)."""
+    try:
+        s = open(os.path.join(out, "kich_ban_cau.srt"), encoding="utf-8").read()
+    except OSError:
+        return []
+    ra = []
+    for m in re.finditer(r"(\d+)\s*\n(\d+):(\d+):(\d+)[,.](\d+) --> [\d:,.]+\s*\n(.*?)(?=\n\s*\n|\Z)", s, re.S):
+        h, mi, se, ms = (int(m.group(k)) for k in (2, 3, 4, 5))
+        ra.append({"i": int(m.group(1)), "t0": round(h * 3600 + mi * 60 + se + ms / 1000, 2), "text": m.group(6).replace("\n", " ")})
+    return ra
+
+
+@app.get("/api/anh_ai_ke_hoach")
+def anh_ai_ke_hoach():
+    """19/10 user: danh sách chỗ vẽ ảnh AI (đề xuất của AI, người dùng thêm / bỏ / sửa) + toàn bộ câu lời."""
+    t = slug(tham_so_q("du_an"))
+    out = common.thu_muc_du_an(t)[1]
+    da = common.doc_json(os.path.join(out, "anh_ai_ke_hoach.json"), {}) or {}
+    p = procs_dx.get(t)
+    return json_ok({"co": isinstance(da.get("ds"), list), "ds": da.get("ds") or [], "cau": _cau_srt(out),
+                    "dang": bool(p and p.poll() is None)})
+
+
+@app.post("/api/anh_ai_ke_hoach/lap")
+def lap_anh_ai_ke_hoach():
+    """AI (lại) đề xuất danh sách: chạy ✨ ở chế độ --chi-de-xuat-ai (không vẽ, không dựng)."""
+    t = slug((request.json or {}).get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    p = procs_dx.get(t)
+    if p and p.poll() is None:
+        return json_ok({"ok": True, "dang": True})
+    out = common.thu_muc_du_an(t)[1]
+    f = os.path.join(out, "anh_ai_ke_hoach.json")
+    if (request.json or {}).get("lam_lai") and os.path.isfile(f):
+        os.remove(f)
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", BC_DU_AN=t)
+    procs_dx[t] = subprocess.Popen([sys.executable, "-X", "utf8", "dung_hoan_chinh.py", "--du-an", t, "--chi-de-xuat-ai"],
+                                   cwd=os.path.join(ROOT, "chinh_sua"), stdout=open(_log_ht(t), "w", encoding="utf-8"),
+                                   stderr=subprocess.STDOUT, env=env, creationflags=0x08000000 if os.name == "nt" else 0)
+    return json_ok({"ok": True, "dang": True})
+
+
+@app.post("/api/anh_ai_ke_hoach/luu")
+def luu_anh_ai_ke_hoach():
+    """Lưu danh sách người dùng đã duyệt (giữ khoá câu lời để ✨ biết danh sách còn khớp)."""
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t or not isinstance(d.get("ds"), list):
+        raise HTTPError(400, "thiếu dữ liệu")
+    p = os.path.join(common.thu_muc_du_an(t)[1], "anh_ai_ke_hoach.json")
+    da = common.doc_json(p, {}) or {}
+    ds = []
+    for y in d["ds"]:
+        try:
+            i = int(y.get("cau"))
+            den = max(i, int(y.get("den_cau") or i))
+        except (TypeError, ValueError):
+            continue
+        z = {k: v for k, v in y.items() if k in ("ve_1", "ve_2", "ve_3", "moc_1", "moc_2", "moc_3", "thoi_dai", "tieu_de", "moc", "bo", "tay")}
+        z.update(cau=i, den_cau=den)
+        ds.append(z)
+    common.ghi_json(p, dict(da, ds=sorted(ds, key=lambda z: z["cau"]), duyet=True))
+    return json_ok({"ok": True, "so": len(ds)})
+
+
+# --------------------------------------------------------------------------- 🎨 tạo ảnh rồi chèn thẳng vào bản nháp
+def _chen_ds(t):
+    return os.path.join(common.thu_muc_du_an(t)[1], "anh_chen.json")
+
+
+@app.get("/api/chen_anh")
+def chen_anh_ds():
+    """19/10 user: câu lời (mốc giờ) + bản nháp CapCut của dự án + ảnh đã giữ để chèn."""
+    t = slug(tham_so_q("du_an"))
+    out = common.thu_muc_du_an(t)[1]
+    cau = _cau_srt(out)
+    if not cau:                                              # chưa chạy ✨: dùng cảnh của bản thô
+        cau = [{"i": c["id"], "t0": float(c.get("bat_dau") or 0), "text": c.get("text") or ""}
+               for c in common.doc_json(os.path.join(out, "tu_khoa.json"), []) or []]
+    dd = common.thu_muc_nhap_capcut()
+    nhap = []
+    if dd and os.path.isdir(dd):
+        nhap = sorted((f for f in os.listdir(dd) if os.path.isdir(os.path.join(dd, f)) and (f == t or f.startswith(t + "_"))),
+                      key=lambda f: -os.path.getmtime(os.path.join(dd, f)))
+    ds = [dict(y, url=url_tep(y["file"])) for y in (common.doc_json(_chen_ds(t), {}) or {}).get("ds") or []
+          if os.path.isfile(y.get("file", ""))]
+    return json_ok({"cau": cau, "nhap": nhap, "ds": ds, "thu": os.path.join(out, "anh_chen")})
+
+
+@app.post("/api/chen_anh/giu")
+def chen_anh_giu():
+    """Giữ ảnh vừa vẽ (ảnh thử) cho một mốc giờ -> ra/<dự án>/anh_chen/."""
+    import shutil
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    thu = d.get("thu") or ""
+    if not t or not (trong_root(thu) and os.path.isfile(thu)):
+        raise HTTPError(400, "thiếu ảnh")
+    out = common.thu_muc_du_an(t)[1]
+    os.makedirs(os.path.join(out, "anh_chen"), exist_ok=True)
+    bd = max(0.0, float(d.get("bd") or 0))                   # 19/10 user: tên file theo MỐC GIỜ để kéo thả tay vào CapCut
+    ten = f"{int(bd // 60):02d}m{bd % 60:04.1f}s" + (f"_cau{d.get('cau')}" if d.get("cau") is not None else "")
+    f = os.path.join(out, "anh_chen", ten + os.path.splitext(thu)[1])
+    k = 2
+    while os.path.exists(f):
+        f = os.path.join(out, "anh_chen", f"{ten}_{k}{os.path.splitext(thu)[1]}")
+        k += 1
+    shutil.move(thu, f)
+    da = common.doc_json(_chen_ds(t), {}) or {}
+    ds = da.get("ds") or []
+    ds.append({"file": f, "bd": round(float(d.get("bd") or 0), 2), "dai": round(max(0.5, float(d.get("dai") or 3)), 2),
+               "ve": str(d.get("ve") or ""), "cau": d.get("cau"), "da_chen": []})
+    common.ghi_json(_chen_ds(t), dict(da, ds=sorted(ds, key=lambda y: y["bd"])))
+    return json_ok({"ok": True})
+
+
+@app.post("/api/chen_anh/tai_len")
+def chen_anh_tai_len():
+    """Ảnh người dùng tải lên (làm ảnh gốc để Gemini sửa theo yêu cầu) -> ra/<dự án>/anh_ai_thu/goc_*.ext"""
+    t = slug(request.forms.get("du_an", ""))
+    up = request.files.get("tep")
+    if not t or not up:
+        raise HTTPError(400, "thiếu dự án / ảnh")
+    duoi = os.path.splitext(up.raw_filename or up.filename)[1].lower()
+    if duoi not in (".png", ".jpg", ".jpeg", ".webp"):
+        raise HTTPError(400, "chỉ nhận ảnh .png .jpg .webp")
+    thu = os.path.join(common.thu_muc_du_an(t)[1], "anh_ai_thu")
+    os.makedirs(thu, exist_ok=True)
+    f = os.path.join(thu, "goc_" + hashlib.md5(str(time.time()).encode()).hexdigest()[:10] + duoi)
+    up.save(f, overwrite=True)
+    sys.path.insert(0, os.path.join(ROOT, "chinh_sua"))
+    import anh_ve
+    anh_ve.xoa_logo(f)                                       # 19/10: ảnh gốc còn logo -> Gemini vẽ lại cả logo cũ vào ảnh
+    return json_ok({"file": f, "url": url_tep(f) + f"&v={int(time.time())}"})
+
+
+@app.post("/api/chen_anh/xoa_logo")
+def chen_anh_xoa_logo():
+    """Xoá logo ✦ Gemini cho mọi ảnh đã giữ của dự án (ảnh giữ trước khi có công cụ). Ảnh không có logo để nguyên."""
+    t = slug((request.json or {}).get("du_an", ""))
+    sys.path.insert(0, os.path.join(ROOT, "chinh_sua"))
+    import anh_ve
+    thu = os.path.join(common.thu_muc_du_an(t)[1], "anh_chen")
+    n = sum(1 for f in (os.listdir(thu) if os.path.isdir(thu) else [])
+            if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp")) and anh_ve.xoa_logo(os.path.join(thu, f)))
+    return json_ok({"ok": True, "so": n})
+
+
+@app.post("/api/chen_anh/mo_thu_muc")
+def chen_anh_mo_thu_muc():
+    """Mở thư mục ảnh đã giữ (kéo thả tay vào CapCut khi bản nháp đang mở)."""
+    t = slug((request.json or {}).get("du_an", ""))
+    thu = os.path.join(common.thu_muc_du_an(t)[1], "anh_chen")
+    os.makedirs(thu, exist_ok=True)
+    os.startfile(thu)
+    return json_ok({"ok": True, "thu": thu})
+
+
+@app.post("/api/chen_anh/xoa")
+def chen_anh_xoa():
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    da = common.doc_json(_chen_ds(t), {}) or {}
+    da["ds"] = [y for y in da.get("ds") or [] if y.get("file") != d.get("file")]
+    common.ghi_json(_chen_ds(t), da)
+    return json_ok({"ok": True})
+
+
+@app.post("/api/chen_anh/chen")
+def chen_anh_chen():
+    """Chèn mọi ảnh đã giữ (chưa chèn vào bản nháp này) vào bản nháp CapCut: MỘT track mới phía trên, ảnh 120% (giấu dấu
+    Gemini) phóng chậm. Bản nháp phải ĐÓNG trong CapCut (CapCut đang mở sẽ ghi đè)."""
+    import pycapcut as draft
+    from pycapcut import trange
+    import dung_tay
+    sys.path.insert(0, os.path.join(ROOT, "chinh_sua"))
+    import anh_ve
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    ten = str(d.get("nhap") or "")
+    dd = common.thu_muc_nhap_capcut()
+    if not (t and dd and ten and os.path.isdir(os.path.join(dd, ten))):
+        raise HTTPError(400, "không thấy bản nháp")
+    da = common.doc_json(_chen_ds(t), {}) or {}
+    can = [y for y in da.get("ds") or [] if os.path.isfile(y.get("file", "")) and ten not in (y.get("da_chen") or [])]
+    if not can:
+        raise HTTPError(400, "không còn ảnh nào chưa chèn vào bản nháp này")
+    SEC = 1_000_000
+    sc = draft.DraftFolder(dd).load_template(ten)
+    tr = "anh_chen_" + time.strftime("%H%M%S")
+    sc.add_track(draft.TrackType.video, track_name=tr, relative_index=30)
+    KP = draft.KeyframeProperty
+    cuoi, n = 0, 0
+    for y in sorted(can, key=lambda z: z["bd"]):
+        st, dl = max(int(y["bd"] * SEC), cuoi), int((y["bd"] + y["dai"]) * SEC) - max(int(y["bd"] * SEC), cuoi)
+        if dl < int(0.4 * SEC):
+            continue
+        seg = draft.VideoSegment(draft.VideoMaterial(y["file"]), trange(st, dl))
+        ph = anh_ve.PHONG_ANH_AI                             # 1.0 khi đã xoá được logo (cũ: 120% giấu logo)
+        seg.add_keyframe(KP.uniform_scale, 0, ph)
+        seg.add_keyframe(KP.uniform_scale, dl - 1000, ph * 1.06)
+        sc.add_segment(seg, track_name=tr)
+        cuoi = st + dl
+        y.setdefault("da_chen", []).append(ten)
+        n += 1
+    sc.save()
+    try:
+        dung_tay._sua_nhap(os.path.join(dd, ten), [y["file"] for y in can])   # noqa: SLF001
+    except Exception:                                        # noqa: BLE001
+        pass
+    common.ghi_json(_chen_ds(t), da)
+    return json_ok({"ok": True, "so": n, "track": tr})
+
+
+TT_SUA_GIONG = {}                                        # dự án -> {dang, dong[], kq}
+
+
+@app.post("/api/sua_giong")
+def sua_giong():
+    """19/10 user: 🔁 Sửa câu đọc sai — soát lại giọng, đọc lại câu sai, ghép lại giong_doc.wav (giữ mốc giờ), chạy nền."""
+    import giong
+    t = slug((request.json or {}).get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    if (TT_SUA_GIONG.get(t) or {}).get("dang"):
+        return json_ok({"ok": True, "dang": True})
+    tt = TT_SUA_GIONG[t] = {"dang": True, "dong": [], "kq": None, "loi": ""}
+
+    def chay():
+        try:
+            tt["kq"] = giong.sua_cau_sai(t, bao=lambda m: (tt["dong"].append(m), _in(f"[🔁 {t}] {m}")))
+        except Exception as e:                               # noqa: BLE001
+            tt["loi"] = str(e)[:300]
+        tt["dang"] = False
+    threading.Thread(target=chay, daemon=True).start()
+    return json_ok({"ok": True, "dang": True})
+
+
+@app.get("/api/sua_giong_tt")
+def sua_giong_tt():
+    t = slug(tham_so_q("du_an"))
+    return json_ok(TT_SUA_GIONG.get(t) or {"dang": False, "dong": [], "kq": None, "loi": ""})
+
+
+# --------------------------------------------------------------------------- 📈 đối thủ YouTube (20/10 user)
+TRANG_DOI_THU = os.path.join(os.path.dirname(os.path.abspath(__file__)), "doi_thu.html")
+TT_DOI_THU = {}                                          # job -> {dang, dong, kq, loi}
+
+
+@app.get("/doi_thu")
+def trang_doi_thu():
+    response.content_type = "text/html; charset=utf-8"
+    return doc_text(TRANG_DOI_THU)
+
+
+def _job_doi_thu(ham):
+    job = hashlib.md5(str(time.time()).encode()).hexdigest()[:10]
+    tt = TT_DOI_THU[job] = {"dang": True, "dong": "Bắt đầu…", "kq": None, "loi": ""}
+
+    def bao(m, *_):
+        tt["dong"] = m
+
+    def chay():
+        try:
+            tt["kq"] = ham(bao)
+        except Exception as e:                               # noqa: BLE001
+            tt["loi"] = str(e)[:300]
+        tt["dang"] = False
+    threading.Thread(target=chay, daemon=True).start()
+    return job
+
+
+@app.post("/api/doi_thu/gio")
+def doi_thu_gio():
+    import doi_thu
+    d = request.json or {}
+    kenh, n = str(d.get("kenh") or "").strip(), max(5, min(300, int(d.get("n") or 50)))
+    if not kenh:
+        raise HTTPError(400, "thiếu kênh")
+    return json_ok({"job": _job_doi_thu(lambda bao: doi_thu.quet_gio(kenh, n, bao))})
+
+
+@app.post("/api/doi_thu/dot_bien")
+def doi_thu_dot_bien():
+    import doi_thu
+    d = request.json or {}
+    tk = [str(t) for t in d.get("tu_khoa") or [] if str(t).strip()]
+    if not tk:
+        raise HTTPError(400, "thiếu từ khoá")
+    return json_ok({"job": _job_doi_thu(lambda bao: doi_thu.tim_dot_bien(
+        tk, n_moi_tu=max(5, min(100, int(d.get("n") or 30))), sub_toi_da=int(d.get("sub_max") or 50000),
+        ngay_toi_da=int(d.get("ngay_max") or 30), view_toi_thieu=int(d.get("view_min") or 0),
+        bo_short=bool(d.get("bo_short", True)), bo_tieng_viet=bool(d.get("bo_vi")), bao=bao))})
+
+
+@app.post("/api/doi_thu/tu_khoa")
+def doi_thu_tu_khoa():
+    """AI lấy ngách + từ khoá tìm tiếng Anh từ kênh đối thủ."""
+    import doi_thu
+    kenh = str((request.json or {}).get("kenh") or "").strip()
+    if not kenh:
+        raise HTTPError(400, "thiếu kênh")
+    return json_ok({"job": _job_doi_thu(lambda bao: doi_thu.tu_khoa_tu_kenh(kenh, bao=bao))})
+
+
+@app.get("/api/doi_thu/tt")
+def doi_thu_tt():
+    return json_ok(TT_DOI_THU.get(tham_so_q("job")) or {"dang": False, "loi": "không thấy việc"})
+
+
 @app.post("/api/dung/hoan_thien")
 def dung_hoan_thien():
     """Chạy skill hoàn thiện (chinh_sua/dung_hoan_chinh.py) ở nền cho dự án: diễn cảnh, bản đồ, nhạc, chuyển cảnh
@@ -1238,6 +1750,60 @@ def dung_tu_dong_tt():
     return json_ok(tu_dong_tim.TT.get(slug(tham_so_q("du_an")), {}))
 
 
+def _tom_chu_the(t):
+    import chu_the
+    out = common.thu_muc_du_an(t)[1]
+    cd = (common.doc_json(os.path.join(out, "chu_de.json"), {}) or {}).get("chu_de") or []
+    dem = {}
+    for d in cd:
+        if d.get("chu_the") is not None and not d.get("chi_tim"):
+            dem[d["chu_the"]] = dem.get(d["chu_the"], 0) + int(d.get("so_canh") or 0)
+    return {"ok": True, "chu_the": chu_the.doc_goc(t), "tu_khoa_them": chu_the.tu_khoa_them(t), "so_canh": dem,
+            "tong_canh": sum(dem.values()),
+            "canh": chu_the.ds_canh(t)}
+
+
+@app.get("/api/chu_the")
+def lay_chu_the():
+    """19/10 user: chủ thể của cả video (hỏi AI một lần nếu chưa có) + số cảnh mỗi chủ thể."""
+    import chu_the
+    t = slug(tham_so_q("du_an"))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    try:
+        if not chu_the.doc(t):
+            chu_the.chia_doan(t)
+    except Exception as e:
+        raise HTTPError(400, str(e))
+    return json_ok(_tom_chu_the(t))
+
+
+@app.post("/api/chu_the/luu")
+def luu_chu_the():
+    """Lưu danh sách chủ thể người dùng sửa -> chia lại đoạn (cục bộ, không hỏi AI)."""
+    import chu_the
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t or not isinstance(d.get("chu_the"), list):
+        raise HTTPError(400, "thiếu dữ liệu")
+    chu_the.luu(t, d["chu_the"], d.get("gan_tay") if isinstance(d.get("gan_tay"), dict) else None,
+                d.get("tu_khoa_them") if isinstance(d.get("tu_khoa_them"), list) else None)
+    chu_the.chia_doan(t)
+    return json_ok(_tom_chu_the(t))
+
+
+@app.post("/api/chu_the/lap")
+def lap_lai_chu_the():
+    """Hỏi AI lập lại danh sách chủ thể từ đầu."""
+    import chu_the
+    t = slug((request.json or {}).get("du_an", ""))
+    try:
+        chu_the.chia_doan(t, hoi_lai=True)
+    except Exception as e:
+        raise HTTPError(400, str(e))
+    return json_ok(_tom_chu_the(t))
+
+
 @app.get("/api/chu_de")
 def lay_chu_de():
     """Lấy danh sách chủ đề kịch bản (chia mới nếu chưa có)."""
@@ -1282,6 +1848,79 @@ def luu_chu_de():
     cu["so_chu_de"] = len(ds)
     common.ghi_json(p, cu)
     return json_ok({"ok": True, "so_chu_de": len(ds)})
+
+
+def _cot_loi_kem_file(t, da):
+    """Gắn đường dẫn ảnh đã vẽ (nếu có) vào từng ảnh của danh sách ý cốt lõi — để bảng 🎯 xem ảnh."""
+    import dung_tay
+    kho = dung_tay.doc_kho(t)
+    for y in da.get("y") or []:
+        for a in y.get("anh") or []:
+            m = kho.get(a.get("kho_id") or "") or {}
+            a["file"] = m.get("file") if m.get("trang_thai") == "xong" else ""
+    return da
+
+
+@app.get("/api/cot_loi")
+def lay_cot_loi():
+    """18/10: danh sách Ý CỐT LÕI (ảnh AI thay hẳn video) của dự án — lập mới nếu chưa có."""
+    import cot_loi
+    t = slug(tham_so_q("du_an"))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    try:
+        da = cot_loi.lap(t)
+    except Exception as e:
+        raise HTTPError(400, str(e))
+    return json_ok({"ok": True, "du_an": t, **_cot_loi_kem_file(t, da), "tt": cot_loi.TT.get(t, {})})
+
+
+@app.post("/api/cot_loi/lap")
+def lap_lai_cot_loi():
+    """Buộc AI chọn lại ý cốt lõi."""
+    import cot_loi
+    t = slug((request.json or {}).get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    try:
+        da = cot_loi.lap(t, buoc_lai=True)
+    except Exception as e:
+        raise HTTPError(400, str(e))
+    return json_ok({"ok": True, "du_an": t, **_cot_loi_kem_file(t, da)})
+
+
+@app.post("/api/cot_loi/luu")
+def luu_cot_loi():
+    """Lưu danh sách ý cốt lõi sau khi người dùng sửa câu mô tả / xoá ý / xoá ảnh."""
+    import cot_loi
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    ys = d.get("y")
+    if not t or not isinstance(ys, list):
+        raise HTTPError(400, "thiếu dữ liệu ý cốt lõi")
+    da = cot_loi.luu(t, ys)
+    return json_ok({"ok": True, **_cot_loi_kem_file(t, da)})
+
+
+@app.post("/api/cot_loi/ve")
+def ve_cot_loi():
+    """Vẽ (chạy nền) mọi ảnh cốt lõi còn thiếu."""
+    import cot_loi
+    t = slug((request.json or {}).get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    if cot_loi.TT.get(t, {}).get("dang"):
+        raise HTTPError(400, "đang vẽ — chờ xong")
+    cot_loi.TT[t] = {"dang": True, "xong": 0, "tong": 0}
+    cot_loi.ve_nen(t)
+    return json_ok({"ok": True})
+
+
+@app.get("/api/cot_loi/tt")
+def tt_cot_loi():
+    import cot_loi
+    t = slug(tham_so_q("du_an"))
+    return json_ok({**cot_loi.TT.get(t, {}), **_cot_loi_kem_file(t, cot_loi.doc(t))})
 
 
 @app.get("/api/duyet_nguon/ds")

@@ -504,46 +504,99 @@ def chon_sfx(sfx, am):
 
 
 # --------------------------------------------------------------------------- dựng dự án CapCut
-def chuyen_dong_anh(seg, d, k, KP):
-    """Keyframe chuyển động cho ảnh tĩnh: luân phiên phóng vào, thu ra, lia trái, lia phải, phóng vào lệch."""
+def chuyen_dong_anh(seg, d, k, KP, ph=1.0):
+    """Keyframe chuyển động cho ảnh tĩnh: luân phiên phóng vào, thu ra, lia trái, lia phải, phóng vào lệch.
+    ph: hệ số phóng nền (19/10: ảnh Gemini 1.2 — giấu dấu ✦ ở góc)."""
     kieu = k % 5
     if kieu == 0:                                             # phóng vào giữa
-        seg.add_keyframe(KP.uniform_scale, 0, 1.0)
-        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.18)
+        seg.add_keyframe(KP.uniform_scale, 0, 1.0 * ph)
+        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.18 * ph)
     elif kieu == 1:                                           # thu ra
-        seg.add_keyframe(KP.uniform_scale, 0, 1.18)
-        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.0)
+        seg.add_keyframe(KP.uniform_scale, 0, 1.18 * ph)
+        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.0 * ph)
     elif kieu == 2:                                           # lia từ phải sang trái
-        seg.add_keyframe(KP.uniform_scale, 0, 1.14)
+        seg.add_keyframe(KP.uniform_scale, 0, 1.14 * ph)
         seg.add_keyframe(KP.position_x, 0, 0.06)
         seg.add_keyframe(KP.position_x, d - 1000, -0.06)
     elif kieu == 3:                                           # lia từ trái sang phải
-        seg.add_keyframe(KP.uniform_scale, 0, 1.14)
+        seg.add_keyframe(KP.uniform_scale, 0, 1.14 * ph)
         seg.add_keyframe(KP.position_x, 0, -0.06)
         seg.add_keyframe(KP.position_x, d - 1000, 0.06)
     else:                                                     # phóng vào kèm lia nhẹ lên
-        seg.add_keyframe(KP.uniform_scale, 0, 1.05)
-        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.20)
+        seg.add_keyframe(KP.uniform_scale, 0, 1.05 * ph)
+        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.20 * ph)
         seg.add_keyframe(KP.position_y, 0, -0.03)
         seg.add_keyframe(KP.position_y, d - 1000, 0.03)
 
 
+CHU_PHU_DEN = 0.6           # 19/10 user: độ đậm lớp phủ đen dưới chữ số liệu / mốc năm
+
+
+def _anh_den():
+    """Ảnh đen 1920x1080 (một lần) làm lớp phủ."""
+    from PIL import Image
+    p = os.path.join(OUT, "_phu_den.png")
+    if not os.path.isfile(p):
+        Image.new("RGB", (1920, 1080), (0, 0, 0)).save(p)
+    return p
+
+
+def dat_chu_phu(script, ds, KP):
+    """Lớp phủ đen bán trong suốt (track hud_nen) + chữ trắng CapCut (track hud_chu): dòng nhỏ tiêu đề, số lớn, nhãn nhỏ;
+    hai giá trị -> hai cột. Hiện / tắt mờ 0,2 s."""
+    import pycapcut as draft
+    from pycapcut import trange
+    den = draft.VideoMaterial(_anh_den())
+    co_track = set()
+    for x in ds:
+        t0, d = int(x["bd"] * SEC), int(x["dai"] * SEC)
+        if d < int(0.6 * SEC):
+            continue
+        fi, fo = int(0.2 * SEC), max(d - int(0.25 * SEC), int(0.4 * SEC))
+        nen = draft.VideoSegment(den, trange(t0, d))
+        for t, a in ((0, 0.0), (fi, CHU_PHU_DEN), (fo, CHU_PHU_DEN), (d - 1000, 0.0)):
+            nen.add_keyframe(KP.alpha, t, a)
+        script.add_segment(nen, track_name="hud_nen")
+        dong = []                                            # (track, chữ, cỡ, x, y) — mỗi dòng một track (chữ cùng lúc)
+        if x.get("tieu_de"):
+            dong.append(("hud_chu_tieu_de", x["tieu_de"].upper(), 6.5, 0.0, 0.36))
+        cot = x.get("cot") or []
+        for k, c in enumerate(cot[:2]):
+            xc = 0.0 if len(cot) == 1 else (-0.45 if k == 0 else 0.45)
+            dong.append((f"hud_chu_so_{k}", c["so"], 15.0 if len(cot) == 1 else 12.0, xc, 0.02))
+            if c.get("nhan"):
+                dong.append((f"hud_chu_nhan_{k}", c["nhan"].upper(), 6.0, xc, -0.22))
+        for tr, chu, co, tx, ty in dong:
+            if tr not in co_track:
+                script.add_track(draft.TrackType.text, track_name=tr, relative_index=2 + len(co_track))
+                co_track.add(tr)
+            seg = draft.TextSegment(chu, trange(t0, d),
+                                    style=draft.TextStyle(size=co, bold=True, color=(1.0, 1.0, 1.0), align=1,
+                                                          auto_wrapping=True, max_line_width=0.42 if len(cot) > 1 else 0.8),
+                                    clip_settings=draft.ClipSettings(transform_x=tx, transform_y=ty))
+            for t, a in ((0, 0.0), (fi, 1.0), (fo, 1.0), (d - 1000, 0.0)):
+                seg.add_keyframe(KP.alpha, t, a)
+            script.add_segment(seg, track_name=tr)
+    return len(ds)
+
+
 def chuyen_dong_anh_ai(seg, d, k, KP):
-    """Chuyển động lia máy Ken Burns chậm rãi, điện ảnh cho chuỗi ảnh AI."""
+    """Chuyển động lia máy Ken Burns chậm rãi, điện ảnh cho chuỗi ảnh AI.
+    19/10 user: nền phóng 120% (giấu dấu ✦ Gemini ở góc phải dưới — ảnh không còn bị làm mờ chỗ dấu)."""
     kieu = k % 4
     if kieu == 0:                                             # zoom in chậm rãi
-        seg.add_keyframe(KP.uniform_scale, 0, 1.02)
-        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.08)
+        seg.add_keyframe(KP.uniform_scale, 0, 1.20)
+        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.27)
     elif kieu == 1:                                           # zoom out nhẹ nhàng
-        seg.add_keyframe(KP.uniform_scale, 0, 1.08)
-        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.02)
+        seg.add_keyframe(KP.uniform_scale, 0, 1.27)
+        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.20)
     elif kieu == 2:                                           # lia chậm từ trái sang phải
-        seg.add_keyframe(KP.uniform_scale, 0, 1.06)
+        seg.add_keyframe(KP.uniform_scale, 0, 1.24)
         seg.add_keyframe(KP.position_x, 0, -0.025)
         seg.add_keyframe(KP.position_x, d - 1000, 0.025)
     else:                                                     # đẩy nhẹ vào kèm lia góc
-        seg.add_keyframe(KP.uniform_scale, 0, 1.03)
-        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.07)
+        seg.add_keyframe(KP.uniform_scale, 0, 1.21)
+        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.26)
         seg.add_keyframe(KP.position_x, 0, 0.02)
         seg.add_keyframe(KP.position_x, d - 1000, -0.02)
 
@@ -564,6 +617,8 @@ def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
         script.add_track(draft.TrackType.video, track_name="anh_ai", relative_index=1)
     if kh.get("hieu_ung"):
         script.add_track(draft.TrackType.video, track_name="hieu_ung", relative_index=2)  # trên track anh_ai
+    if any(y.get("kieu") == "chu_phu" for y in kh.get("hieu_ung") or []):
+        script.add_track(draft.TrackType.video, track_name="hud_nen", relative_index=3)   # 19/10: lớp phủ đen
     if kh.get("bang_giay"):
         script.add_track(draft.TrackType.video, track_name="bang_giay", relative_index=4)  # trên cùng: khối bảng giấy
     man_den = [c for c in canh if float(c.get("nghi_sau") or 0) > 0]
@@ -592,7 +647,7 @@ def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
             else:
                 vs = draft.VideoSegment(mat, trange(t, d))
             if o.get("anh"):                                  # MỌI ẢNH đều có chuyển động (yêu cầu của người dùng)
-                chuyen_dong_anh(vs, d, kieu_anh, KP0)
+                chuyen_dong_anh(vs, d, kieu_anh, KP0, ph=float(o.get("phong") or 1.0))
                 kieu_anh += 1
             script.add_segment(vs, track_name="hinh")
         if not giong_chung and c.get("giong") and c["_os"]:
@@ -701,7 +756,8 @@ def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
             k_anh_ai += 1
     if kh.get("hieu_ung"):
         import hieu_ung
-        hieu_ung.dat(script, kh["hieu_ung"], SEC)
+        hieu_ung.dat(script, [y for y in kh["hieu_ung"] if y.get("kieu") != "chu_phu"], SEC)
+        dat_chu_phu(script, [y for y in kh["hieu_ung"] if y.get("kieu") == "chu_phu"], draft.KeyframeProperty)
     if kh.get("lop_phu"):
         import lop_phu
         lop_phu.dat(script, kh["lop_phu"], SEC)
@@ -805,6 +861,8 @@ def main():
     ap.add_argument("--giu-ke-hoach", action="store_true", help="dùng ra/ke_hoach.json đã có (đã sửa tay)")
     ap.add_argument("--du-an", default=None, help="tên dự án (mặc định: dự án chạy gần nhất)")
     ap.add_argument("--chi-lap-ke-hoach", action="store_true")
+    ap.add_argument("--chi-de-xuat-ai", action="store_true",
+                    help="19/10: chỉ lập danh sách chỗ vẽ ảnh AI (ra/<dự án>/anh_ai_ke_hoach.json) để duyệt, chưa vẽ / dựng")
     ap.add_argument("--co-ban-do-canh", action="store_true",
                     help="kiểu cũ: thay đoạn đầu MỌI cảnh địa điểm bằng bản đồ vệ tinh (mặc định tắt từ 14/10)")
     ap.add_argument("--khong-ban-do", action="store_true", help="dự án mới: không thay cảnh địa điểm bằng bản đồ vệ tinh")
@@ -852,6 +910,11 @@ def main():
     log(f"[1] dự án thô: {len(canh)} cảnh, {sum(len(c['_os']) for c in canh)} đoạn hình, {tong:.0f}s; "
         f"{len(cau)} câu -> ra/kich_ban_cau.srt")
 
+    if a.chi_de_xuat_ai:
+        import dieu_phoi
+        dieu_phoi.hoi(cau, OUT, co_the=LOP_PHU_BAT)
+        log("[ĐX] xong danh sách chỗ vẽ ảnh AI")
+        return
     am = _kho_am_thanh()
     if (a.giu_ke_hoach or a.tinh_lai_chuyen_canh or a.sua_nhanh) and os.path.isfile(KE_HOACH):
         kh = json.load(open(KE_HOACH, encoding="utf-8"))
@@ -898,6 +961,18 @@ def main():
         if DIEU_PHOI_BAT and (HIEU_UNG_BAT or LOP_PHU_BAT):
             import dieu_phoi
             de = dieu_phoi.hoi(cau, OUT, co_the=LOP_PHU_BAT)
+            try:                                             # 18/10 user: đoạn đã có ẢNH CỐT LÕI toàn màn hình (bản thô)
+                import cot_loi                               # -> không chồng thêm lớp AI / HUD lên đó
+                from common import DU_AN as _da
+                sp = cot_loi.khoang(_da)
+                if sp:
+                    tg = {c_["i"]: (c_["t0"], c_["t1"]) for c_ in cau}
+                    n0 = len(de)
+                    de = [x for x in de if not any(a_ < tg.get(x["cau"], (-1, -1))[1] and b_ > tg.get(x["cau"], (-1, -1))[0]
+                                                   for a_, b_, _ in sp)]
+                    log(f"    điều phối: bỏ {n0 - len(de)} lớp trùng đoạn ảnh cốt lõi")
+            except Exception as e:                           # noqa: BLE001
+                log(f"    ! lọc theo ảnh cốt lõi: {str(e)[:100]}")
         if HIEU_UNG_BAT:
             import hieu_ung
             if de is not None:
@@ -906,6 +981,9 @@ def main():
                 kh["hieu_ung"] = [x for x in hieu_ung.lap(cau, canh, kh["chuong"], OUT, san=san_hu)
                                   if ngoai_bg(x)]
                 kh["anh_ai"] = [x for x in san_ai if ngoai_bg(x)]
+                sua_tay = doc_json(os.path.join(OUT, "anh_ai_sua.json"), {}) or {}   # 19/10: ảnh người dùng vẽ lại + lưu
+                for y in kh["anh_ai"]:
+                    y["ve"] = [sua_tay.get(os.path.basename(f), v) for f, v in zip(y.get("ds_anh") or [], y.get("ve") or [])]
             else:
                 kh["hieu_ung"] = [x for x in hieu_ung.lap(cau, canh, kh["chuong"], OUT) if ngoai_bg(x)]
                 kh["anh_ai"] = []

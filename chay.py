@@ -21,6 +21,8 @@ import tach_canh
 import tu_khoa
 
 BUOC = ("tach", "tu_khoa", "giong", "xuat", "nhap")
+TU_KHOA_CANH = False        # 19/10 user ("tránh dư thừa"): bước 🤖 theo chủ đề tự lập từ khoá theo đoạn + theo vế ->
+#                             không hỏi từ khoá TỪNG CẢNH trước khi đọc giọng nữa (chế độ tìm theo cảnh tự hỏi khi cần)
 
 
 def main():
@@ -65,10 +67,13 @@ def main():
         try:
             tien_do("tu_khoa", "dang")
             ctx = tach_canh.lam_ten_va_tom_tat(tach_canh.bo_moc_nghi(text), os.path.join(CACHE, "ten.json"))
-            tu_khoa.lam_tu_khoa(canh, ctx, os.path.join(CACHE, "tu_khoa.json"))
-            n_dd = sum(1 for c in canh if c["tu_khoa"].get("dia_diem"))
-            tien_do("tu_khoa", "xong", f"{sum(1 for c in canh if c['tu_khoa'].get('video'))} cảnh · "
-                                      f"{n_dd} có địa điểm")
+            if TU_KHOA_CANH:
+                tu_khoa.lam_tu_khoa(canh, ctx, os.path.join(CACHE, "tu_khoa.json"))
+                n_dd = sum(1 for c in canh if c["tu_khoa"].get("dia_diem"))
+                tien_do("tu_khoa", "xong", f"{sum(1 for c in canh if c['tu_khoa'].get('video'))} cảnh · "
+                                          f"{n_dd} có địa điểm")
+            else:
+                tien_do("tu_khoa", "xong", f"{len(ctx.get('ten') or {})} tên riêng")
             kq["ctx"] = ctx
         except BaseException as e:                          # noqa: BLE001
             loi["tu_khoa"] = e
