@@ -244,6 +244,26 @@ def _vao_du_an(ph):
         _cap_nhat(ph.ten, du_an_url=ph.js("location.href"))
     for chu in ("Get started", "Got it", "Close", "Dismiss"):     # bảng giới thiệu / có gì mới
         ph.js(_BAM_CHU + f"({json.dumps(chu)})")
+    # 20/10 đo: tài khoản mới (acc4-acc8) mở sẵn chế độ AGENT (khung chat "Untitled session") -> không có nút
+    # "Settings trigger", vẽ ảnh / tạo video đều hỏng. Đóng khung chat (khi nó mở, chip Agent chưa hiện), rồi tắt chip Agent
+    # (aria-pressed=true) bằng cú bấm thật.
+    if ph.js("(() => { const t = document.querySelector('button[aria-label=\"Settings trigger\"]');"     # nút có trong DOM nhưng ẨN
+             " return !(t && t.offsetParent) || document.body.innerText.includes('Untitled session') })()"):
+        xy = ph.js("(() => { const e = [...document.querySelectorAll('button')].find(e => e.offsetParent && (e.innerText||'').trim() === 'close'"
+                   " && e.getBoundingClientRect().x > innerWidth * 0.6 && e.getBoundingClientRect().y < 160); if (!e) return null;"
+                   " const r = e.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2] })()")
+        if xy:
+            for t in ("mouseMoved", "mousePressed", "mouseReleased"):
+                ph.ws.goi("Input.dispatchMouseEvent", type=t, x=xy[0], y=xy[1], button="left", clickCount=1)
+            ph.cho("!!document.querySelector('button.agent-mode-chip')", 6)
+    for _ in range(2):
+        xy = ph.js("(() => { const e = document.querySelector('button.agent-mode-chip[aria-pressed=\"true\"]'); if (!e) return null;"
+                   " const r = e.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2] })()")
+        if not xy:
+            break
+        for t in ("mouseMoved", "mousePressed", "mouseReleased"):
+            ph.ws.goi("Input.dispatchMouseEvent", type=t, x=xy[0], y=xy[1], button="left", clickCount=1)
+        time.sleep(1.2)
     ph.js(_MOC)
     ph.cai_dat = None
 

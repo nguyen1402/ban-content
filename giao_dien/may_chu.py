@@ -1472,22 +1472,65 @@ def chen_anh_giu():
     thu = d.get("thu") or ""
     if not t or not (trong_root(thu) and os.path.isfile(thu)):
         raise HTTPError(400, "thiếu ảnh")
+    f = _ten_anh_chen(t, d.get("bd"), d.get("cau"), os.path.splitext(thu)[1])
+    shutil.move(thu, f)
+    _them_anh_chen(t, f, d.get("bd"), d.get("dai") or 3, d.get("ve"), d.get("cau"))
+    return json_ok({"ok": True})
+
+
+def _ten_anh_chen(t, bd, cau, duoi):
+    """ra/<dự án>/anh_chen/<mốc giờ>[_cau<i>].<đuôi> — 19/10 user: tên file theo MỐC GIỜ để kéo thả tay vào CapCut."""
     out = common.thu_muc_du_an(t)[1]
     os.makedirs(os.path.join(out, "anh_chen"), exist_ok=True)
-    bd = max(0.0, float(d.get("bd") or 0))                   # 19/10 user: tên file theo MỐC GIỜ để kéo thả tay vào CapCut
-    ten = f"{int(bd // 60):02d}m{bd % 60:04.1f}s" + (f"_cau{d.get('cau')}" if d.get("cau") is not None else "")
-    f = os.path.join(out, "anh_chen", ten + os.path.splitext(thu)[1])
+    bd = max(0.0, float(bd or 0))
+    ten = f"{int(bd // 60):02d}m{bd % 60:04.1f}s" + (f"_cau{cau}" if cau is not None else "")
+    f = os.path.join(out, "anh_chen", ten + duoi)
     k = 2
     while os.path.exists(f):
-        f = os.path.join(out, "anh_chen", f"{ten}_{k}{os.path.splitext(thu)[1]}")
+        f = os.path.join(out, "anh_chen", f"{ten}_{k}{duoi}")
         k += 1
-    shutil.move(thu, f)
+    return f
+
+
+def _them_anh_chen(t, f, bd, dai, ve, cau):
     da = common.doc_json(_chen_ds(t), {}) or {}
     ds = da.get("ds") or []
-    ds.append({"file": f, "bd": round(float(d.get("bd") or 0), 2), "dai": round(max(0.5, float(d.get("dai") or 3)), 2),
-               "ve": str(d.get("ve") or ""), "cau": d.get("cau"), "da_chen": []})
+    ds.append({"file": f, "bd": round(float(bd or 0), 2), "dai": round(max(0.5, float(dai or 3)), 2),
+               "ve": str(ve or ""), "cau": cau, "da_chen": []})
     common.ghi_json(_chen_ds(t), dict(da, ds=sorted(ds, key=lambda y: y["bd"])))
-    return json_ok({"ok": True})
+
+
+@app.post("/api/chen_anh/tai_video")
+def chen_anh_tai_video():
+    """20/10 user: kéo VIDEO Gemini vào -> xoá logo ✦ (dò vị trí tự động, gwt từng khung) -> lưu thẳng vào kho ảnh đã giữ
+    của dự án (ra/<dự án>/anh_chen/, tên theo mốc giờ đang chọn). Chạy nền, trả job."""
+    t = slug(request.forms.get("du_an", ""))
+    up = request.files.get("tep")
+    if not t or not up:
+        raise HTTPError(400, "thiếu dự án / video")
+    duoi = os.path.splitext(up.raw_filename or up.filename)[1].lower()
+    if duoi not in (".mp4", ".mov", ".webm", ".mkv"):
+        raise HTTPError(400, "chỉ nhận video .mp4 .mov .webm .mkv")
+    thu = os.path.join(common.thu_muc_du_an(t)[1], "anh_ai_thu")
+    os.makedirs(thu, exist_ok=True)
+    goc = os.path.join(thu, "vgoc_" + hashlib.md5(str(time.time()).encode()).hexdigest()[:10] + duoi)
+    up.save(goc, overwrite=True)
+    ten_goc = up.raw_filename or up.filename
+    bd, cau = request.forms.get("bd") or 0, request.forms.get("cau")
+    cau = int(cau) if str(cau or "").lstrip("-").isdigit() else None
+
+    def lam(bao):
+        sys.path.insert(0, os.path.join(ROOT, "chinh_sua"))
+        import anh_ve
+        f = _ten_anh_chen(t, bd, cau, ".mp4")
+        try:
+            kq = anh_ve.xoa_logo_video(goc, f, bao)
+        finally:
+            if os.path.isfile(goc):
+                os.remove(goc)
+        _them_anh_chen(t, f, bd, kq["giay"], f"video: {ten_goc}", cau)
+        return {"file": f, "co_logo": kq["co_logo"], "giay": kq["giay"]}
+    return json_ok({"job": _job_doi_thu(lam)})
 
 
 @app.post("/api/chen_anh/tai_len")
@@ -1510,6 +1553,72 @@ def chen_anh_tai_len():
     return json_ok({"file": f, "url": url_tep(f) + f"&v={int(time.time())}"})
 
 
+@app.post("/api/flow_video")
+def flow_video_tao():
+    """20/10 user: ô nhập câu lệnh tạo VIDEO bằng Google Flow (giống ô của Flow) -> MP4 xem trước ở anh_ai_thu/ (chạy nền).
+    Video về được soát logo ✦ Gemini, có thì xoá (anh_ve.xoa_logo_video). Ưng thì ✅ Giữ -> kho ảnh đã giữ."""
+    import flow_video
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    anh = {}
+    for k in ("anh_dau", "anh_cuoi"):
+        f = str(d.get(k) or "")
+        anh[k] = f if f and trong_root(f) and os.path.isfile(f) else None
+    prompt = str(d.get("prompt") or "").strip()
+    if not prompt and not anh["anh_dau"]:
+        raise HTTPError(400, "chưa có câu lệnh")
+    model = d.get("model") if d.get("model") in flow_video.MODEL else flow_video.MODEL[0]
+    thu = os.path.join(common.thu_muc_du_an(t)[1], "anh_ai_thu")
+    ten_goc = "flow_" + hashlib.md5((prompt + str(time.time())).encode("utf-8")).hexdigest()[:10]
+
+    def lam(bao):
+        kq = flow_video.tao(prompt, thu, ten_goc, ti_le="9:16" if d.get("ti_le") == "9:16" else "16:9", model=model,
+                            phan_giai=str(d.get("phan_giai") or ""), do_dai=str(d.get("do_dai") or ""),
+                            so=int(d.get("so") or 1), anh_dau=anh["anh_dau"], anh_cuoi=anh["anh_cuoi"],
+                            ho_so=str(d.get("ho_so") or ""), bao=bao)
+        sys.path.insert(0, os.path.join(ROOT, "chinh_sua"))
+        import anh_ve
+        ds = []
+        for f in kq["tep"]:
+            bao(f"Soát logo {os.path.basename(f)}…")
+            tam = f[:-4] + "._sach.mp4"
+            r = anh_ve.xoa_logo_video(f, tam, bao)
+            os.replace(tam, f)
+            ds.append({"file": f, "url": url_tep(f) + f"&v={int(time.time())}", "giay": r["giay"], "co_logo": r["co_logo"]})
+        return {"ds": ds, "ho_so": kq["ho_so"], "cai_dat": kq["cai_dat"], "diem": kq["diem"]}
+    return json_ok({"job": _job_doi_thu(lam)})
+
+
+@app.post("/api/canh_remotion")
+def canh_remotion():
+    """20/10 user: 🎬 cảnh Remotion theo mô tả -> MP4 xem trước (chạy nền: AI viết kịch bản cảnh + Remotion dựng)."""
+    import canh_mo_ta
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    mo_ta = str(d.get("mo_ta") or "").strip()
+    giay = max(1.0, min(60.0, float(d.get("giay") or 4)))
+    goc = d.get("goc") or ""
+    goc = goc if goc and trong_root(goc) and os.path.isfile(goc) else None
+    if not t or not mo_ta:
+        raise HTTPError(400, "thiếu dự án / mô tả")
+    out = os.path.join(common.thu_muc_du_an(t)[1], "anh_ai_thu",
+                       "canh_" + hashlib.md5((mo_ta + str(time.time())).encode("utf-8")).hexdigest()[:10] + ".mp4")
+
+    def lam(bao):
+        bao("AI viết kịch bản cảnh…")
+        kb = canh_mo_ta.lap(mo_ta, giay, goc)
+        bd = kb.get("ban_do")
+        if bd:
+            bao("Địa danh tìm thấy: " + " · ".join(d["ten_day_du"] for d in bd["diem"]))
+        else:
+            bao(f"Remotion dựng cảnh ({len(kb['lop'])} lớp)…")
+        canh_mo_ta.dung(kb, giay, out, bao)
+        return {"thu": out, "url": url_tep(out) + f"&v={int(time.time())}", "kb": kb}
+    return json_ok({"job": _job_doi_thu(lam)})
+
+
 @app.post("/api/chen_anh/xoa_logo")
 def chen_anh_xoa_logo():
     """Xoá logo ✦ Gemini cho mọi ảnh đã giữ của dự án (ảnh giữ trước khi có công cụ). Ảnh không có logo để nguyên."""
@@ -1518,7 +1627,7 @@ def chen_anh_xoa_logo():
     import anh_ve
     thu = os.path.join(common.thu_muc_du_an(t)[1], "anh_chen")
     n = sum(1 for f in (os.listdir(thu) if os.path.isdir(thu) else [])
-            if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp")) and anh_ve.xoa_logo(os.path.join(thu, f)))
+            if f.lower().endswith((".png", ".jpg", ".jpeg", ".webp")) and anh_ve.xoa_logo(os.path.join(thu, f)))   # mp4 bỏ qua
     return json_ok({"ok": True, "so": n})
 
 
@@ -1571,10 +1680,17 @@ def chen_anh_chen():
         st, dl = max(int(y["bd"] * SEC), cuoi), int((y["bd"] + y["dai"]) * SEC) - max(int(y["bd"] * SEC), cuoi)
         if dl < int(0.4 * SEC):
             continue
-        seg = draft.VideoSegment(draft.VideoMaterial(y["file"]), trange(st, dl))
-        ph = anh_ve.PHONG_ANH_AI                             # 1.0 khi đã xoá được logo (cũ: 120% giấu logo)
-        seg.add_keyframe(KP.uniform_scale, 0, ph)
-        seg.add_keyframe(KP.uniform_scale, dl - 1000, ph * 1.06)
+        mat = draft.VideoMaterial(y["file"])
+        la_video = y["file"].lower().endswith(".mp4")        # cảnh Remotion: giữ nguyên khung, không quá độ dài clip
+        if la_video:
+            dl = min(dl, int(mat.duration) - 1000)
+            if dl < int(0.4 * SEC):
+                continue
+        seg = draft.VideoSegment(mat, trange(st, dl))
+        if not la_video:
+            ph = anh_ve.PHONG_ANH_AI                         # 1.0 khi đã xoá được logo (cũ: 120% giấu logo)
+            seg.add_keyframe(KP.uniform_scale, 0, ph)
+            seg.add_keyframe(KP.uniform_scale, dl - 1000, ph * 1.06)
         sc.add_segment(seg, track_name=tr)
         cuoi = st + dl
         y.setdefault("da_chen", []).append(ten)
@@ -1786,8 +1902,12 @@ def luu_chu_the():
     t = slug(d.get("du_an", ""))
     if not t or not isinstance(d.get("chu_the"), list):
         raise HTTPError(400, "thiếu dữ liệu")
-    chu_the.luu(t, d["chu_the"], d.get("gan_tay") if isinstance(d.get("gan_tay"), dict) else None,
-                d.get("tu_khoa_them") if isinstance(d.get("tu_khoa_them"), list) else None)
+    try:
+        chu_the.luu(t, d["chu_the"], d.get("gan_tay") if isinstance(d.get("gan_tay"), dict) else None,
+                    d.get("tu_khoa_them") if isinstance(d.get("tu_khoa_them"), list) else None,
+                    d.get("tk_cau") if isinstance(d.get("tk_cau"), dict) else None)
+    except Exception as e:                                   # noqa: BLE001  (dịch từ khoá hỏng)
+        raise HTTPError(400, str(e)[:200])
     chu_the.chia_doan(t)
     return json_ok(_tom_chu_the(t))
 

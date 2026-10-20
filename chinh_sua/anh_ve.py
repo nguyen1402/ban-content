@@ -118,6 +118,120 @@ def xoa_logo(f):
     return False
 
 
+_KHUON = []                                                  # khuôn alpha logo ✦ 96x96 của gwt (lấy một lần)
+
+
+def _khuon_logo():
+    """Khuôn alpha logo của gwt: cho gwt 'xoá' logo trên ảnh xám 200 phẳng rồi giải ngược a = (200-I)/(255-I)."""
+    if _KHUON:
+        return _KHUON[0]
+    import tempfile
+    import cv2
+    import numpy as np
+    with tempfile.TemporaryDirectory() as d:
+        a, b = os.path.join(d, "x.png"), os.path.join(d, "y.png")
+        cv2.imwrite(a, np.full((300, 300, 3), 200, np.uint8))
+        _chay([GWT, "--no-banner", "-q", "-f", "-i", a, "-o", b, "--region", "100,100,96,96", "--denoise", "off"], 60)
+        i = cv2.imread(b, 0).astype(np.float32)[100:196, 100:196]
+    _KHUON.append(np.clip((200 - i) / (255 - i), 0, 1))
+    return _KHUON[0]
+
+
+def _chay(cmd, timeout=3600):
+    return subprocess.run(cmd, capture_output=True, timeout=timeout, creationflags=0x08000000 if os.name == "nt" else 0)
+
+
+def do_logo_video(f):
+    """Tìm logo ✦ trong video (20/10 đo video Gemini 1920x1080: logo 72px ở (1704,864), lệch vào trong hơn ảnh nên gwt
+    không tự dò được). Logo ĐỨNG YÊN còn hình chạy -> trung vị theo thời gian làm lộ logo; khớp khuôn gwt ở góc dưới phải
+    qua nhiều cỡ. Trả (x, y, cỡ, điểm khớp, rộng, cao, fps, giây) — x None nếu không thấy logo."""
+    import cv2
+    import numpy as np
+    p = json.loads(_chay(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
+                          "stream=width,height,r_frame_rate:format=duration", "-of", "json", f]).stdout or b"{}")
+    s = (p.get("streams") or [{}])[0]
+    w, h = int(s.get("width") or 0), int(s.get("height") or 0)
+    a, b = (s.get("r_frame_rate") or "30/1").split("/")
+    fps = float(a) / max(1.0, float(b))
+    giay = float((p.get("format") or {}).get("duration") or 0)
+    if not w or not h:
+        raise ValueError("không đọc được video")
+    x0, y0 = int(w * 0.6), int(h * 0.55)                     # logo Gemini nằm ở góc dưới phải
+    rw, rh = w - x0, h - y0
+    lay = min(fps, max(2.0, 90 / max(giay, 0.1)))             # ~90 khung rải đều cả video
+    raw = _chay(["ffmpeg", "-v", "error", "-i", f, "-vf", f"fps={lay:.3f},crop={rw}:{rh}:{x0}:{y0},format=gray",
+                 "-f", "rawvideo", "-"]).stdout
+    n = len(raw) // (rw * rh)
+    if n < 3:
+        raise ValueError("video quá ngắn để dò logo")
+    med = np.median(np.frombuffer(raw[:n * rw * rh], np.uint8).reshape(n, rh, rw), 0).astype(np.float32)
+    khuon = _khuon_logo()
+    tot = (0.0, 0, 0, 0)
+    ngan = min(w, h)
+    for co in range(max(24, int(ngan * 0.045)) // 2 * 2, min(int(ngan * 0.11), rw, rh) + 1, 2):   # 1080p: logo 72 = 6,7%
+        t = cv2.resize(khuon, (co, co), interpolation=cv2.INTER_AREA)
+        k = max(15, co // 2 * 2 + 1)
+        d = med - cv2.GaussianBlur(med, (k, k), 0)            # bỏ nền mượt, giữ nét logo
+        r = cv2.matchTemplate(d, t - t.mean(), cv2.TM_CCOEFF_NORMED)
+        le = int(ngan * 0.25)                                 # logo nằm sát góc: cách mép phải/dưới tối đa 25% cạnh ngắn
+        r[:max(0, rh - co - le), :] = -1
+        r[:, :max(0, rw - co - le)] = -1
+        _, mx, _, (lx, ly) = cv2.minMaxLoc(r)
+        if mx > tot[0] and float((d[ly:ly + co, lx:lx + co] * t).sum()) > 0:   # logo SÁNG hơn nền
+            tot = (mx, lx + x0, ly + y0, co)
+    diem, x, y, co = tot
+    ty_le = 0.0
+    if co:                                                   # KIỂM VẬT LÝ: logo trắng phủ alpha -> độ sáng nổi lên = (255 - nền) * alpha
+        lx, ly = x - x0, y - y0
+        t = np.zeros_like(med)
+        t[ly:ly + co, lx:lx + co] = cv2.resize(khuon, (co, co), interpolation=cv2.INTER_AREA)
+        k = max(15, co // 2 * 2 + 1)
+        d = med - cv2.GaussianBlur(med, (k, k), 0)
+        tc = t - cv2.GaussianBlur(t, (k, k), 0)
+        vung = np.zeros(med.shape, bool)
+        vung[max(0, ly - co):ly + 2 * co, max(0, lx - co):lx + 2 * co] = True
+        nen = float(np.median(med[vung & (t < 0.01)]))
+        ty_le = float((d * tc)[vung].sum() / max(1e-6, (tc * tc)[vung].sum())) / max(1.0, 255 - nen)
+    log(f"    Dò logo video: điểm khớp {diem:.2f}, tỉ lệ sáng {ty_le:.2f} tại ({x},{y}) cỡ {co}px")
+    # 20/10 đo: 2 video Gemini khớp 0,82/0,85 + tỉ lệ 1,04/0,96; 27 video thường: khớp <= 0,6 hoặc tỉ lệ -0,0 / 0,08
+    if diem < 0.6 or not 0.7 <= ty_le <= 1.35:
+        return None, None, None, diem, w, h, fps, giay
+    return x, y, co, diem, w, h, fps, giay
+
+
+def xoa_logo_video(f, out, bao=None):
+    """Xoá logo ✦ Gemini trong VIDEO: gwt tính ngược alpha trên TỪNG khung tại vị trí đã dò, ghép lại giữ nguyên tiếng.
+    Không thấy logo -> chép nguyên video. Trả {"co_logo", "giay", "out"}."""
+    import shutil
+    import tempfile
+    bao = bao or (lambda *_: None)
+    if not os.path.isfile(GWT):
+        raise ValueError("thiếu tools/gwt/gwt-mini.exe")
+    bao("Dò vị trí logo…")
+    x, y, co, _diem, _w, _h, fps, giay = do_logo_video(f)
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    if x is None:
+        shutil.copyfile(f, out)
+        return {"co_logo": False, "giay": giay, "out": out}
+    with tempfile.TemporaryDirectory(dir=os.path.dirname(out)) as d:
+        vao, ra = os.path.join(d, "vao"), os.path.join(d, "ra")
+        os.makedirs(vao)
+        os.makedirs(ra)
+        bao("Tách khung hình…")
+        _chay(["ffmpeg", "-v", "error", "-i", f, "-fps_mode", "passthrough", os.path.join(vao, "%06d.png")])
+        bao(f"Xoá logo {len(os.listdir(vao))} khung hình…")
+        _chay([GWT, "--no-banner", "-q", "-f", "-i", vao, "-o", ra, "--region", f"{x},{y},{co},{co}", "--denoise", "soft"])
+        if len(os.listdir(ra)) < len(os.listdir(vao)):
+            raise ValueError(f"xoá logo được {len(os.listdir(ra))}/{len(os.listdir(vao))} khung")
+        bao("Ghép lại video (giữ tiếng)…")
+        r = _chay(["ffmpeg", "-v", "error", "-y", "-framerate", f"{fps:.6f}", "-i", os.path.join(ra, "%06d.png"), "-i", f,
+                   "-map", "0:v", "-map", "1:a?", "-c:v", "libx264", "-crf", "16", "-preset", "medium", "-pix_fmt", "yuv420p",
+                   "-c:a", "aac", "-b:a", "192k", "-shortest", out])
+        if not os.path.isfile(out):
+            raise ValueError("ghép video lỗi: " + r.stderr.decode("utf-8", "ignore")[-200:])
+    return {"co_logo": True, "giay": giay, "out": out}
+
+
 # 19/10 user: phong cách CỐ ĐỊNH cho MỌI ảnh chụp AI ("Phong cách ảnh chụp thật, ống kính 50mm, khẩu độ F1.8, nền mờ nhẹ.
 # Ánh sáng tự nhiên ban ngày, cân bằng trắng khoảng 5500K, không ám vàng, không lệch màu. Xóa hết chi tiết thừa, bóng đổ
 # mềm, tự nhiên, màu điềm đạm, không quá rực.")

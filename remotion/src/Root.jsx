@@ -6,6 +6,7 @@ import {BieuDo} from './BieuDo.jsx';
 import {BangGiay} from './BangGiay.jsx';
 import {NhanVat} from './NhanVat.jsx';
 import {MinhHoa} from './MinhHoa.jsx';
+import {CanhMoTa} from './CanhMoTa.jsx';
 
 const FPS = 30;
 // Thời lượng lấy từ props.giay (Python truyền theo độ dài giọng đọc của cảnh).
@@ -25,6 +26,8 @@ export const Root = () => (
       durationInFrames={150} defaultProps={{giay: 5}} calculateMetadata={meta} />
     <Composition id="MinhHoa" component={MinhHoa} width={1920} height={1080} fps={FPS}
       durationInFrames={150} defaultProps={{giay: 5, kieu: 'quy_trinh', muc: []}} calculateMetadata={meta} />
+    <Composition id="CanhMoTa" component={CanhMoTa} width={1920} height={1080} fps={FPS}
+      durationInFrames={150} defaultProps={{giay: 5, nen: '#0b0d12', lop: []}} calculateMetadata={meta} />
     <Composition id="NhanVat" component={NhanVat} width={1920} height={1080} fps={FPS}
       durationInFrames={150} defaultProps={{giay: 5, anh: '', nen: '', kieu: 'giua'}} calculateMetadata={meta} />
   </>

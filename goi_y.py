@@ -31,6 +31,7 @@ _KHOA = threading.Lock()
 # trong vòng 30 s, có chỗ cách 3 s) -> giãn cách + giới hạn lượt; hết video mới thì ẢNH (Gemini vẽ riêng chỗ đó) lấp.
 CACH_LAP = 15.0             # 19/10 user: dùng lại một hình thì hai lần phải cách nhau >= 15 s trên timeline
 CACH_LAP_LUI = 15.0         # (không nới thấp hơn nữa — hết hình thì vẽ ảnh AI, không lặp sát)
+DE_TRONG_KHI_HET = True     # 20/10 user: hết đoạn khớp thì để TRỐNG (không lấp tạm bằng mảnh đã dùng, không ảnh AI)
 KHONG_DUNG_LAI = True       # 19/10 user (tối): "không sử dụng lại cảnh đã có ở toàn bài" — mỗi mảnh / ảnh dùng MỘT lần
 LUOT_MANH = 1 if KHONG_DUNG_LAI else 2   # (cũ: tối đa 2 lần, trừ vế NHẮC LẠI sự việc cũ)
 POOL_NGUONG = 0.11          # 19/10: clip thuộc kho đoạn nếu khớp đối tượng đoạn >= ngưỡng và không kém đoạn khớp nhất
@@ -531,6 +532,10 @@ def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=N
         if chon is None and tot_anh is None:
             if thieu is not None:
                 thieu.append({"bd": round(t0 + bd, 2), "dai": round(rem, 2)})
+            if DE_TRONG_KHI_HET:                             # 20/10 user: không có đoạn khớp -> ĐỂ TRỐNG khúc này
+                pos += rem
+                truoc.update(kid=None, v=None)
+                continue
             chon = thu(P_, False, cap=False) or thu(P_, False, cach=0, cap=False)
             tam = True
 

@@ -29,6 +29,10 @@ KEO_SAI_TINH = 2.0          # 19/10 user ("ảnh zoom to không chuyển động
 #                             khớp gần hoàn hảo, sai số < ngưỡng này là ĐỨNG YÊN / phóng cực chậm (đo bản thô cho_digo: 5
 #                             đoạn dời 0,00 sai < 0,6 = video dừng hình). Khung phẳng (trời, nước) không có điểm theo dõi:
 KEO_CHENH_PHANG = 0.8       #   chênh điểm ảnh trung bình < ngưỡng này cũng là đứng yên
+KEO_TRUNG_VI = 0.9          # 20/10 user (ảnh tĩnh nutria phóng chậm vẫn lọt: có phụ đề đổi + hạt bụi + lông lấp lánh -> sai số
+#                             TRUNG BÌNH 3-7): làm mờ nhẹ rồi lấy TRUNG VỊ sai lệch sau khi bù biến đổi — ảnh tĩnh 0,43-0,84,
+#                             footage chuyển động thật cao hơn; kèm khớp >= KEO_KHOP_TV (phụ đề đổi làm tụt tỉ lệ khớp)
+KEO_KHOP_TV = 0.8
 THAT = ["a real photograph of an animal", "a real photograph of an insect", "a real photograph of a bird",
         "a real photograph of people", "a real photograph of an object", "a real photograph of a landscape",
         "an aerial photograph", "a geographic map", "a news photograph"]
@@ -91,7 +95,7 @@ def keo_tinh(kid, path):
     import json
     thu = os.path.join(CACHE_CHUNG, "keo_tinh")
     os.makedirs(thu, exist_ok=True)
-    p_ = os.path.join(thu, f"{kid}_v2.json")
+    p_ = os.path.join(thu, f"{kid}_v3.json")
     if os.path.isfile(p_):
         try:
             return [tuple(x) for x in json.load(open(p_, encoding="utf-8"))]
@@ -120,6 +124,10 @@ def keo_tinh(kid, path):
                     sai = float(np.abs(w[y0:y1, x0:x1].astype(np.int16) - b[y0:y1, x0:x1].astype(np.int16)).mean())
                     khop = float(inl.mean()) > KEO_KHOP
                     dat = dat or (khop and (sai < KEO_SAI_TINH or (doi > KEO_DOI_PX and sai < KEO_SAI_SO)))
+                    if not dat and float(inl.mean()) >= KEO_KHOP_TV:
+                        g1 = cv2.GaussianBlur(w.astype(np.float32), (7, 7), 0)
+                        g2 = cv2.GaussianBlur(b.astype(np.float32), (7, 7), 0)
+                        dat = float(np.median(np.abs(g1[y0:y1, x0:x1] - g2[y0:y1, x0:x1]))) <= KEO_TRUNG_VI
         ok.append(dat)
     ra, i = [], 0
     while i < len(ok):                                       # cặp khung i = khoảng [i/2, i/2 + 0,5] giây

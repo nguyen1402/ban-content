@@ -59,6 +59,10 @@ video,iframe{width:100%;border-radius:8px;background:#000;display:block}
 .thongbao{position:fixed;right:16px;bottom:16px;background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:10px;opacity:0;transition:.25s;pointer-events:none;max-width:420px}
 .thongbao.hien{opacity:1}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.fv_o{width:64px;height:64px;border:1px solid #5f6368;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  font-size:12px;color:#9aa0a6;cursor:pointer;background:#2a2b2f center/cover no-repeat;position:relative}
+.fv_o.co{color:transparent}.fv_o.keo{border-color:#8ab4f8}
+.fv_s{background:#2a2b2f;color:#e8eaed;border:1px solid #3c4043;border-radius:16px;padding:4px 8px;font-size:12.5px}
 </style>
 </head>
 <body>
@@ -153,20 +157,46 @@ video,iframe{width:100%;border-radius:8px;background:#000;display:block}
     <h2 style="margin:0;font-size:16px">🎨 Tạo ảnh chèn bản nháp</h2>
     <button class="p" onclick="$('#hop_chen_anh').close()" style="padding:2px 8px">✕</button>
   </div>
-  <p class="sub" style="margin-bottom:8px">Bấm một câu bên trái để chọn mốc giờ → viết mô tả ảnh → <b>🎨 Vẽ</b> → ưng thì <b>✅ Giữ</b>. Xong bấm <b>📥 Chèn</b>: các ảnh đã giữ được thêm vào bản nháp đã chọn (một track mới phía trên, ảnh 120%). <b>Đóng bản nháp trong CapCut trước khi chèn.</b></p>
+  <p class="sub" style="margin-bottom:8px">Bấm một câu bên trái để chọn mốc giờ → viết mô tả ảnh → <b>🎨 Vẽ</b> → ưng thì <b>✅ Giữ</b>. Xong bấm <b>📥 Chèn</b>: các ảnh đã giữ được thêm vào bản nháp đã chọn (một track mới phía trên). <b>Đóng bản nháp trong CapCut trước khi chèn.</b></p>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
     <div id="ca_cau" style="max-height:62vh;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:4px"></div>
     <div style="display:grid;gap:8px;align-content:start">
       <div class="sub" id="ca_chon">Chưa chọn câu.</div>
       <div class="row" style="gap:6px"><span class="sub">Bắt đầu (giây)</span><input id="ca_bd" type="number" step="0.1" style="width:90px"><span class="sub">Dài (giây)</span><input id="ca_dai" type="number" step="0.1" value="4" style="width:80px"></div>
-      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap"><label class="p" style="cursor:pointer;margin:0;padding:4px 10px;border:1px solid var(--line);border-radius:6px">🖼 Tải ảnh gốc lên<input type="file" id="ca_tep" accept="image/png,image/jpeg,image/webp" style="display:none"></label>
+      <div id="ca_tha" style="border:2px dashed var(--line);border-radius:8px;padding:10px;text-align:center;cursor:pointer" title="Kéo thả ảnh vào đây, dán ảnh (Ctrl+V) khi hộp đang mở, hoặc bấm để chọn file. Kéo VIDEO Gemini vào: tự xoá logo rồi lưu thẳng vào Ảnh đã giữ (mốc giờ = ô Bắt đầu).">
+        <b>🖼 Kéo ảnh vào đây</b> <span class="sub">· hoặc <b>Ctrl+V</b> dán ảnh đã copy · hoặc bấm để chọn file · <b>🎞 kéo video Gemini</b> vào để xoá logo + lưu vào kho</span>
+        <input type="file" id="ca_tep" accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm,.mkv" style="display:none"></div>
+      <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
         <span class="sub" id="ca_goc_tt">Không có ảnh gốc: vẽ mới theo mô tả. Có ảnh gốc: ô dưới là <b>yêu cầu sửa</b> ảnh đó.</span></div>
       <div id="ca_goc_xem" style="display:none;position:relative"><img id="ca_goc_anh" style="max-width:220px;border-radius:6px;border:2px solid var(--ac)">
         <button class="er" id="ca_goc_bo" style="position:absolute;top:2px;left:2px;padding:0 6px">✕</button></div>
       <textarea id="ca_ve" rows="3" placeholder="Mô tả ảnh (tiếng Anh hoặc Việt): góc máy + nhân vật + hành động + nơi chốn — hoặc yêu cầu sửa ảnh gốc"></textarea>
-      <div class="row" style="gap:6px"><button id="ca_ve_btn">🎨 Vẽ</button><span class="sub" id="ca_tt"></span></div>
-      <div id="ca_xem" style="display:none"><img id="ca_anh" style="width:100%;border-radius:6px">
+      <div class="row" style="gap:6px"><button id="ca_ve_btn">🎨 Vẽ</button><button id="ca_canh_btn" title="Dựng cảnh chuyển động bằng Remotion theo mô tả: chữ, số đếm chạy, hình khối, mũi tên, ảnh (ảnh gốc nếu có). Độ dài = ô Dài (giây).">🎬 Dựng cảnh Remotion</button><span class="sub" id="ca_tt"></span></div>
+      <div id="ca_xem" style="display:none"><img id="ca_anh" style="width:100%;border-radius:6px"><video id="ca_vid" controls loop autoplay muted style="width:100%;border-radius:6px;display:none"></video>
         <div class="row" style="gap:6px;margin-top:4px"><button id="ca_giu" style="background:var(--ok);color:#fff">✅ Giữ</button><button class="p" id="ca_sua_tiep" title="Lấy ảnh vừa vẽ làm ảnh gốc, viết yêu cầu sửa rồi bấm Vẽ">✏️ Sửa tiếp ảnh này</button><button class="p" id="ca_bo">Bỏ qua</button></div></div>
+      <!-- 20/10 user: ô tạo VIDEO bằng Google Flow, bố cục giống ô nhập của Flow -->
+      <div id="fv_hop" style="margin-top:10px;background:#1f2023;color:#e8eaed;border-radius:18px;padding:12px 14px">
+        <div class="row" style="gap:8px;align-items:center;margin-bottom:6px"><b style="font-size:13.5px">🎞 Tạo video Google Flow</b>
+          <span style="font-size:12px;color:#9aa0a6">tốn điểm Flow (vẽ ảnh thì 0 điểm) · bỏ trống khung đầu/cuối = tạo từ chữ</span></div>
+        <div class="row" style="gap:8px;align-items:center">
+          <div class="fv_o" data-o="dau" title="Khung đầu (Start): kéo ảnh vào / bấm chọn / Ctrl+V khi trỏ chuột ở đây">Start</div>
+          <span style="color:#9aa0a6;font-size:18px">⇄</span>
+          <div class="fv_o" data-o="cuoi" title="Khung cuối (End): kéo ảnh vào / bấm chọn / Ctrl+V khi trỏ chuột ở đây">End</div>
+          <input type="file" id="fv_tep" accept="image/png,image/jpeg,image/webp" style="display:none"></div>
+        <textarea id="fv_prompt" rows="3" placeholder="What do you want to create? — tả cảnh video (tiếng Anh cho kết quả sát nhất)"
+          style="width:100%;margin-top:8px;background:transparent;color:#e8eaed;border:0;outline:0;resize:vertical;font-size:14px;font-family:inherit"></textarea>
+        <div class="row" style="gap:6px;align-items:center;flex-wrap:wrap">
+          <select id="fv_model" class="fv_s"><option>Veo 3.1 - Fast</option><option>Veo 3.1 - Lite</option><option>Veo 3.1 - Quality</option><option>Omni 1.1 Flash</option></select>
+          <select id="fv_tile" class="fv_s"><option>16:9</option><option>9:16</option></select>
+          <select id="fv_pg" class="fv_s" style="display:none"><option>720p</option><option>360p</option></select>
+          <select id="fv_dai" class="fv_s" style="display:none"><option>8s</option><option>4s</option><option>6s</option><option>10s</option></select>
+          <select id="fv_so" class="fv_s"><option>x1</option><option>x2</option><option>x3</option><option>x4</option></select>
+          <select id="fv_hs" class="fv_s" title="Hồ sơ Chrome Flow (tài khoản)"><option value="">Hồ sơ: tự chọn</option></select>
+          <span id="fv_gia" style="font-size:12px;color:#9aa0a6"></span>
+          <button id="fv_tao" title="Tạo video" style="margin-left:auto;border-radius:50%;width:38px;height:38px;padding:0;font-size:18px;background:#e8eaed;color:#1f2023">➜</button></div>
+        <div id="fv_tt" style="font-size:12.5px;color:#9aa0a6;margin-top:6px"></div>
+        <div id="fv_kq" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;margin-top:6px"></div>
+      </div>
       <div class="row" style="gap:6px;margin-top:6px;align-items:center"><b>Ảnh đã giữ</b><button class="p" id="ca_mo_thu" style="padding:2px 8px">📂 Mở thư mục ảnh</button><button class="p" id="ca_xoa_logo" style="padding:2px 8px" title="Xoá logo ✦ Gemini cho các ảnh đã giữ từ trước (ảnh vẽ mới đã tự xoá)">🧽 Xoá logo ảnh đã giữ</button></div>
       <div class="sub" id="ca_thu" style="word-break:break-all"></div>
       <div id="ca_ds" style="display:grid;gap:6px"></div>
@@ -296,19 +326,102 @@ async function napChenAnh(){let r;try{r=await api('/api/chen_anh?du_an='+encodeU
   $('#ca_thu').innerHTML=`Lưu ở: <code>${esc(r.thu||'')}</code> — tên file là mốc giờ (vd <code>00m12.5s_cau3.png</code>), kéo thả thẳng vào timeline CapCut đang mở.`;
   $('#ca_nhap').innerHTML=(r.nhap||[]).map(n=>`<option>${esc(n)}</option>`).join('')||'<option value="">(chưa có bản nháp)</option>';
   $('#ca_ds').innerHTML=(r.ds||[]).map(y=>`<div class="row" style="gap:8px;align-items:center;border:1px solid var(--line);border-radius:6px;padding:4px">
-    <img src="${y.url}" style="width:96px;border-radius:4px"><span class="sub" style="flex:1">${caFmt(y.bd)} · ${(+y.dai).toFixed(1)}s · ${esc((y.ve||'').slice(0,80))}${(y.da_chen||[]).length?` · <b>đã chèn: ${esc(y.da_chen.join(', '))}</b>`:''}</span>
+    ${/\.mp4$/i.test(y.file)?`<video src="${y.url}" muted loop autoplay style="width:96px;border-radius:4px"></video>`:`<img src="${y.url}" style="width:96px;border-radius:4px">`}<span class="sub" style="flex:1">${caFmt(y.bd)} · ${(+y.dai).toFixed(1)}s · ${esc((y.ve||'').slice(0,80))}${(y.da_chen||[]).length?` · <b>đã chèn: ${esc(y.da_chen.join(', '))}</b>`:''}</span>
     <button class="er" data-ca-xoa="${esc(y.file)}" style="padding:1px 7px">✕</button></div>`).join('')||'<p class="sub">Chưa có ảnh nào.</p>';
   $('#ca_ds').querySelectorAll('[data-ca-xoa]').forEach(b=>b.onclick=async()=>{await post('/api/chen_anh/xoa',{du_an:DU,file:b.dataset.caXoa});napChenAnh()})}
 $('#mo_chen_anh').onclick=()=>{$('#hop_chen_anh').showModal();napChenAnh()};
 $('#ca_ve_btn').onclick=async()=>{const ve=$('#ca_ve').value.trim();if(!ve)return tb('Viết mô tả ảnh trước');
   const b=$('#ca_ve_btn');b.disabled=true;$('#ca_tt').textContent='đang vẽ… (~30-60 s)';
-  try{const k=await post('/api/anh_ai/ve_thu',{du_an:DU,ve,goc:caGoc});caThu=k.thu;$('#ca_anh').src=k.url;$('#ca_xem').style.display='';$('#ca_tt').textContent=''}
+  try{const k=await post('/api/anh_ai/ve_thu',{du_an:DU,ve,goc:caGoc});caThu=k.thu;xemTruoc(k.url,false);$('#ca_tt').textContent=''}
   catch(e){$('#ca_tt').textContent='Lỗi: '+e.message}b.disabled=false};
 $('#ca_xoa_logo').onclick=async()=>{try{const r=await post('/api/chen_anh/xoa_logo',{du_an:DU});tb(`Đã xoá logo ${r.so} ảnh`);napChenAnh()}catch(e){tb('Lỗi: '+e.message)}};
 $('#ca_mo_thu').onclick=()=>post('/api/chen_anh/mo_thu_muc',{du_an:DU}).catch(e=>tb('Lỗi: '+e.message));
-$('#ca_bo').onclick=()=>{caThu='';$('#ca_xem').style.display='none'};
-$('#ca_tep').onchange=async e=>{const f=e.target.files[0];if(!f)return;const fd=new FormData();fd.append('du_an',DU);fd.append('tep',f);
-  try{const r=await api('/api/chen_anh/tai_len',{method:'POST',body:fd});datGoc(r.file,r.url);tb('Đã tải ảnh gốc — viết yêu cầu sửa rồi bấm Vẽ')}catch(err){tb('Lỗi: '+err.message)}e.target.value=''};
+// 20/10 user: 🎞 tạo video bằng Google Flow
+const fvKhung={dau:'',cuoi:''};let fvO='dau';
+const FV_GIA={'Veo 3.1 - Fast':'~20 điểm/video','Veo 3.1 - Lite':'~6–10 điểm/video','Veo 3.1 - Quality':'~100 điểm/video','Omni 1.1 Flash':'4–15 điểm/video'};
+function fvCapNhat(){const omni=$('#fv_model').value.startsWith('Omni');$('#fv_pg').style.display=$('#fv_dai').style.display=omni?'':'none';
+  $('#fv_gia').textContent=FV_GIA[$('#fv_model').value]+' (số thật đọc từ Flow khi tạo)';
+  document.querySelectorAll('.fv_o').forEach(o=>{const f=fvKhung[o.dataset.o];o.classList.toggle('co',!!f);o.style.backgroundImage=f?`url("${o.dataset.url}")`:'';
+    o.innerHTML=f?'<span class="fv_x" style="position:absolute;top:-6px;right:-6px;background:#000;color:#fff;border-radius:50%;width:18px;height:18px;font-size:11px;line-height:18px;text-align:center">✕</span>':(o.dataset.o==='dau'?'Start':'End')})}
+$('#fv_model').onchange=fvCapNhat;
+async function fvTaiKhung(o,f){if(!f||!/^image\/(png|jpeg|webp)$/.test(f.type))return tb('Khung đầu/cuối nhận ảnh PNG, JPG, WEBP');
+  const fd=new FormData();fd.append('du_an',DU);fd.append('tep',f,(f.name&&/\.(png|jpe?g|webp)$/i.test(f.name))?f.name:'dan.png');
+  $('#fv_tt').textContent='Đang tải ảnh khung lên…';
+  try{const r=await api('/api/chen_anh/tai_len',{method:'POST',body:fd});fvKhung[o]=r.file;document.querySelector(`.fv_o[data-o="${o}"]`).dataset.url=r.url;$('#fv_tt').textContent=''}
+  catch(e){tb('Lỗi: '+e.message)}fvCapNhat()}
+document.querySelectorAll('.fv_o').forEach(o=>{
+  o.onclick=e=>{if(e.target.classList.contains('fv_x')){fvKhung[o.dataset.o]='';return fvCapNhat()}fvO=o.dataset.o;$('#fv_tep').click()};
+  o.onmouseenter=()=>{fvO=o.dataset.o};
+  ['dragenter','dragover'].forEach(ev=>o.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();o.classList.add('keo')}));
+  ['dragleave','drop'].forEach(ev=>o.addEventListener(ev,e=>{e.preventDefault();e.stopPropagation();o.classList.remove('keo')}));
+  o.addEventListener('drop',e=>fvTaiKhung(o.dataset.o,[...(e.dataTransfer.files||[])].find(x=>x.type.startsWith('image/'))))});
+$('#fv_tep').onchange=e=>{fvTaiKhung(fvO,e.target.files[0]);e.target.value=''};
+async function fvNapHoSo(){try{const r=await api('/api/flow');$('#fv_hs').innerHTML='<option value="">Hồ sơ: tự chọn</option>'+
+  (r.ho_so||[]).map(h=>`<option value="${h.ten}">${h.ten}${h.dang_nghi?' (đang nghỉ)':''}</option>`).join('')}catch(e){}}
+function fvTheKq(y){return `<div class="fv_the" style="background:#2a2b2f;border-radius:10px;padding:6px"><video src="${y.url}" controls loop muted style="width:100%;border-radius:6px"></video>
+  <div class="row" style="gap:6px;margin-top:4px;align-items:center"><button data-fv-giu="${y.file}" data-giay="${y.giay}" style="background:var(--ok);color:#fff">✅ Giữ</button>
+  <button class="p" data-fv-bo>Bỏ</button><span style="font-size:12px;color:#9aa0a6">${y.giay.toFixed(1)} s${y.co_logo?' · đã xoá logo':''}</span></div></div>`}
+function fvGanNut(){$('#fv_kq').querySelectorAll('[data-fv-giu]').forEach(n=>n.onclick=async()=>{
+    try{await post('/api/chen_anh/giu',{du_an:DU,thu:n.dataset.fvGiu,ve:'flow: '+$('#fv_prompt').value,bd:+$('#ca_bd').value||0,dai:+n.dataset.giay||8,cau:caCauChon});
+      n.closest('.fv_the').remove();tb('Đã giữ video vào kho');napChenAnh()}catch(e){tb('Lỗi: '+e.message)}});
+  $('#fv_kq').querySelectorAll('[data-fv-bo]').forEach(n=>n.onclick=()=>n.closest('.fv_the').remove())}
+$('#fv_tao').onclick=async()=>{const prompt=$('#fv_prompt').value.trim();if(!prompt&&!fvKhung.dau)return tb('Viết câu lệnh (hoặc đưa ảnh khung đầu)');
+  const model=$('#fv_model').value,so=+$('#fv_so').value.slice(1);
+  if(!confirm(`Tạo ${so} video bằng ${model} trên Google Flow?\nSẽ TRỪ ĐIỂM Flow (${FV_GIA[model]}).`))return;
+  const b=$('#fv_tao');b.disabled=true;$('#fv_tt').textContent='Bắt đầu…';
+  try{const r=await post('/api/flow_video',{du_an:DU,prompt,model,ti_le:$('#fv_tile').value,so,ho_so:$('#fv_hs').value,
+      phan_giai:model.startsWith('Omni')?$('#fv_pg').value:'',do_dai:model.startsWith('Omni')?$('#fv_dai').value:'',anh_dau:fvKhung.dau,anh_cuoi:fvKhung.cuoi});
+    for(;;){await new Promise(z=>setTimeout(z,2500));const t=await api('/api/doi_thu/tt?job='+r.job);$('#fv_tt').textContent=t.dong||'';
+      if(t.dang)continue;if(t.loi){$('#fv_tt').textContent='Lỗi: '+t.loi;break}
+      $('#fv_tt').textContent=`Xong: ${t.kq.cai_dat} · ${t.kq.diem||'?'} điểm · hồ sơ ${t.kq.ho_so} — ưng video nào thì ✅ Giữ (vào kho, mốc giờ = ô Bắt đầu)`;
+      $('#fv_kq').insertAdjacentHTML('afterbegin',t.kq.ds.map(fvTheKq).join(''));fvGanNut();break}}
+  catch(e){$('#fv_tt').textContent='Lỗi: '+e.message}
+  b.disabled=false};
+fvCapNhat();fvNapHoSo();
+$('#ca_bo').onclick=()=>{caThu='';$('#ca_xem').style.display='none';$('#ca_vid').pause()};
+function xemTruoc(url,video){$('#ca_anh').style.display=video?'none':'';$('#ca_vid').style.display=video?'':'none';
+  if(video){$('#ca_vid').src=url;$('#ca_vid').play().catch(()=>{})}else{$('#ca_anh').src=url;$('#ca_vid').pause()}
+  $('#ca_xem').style.display='';$('#ca_sua_tiep').style.display=video?'none':''}
+$('#ca_canh_btn').onclick=async()=>{const mo_ta=$('#ca_ve').value.trim();if(!mo_ta)return tb('Viết mô tả cảnh trước');
+  const b=$('#ca_canh_btn');b.disabled=true;$('#ca_tt').textContent='AI viết kịch bản cảnh… (~1-2 phút)';
+  try{const r=await post('/api/canh_remotion',{du_an:DU,mo_ta,giay:+$('#ca_dai').value||4,goc:caGoc});
+    for(;;){await new Promise(z=>setTimeout(z,2000));const t=await api('/api/doi_thu/tt?job='+r.job);$('#ca_tt').textContent=t.dong||'';
+      if(t.dang)continue;if(t.loi){$('#ca_tt').textContent='Lỗi: '+t.loi;break}
+      caThu=t.kq.thu;xemTruoc(t.kq.url,true);const dd=((t.kq.kb||{}).ban_do||{}).diem||[];
+      $('#ca_tt').textContent=(dd.length?'Địa danh trên bản đồ: '+dd.map(d=>`«${d.nhan||d.tim}» = ${d.ten_day_du} (${d.lat.toFixed(4)}, ${d.lon.toFixed(4)})`).join(' · ')+' — sai chỗ nào thì ghi rõ tên/toạ độ trong mô tả. ':'')+'Ưng thì ✅ Giữ, chưa ưng thì sửa mô tả rồi dựng lại';break}}
+  catch(e){$('#ca_tt').textContent='Lỗi: '+e.message}
+  b.disabled=false};
+// 20/10 user: ảnh gốc — bấm chọn file, KÉO THẢ vào ô, hoặc DÁN (Ctrl+V) ảnh đã copy
+async function taiAnhGoc(f){if(!f)return;if(!/^image\/(png|jpeg|webp)$/.test(f.type))return tb('Chỉ nhận ảnh PNG, JPG, WEBP');
+  const duoi={'image/png':'.png','image/jpeg':'.jpg','image/webp':'.webp'}[f.type];
+  const fd=new FormData();fd.append('du_an',DU);fd.append('tep',f,(f.name&&/\.(png|jpe?g|webp)$/i.test(f.name))?f.name:'dan'+duoi);
+  $('#ca_goc_tt').textContent='Đang tải ảnh gốc lên (và xoá logo nếu có)…';
+  try{const r=await api('/api/chen_anh/tai_len',{method:'POST',body:fd});datGoc(r.file,r.url);tb('Đã nhận ảnh gốc — viết yêu cầu sửa rồi bấm Vẽ');$('#ca_ve').focus()}
+  catch(err){tb('Lỗi: '+err.message);datGoc(caGoc,$('#ca_goc_anh').src)}}
+// 20/10 user: kéo VIDEO Gemini vào -> xoá logo -> lưu thẳng vào kho ảnh đã giữ của dự án
+async function taiVideo(f){const tt=$('#ca_goc_tt'),cu=tt.innerHTML;tt.textContent=`Đang tải video "${f.name}" lên…`;
+  const fd=new FormData();fd.append('du_an',DU);fd.append('tep',f,f.name);fd.append('bd',+$('#ca_bd').value||0);
+  if(caCauChon!=null)fd.append('cau',caCauChon);
+  try{const r=await api('/api/chen_anh/tai_video',{method:'POST',body:fd});
+    for(;;){await new Promise(z=>setTimeout(z,1500));const t=await api('/api/doi_thu/tt?job='+r.job);tt.textContent=`🎞 ${f.name}: ${t.dong||''}`;
+      if(t.dang)continue;if(t.loi){tb('Lỗi xoá logo video: '+t.loi);break}
+      tb(t.kq.co_logo?`Đã xoá logo và lưu video vào kho (${t.kq.giay.toFixed(1)} s)`:'Không thấy logo Gemini trong video — đã lưu nguyên video vào kho');
+      napChenAnh();break}}
+  catch(e){tb('Lỗi: '+e.message)}
+  tt.innerHTML=cu}
+function nhanTep(f){if(!f)return;if(/^video\//.test(f.type)||/\.(mp4|mov|webm|mkv)$/i.test(f.name||''))return taiVideo(f);taiAnhGoc(f)}
+$('#ca_tep').onchange=e=>{nhanTep(e.target.files[0]);e.target.value=''};
+$('#ca_tha').onclick=()=>$('#ca_tep').click();
+['dragenter','dragover'].forEach(ev=>$('#ca_tha').addEventListener(ev,e=>{e.preventDefault();$('#ca_tha').style.borderColor='var(--ac)'}));
+['dragleave','drop'].forEach(ev=>$('#ca_tha').addEventListener(ev,e=>{e.preventDefault();$('#ca_tha').style.borderColor=''}));
+$('#ca_tha').addEventListener('drop',e=>{const fs=[...(e.dataTransfer.files||[])];
+  const vs=fs.filter(x=>/^video\//.test(x.type)||/\.(mp4|mov|webm|mkv)$/i.test(x.name));
+  if(vs.length)return (async()=>{for(const v of vs)await taiVideo(v)})();       // nhiều video: lần lượt
+  const f=fs.find(x=>x.type.startsWith('image/'));
+  if(f)return taiAnhGoc(f);tb('Kéo FILE ảnh / video vào (ảnh trên web: chuột phải → Sao chép hình ảnh rồi Ctrl+V)')});
+document.addEventListener('paste',e=>{if(!$('#hop_chen_anh').open)return;if(document.querySelector('.fv_o:hover')){const it=[...(e.clipboardData&&e.clipboardData.items||[])].find(x=>x.kind==='file'&&x.type.startsWith('image/'));if(it){e.preventDefault();return fvTaiKhung(fvO,it.getAsFile())}}
+  const it=[...(e.clipboardData&&e.clipboardData.items||[])].find(x=>x.kind==='file'&&x.type.startsWith('image/'));
+  if(!it)return;e.preventDefault();taiAnhGoc(it.getAsFile())});
 $('#ca_goc_bo').onclick=()=>datGoc('');
 $('#ca_sua_tiep').onclick=()=>{if(!caThu)return;datGoc(caThu,$('#ca_anh').src);$('#ca_ve').value='';$('#ca_ve').focus()};
 $('#ca_giu').onclick=async()=>{if(!caThu)return;try{await post('/api/chen_anh/giu',{du_an:DU,thu:caThu,ve:$('#ca_ve').value,bd:+$('#ca_bd').value||0,dai:+$('#ca_dai').value||4,cau:caCauChon});
@@ -631,14 +744,17 @@ function veChuThe(){
 function docChuThe(){const tach=v=>v.split(',').map(s=>s.trim()).filter(Boolean);
   dsChuThe=[...$('#ds_chuthe').querySelectorAll('[data-ct]')].map(o=>({ten:o.querySelector('[data-f=ten]').value.trim(),loai:o.querySelector('[data-f=loai]').value,
     goi:tach(o.querySelector('[data-f=goi]').value),mo_ta_en:o.querySelector('[data-f=mo_ta_en]').value.trim(),tu_khoa:tach(o.querySelector('[data-f=tu_khoa]').value)})).filter(x=>x.ten)}
-let ctKN=[],ctTay={};
+let ctKN=[],ctTay={},ctTk={};
 const ctThem=()=>$('#ct_them').value.split(',').map(s=>s.trim()).filter(Boolean);
 function veKhongNhac(){const ten=[...new Set([...dsChuThe.map(x=>x.ten).filter(Boolean),...ctThem()])],loc=$('#ct_loc_kn').checked;
   const ds=ctKN.filter(c=>!loc||!c.nhac);
   $('#ct_kn_tom').textContent=`— ${ctKN.length} câu · ${ctKN.filter(c=>!c.nhac).length} không nhắc tên · ${Object.keys(ctTay).length} sửa tay`;
   $('#ds_khong_nhac').innerHTML=ds.map(c=>{const cur=ctTay[c.id]||c.ds,tay=!!ctTay[c.id];
+    const tk=ctTk[c.id]??(c.tk||[]).map(x=>x.vi).join(', '),en=(c.tk||[]).map(x=>x.en).filter((x,k)=>x!==(c.tk[k]||{}).vi);
     return `<div style="display:grid;grid-template-columns:36px 1fr 300px;gap:6px;align-items:center;border-bottom:1px solid var(--line);padding:3px 2px;${tay?'outline:2px solid var(--ok);border-radius:4px;':''}">
-    <span class="sub">${c.id}</span><span style="font-size:13px;${c.nhac?'':'font-style:italic;opacity:.8'}">${esc(c.text)}</span>
+    <span class="sub">${c.id}</span><div><span style="font-size:13px;${c.nhac?'':'font-style:italic;opacity:.8'}">${esc(c.text)}</span>
+      <input data-tkc="${c.id}" value="${esc(tk)}" placeholder="từ khoá riêng cho câu (gõ tiếng Việt cũng được, cách nhau dấu phẩy)" style="width:100%;margin-top:3px;font-size:12px;padding:3px 6px">
+      ${en.length?`<div class="sub" style="font-size:11px">→ tìm: ${esc(en.join(', '))}</div>`:''}</div>
     <div style="display:flex;flex-wrap:wrap;gap:3px;align-items:center">${cur.map((t,j)=>`<span class="tag" style="${j?'':'font-weight:700'}">${esc(t)} <a href="#" data-bo="${c.id}" data-t="${esc(t)}" style="color:var(--er);text-decoration:none">✕</a></span>`).join('')}
       <select data-them="${c.id}" style="width:54px"><option value="">＋</option>${ten.filter(t=>!cur.includes(t)).map(t=>`<option>${esc(t)}</option>`).join('')}</select>
       ${tay?`<a href="#" data-auto="${c.id}" title="Trả về tự dò" style="text-decoration:none">↺</a>`:''}</div></div>`}).join('')||'<p class="sub">Không có câu nào.</p>';
@@ -646,9 +762,10 @@ function veKhongNhac(){const ten=[...new Set([...dsChuThe.map(x=>x.ten).filter(B
   $('#ds_khong_nhac').querySelectorAll('[data-them]').forEach(s=>s.onchange=()=>{if(!s.value)return;const id=s.dataset.them,v=goc(id);v.push(s.value);ctTay[id]=v;veKhongNhac()});
   $('#ds_khong_nhac').querySelectorAll('[data-bo]').forEach(a=>a.onclick=e=>{e.preventDefault();const id=a.dataset.bo,v=goc(id).filter(t=>t!==a.dataset.t);
     if(!v.length)return tb('Câu phải có ít nhất một chủ thể (bấm ↺ để trả về tự dò)');ctTay[id]=v;veKhongNhac()});
-  $('#ds_khong_nhac').querySelectorAll('[data-auto]').forEach(a=>a.onclick=e=>{e.preventDefault();delete ctTay[a.dataset.auto];veKhongNhac()})}
+  $('#ds_khong_nhac').querySelectorAll('[data-auto]').forEach(a=>a.onclick=e=>{e.preventDefault();delete ctTay[a.dataset.auto];veKhongNhac()});
+  $('#ds_khong_nhac').querySelectorAll('[data-tkc]').forEach(i=>i.oninput=()=>{ctTk[i.dataset.tkc]=i.value})}
 function napChuThe(r){dsChuThe=r.chu_the||[];ctDem=r.so_canh||{};$('#ct_tom').textContent=`— ${dsChuThe.length} chủ thể · ${r.tong_canh||0} cảnh`;
-  ctKN=r.canh||[];ctTay={};ctKN.forEach(c=>{if(c.tay)ctTay[c.id]=[...c.ds]});$('#ct_them').value=(r.tu_khoa_them||[]).join(', ');veChuThe();veKhongNhac()}
+  ctKN=r.canh||[];ctTay={};ctTk={};ctKN.forEach(c=>{if(c.tay&&!(c.tk||[]).length)ctTay[c.id]=[...c.ds]});$('#ct_them').value=(r.tu_khoa_them||[]).join(', ');veChuThe();veKhongNhac()}
 $('#ct_them').onchange=()=>veKhongNhac();
 $('#ct_loc_kn').onchange=()=>veKhongNhac();
 async function moHopChuThe(){$('#ds_chuthe').innerHTML='<p class="sub">Đang nạp (lần đầu hỏi AI ~1 phút)…</p>';$('#hopchuthe').showModal();
@@ -657,7 +774,10 @@ $('#xemchuthe').onclick=moHopChuThe;
 $('#ct_them').onclick=()=>{docChuThe();dsChuThe.push({ten:'',loai:'song',goi:[],mo_ta_en:'',tu_khoa:[]});veChuThe()};
 $('#ct_lap_lai').onclick=async()=>{if(!confirm('Hỏi AI lập lại danh sách chủ thể từ đầu? (mất các chỉnh sửa tay)'))return;
   $('#ds_chuthe').innerHTML='<p class="sub">Đang hỏi AI…</p>';try{napChuThe(await post('/api/chu_the/lap',{du_an:DU}));tb('Đã lập lại chủ thể')}catch(e){tb('Lỗi: '+e.message)}};
-async function luuChuThe(){docChuThe();const r=await post('/api/chu_the/luu',{du_an:DU,chu_the:dsChuThe,gan_tay:ctTay,tu_khoa_them:ctThem()});napChuThe(r);return r}
+async function luuChuThe(){docChuThe();
+  const tk={};ctKN.forEach(c=>{const v=ctTk[c.id]??(c.tk||[]).map(x=>x.vi).join(', ');if(String(v).trim())tk[c.id]=v});
+  if(Object.keys(ctTk).length)tb('Đang lưu + dịch từ khoá riêng sang tiếng Anh…');
+  const r=await post('/api/chu_the/luu',{du_an:DU,chu_the:dsChuThe,gan_tay:ctTay,tu_khoa_them:ctThem(),tk_cau:tk});napChuThe(r);return r}
 $('#ct_luu').onclick=async()=>{try{await luuChuThe();tb('Đã lưu chủ thể và chia lại cảnh')}catch(e){tb('Lỗi: '+e.message)}};
 $('#ct_tim').onclick=async()=>{try{await luuChuThe()}catch(e){return tb('Lỗi: '+e.message)}
   $('#hopchuthe').close();$('#chedo_tim').value='chu_de';try{localStorage.setItem('chedo_tim','chu_de')}catch(e){}$('#tutim').click()};

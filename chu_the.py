@@ -77,14 +77,50 @@ def tu_khoa_them(du_an):
     return [str(t).strip() for t in (doc_json(_p(du_an), {}) or {}).get("tu_khoa_them") or [] if str(t).strip()]
 
 
+def tk_cau(du_an):
+    """20/10 user: TỪ KHOÁ RIÊNG của từng câu {id cảnh: [{vi, en}]} — người dùng gõ (tiếng Việt / Anh), máy dịch sẵn."""
+    return {int(k): [x for x in v if isinstance(x, dict) and x.get("en")]
+            for k, v in ((doc_json(_p(du_an), {}) or {}).get("tk_cau") or {}).items() if str(k).isdigit() and v}
+
+
 def doc(du_an):
-    """Chủ thể dùng để chia đoạn / tìm / ghép = danh sách chủ thể + mỗi từ khoá tìm thêm thành một chủ thể (không tên gọi,
-    nên không tự dò — chỉ gán tay)."""
+    """Chủ thể dùng để chia đoạn / tìm / ghép = danh sách chủ thể + mỗi từ khoá tìm thêm / từ khoá riêng của câu thành một
+    chủ thể (không tên gọi, nên không tự dò — chỉ gán cho câu)."""
     ds = doc_goc(du_an)
     ten = {x["ten"] for x in ds}
+    tk = list(tu_khoa_them(du_an)) + [x["en"] for v in tk_cau(du_an).values() for x in v]
     them = [{"ten": t, "loai": "vat", "goi": [], "mo_ta_en": t, "tu_khoa": [t], "them": True}
-            for t in dict.fromkeys(tu_khoa_them(du_an)) if t not in ten]
+            for t in dict.fromkeys(tk) if t not in ten]
     return ds + them
+
+
+_P_DICH = """Translate each Vietnamese phrase below into a short natural ENGLISH YouTube search phrase (2-6 words) that finds
+real footage of that thing / scene. Translate faithfully: keep proper names, do NOT add extra words such as "footage",
+"video", "b-roll", "4k", "cinematic". Return ONLY JSON: {{"<phrase exactly as given>": "<english>"}}
+
+{ds}"""
+
+
+def _dich(cum, cu):
+    """Dịch các cụm tiếng Việt sang cụm tìm tiếng Anh (một lần hỏi AI); cụm chỉ chữ Latin không dấu giữ nguyên."""
+    from common import hoi_llm
+    ra = {}
+    can = []
+    for c in dict.fromkeys(cum):
+        if c in cu:
+            ra[c] = cu[c]
+        elif all(ord(ch) < 128 for ch in c):
+            ra[c] = c
+        else:
+            can.append(c)
+    if can:
+        j = rut_json(hoi_llm(_P_DICH.format(ds="\n".join(f"- {c}" for c in can)), timeout=180) or "")
+        for c in can:
+            en = str((j or {}).get(c) or "").strip() if isinstance(j, dict) else ""
+            if not en and isinstance(j, dict):                # AI đổi nhẹ khoá (thêm dấu chấm, gạch đầu dòng…)
+                en = next((str(v).strip() for k, v in j.items() if str(k).strip(" -.").lower() == c.lower()), "")
+            ra[c] = en or c
+    return ra
 
 
 def lap(du_an, hoi_lai=False):
@@ -111,7 +147,7 @@ def lap(du_an, hoi_lai=False):
     return ds
 
 
-def luu(du_an, ds, gan_tay=None, them=None):
+def luu(du_an, ds, gan_tay=None, them=None, tk=None):
     """Người dùng sửa danh sách trên giao diện. gan_tay: {id cảnh: [tên chủ thể, ...]} người dùng gán tay (thắng dò tên;
     một câu được nhiều chủ thể — 19/10 user)."""
     canh = _canh(du_an)
@@ -124,15 +160,30 @@ def luu(du_an, ds, gan_tay=None, them=None):
             v = [str(x) for x in (v if isinstance(v, list) else [v]) if str(x or "").strip()]
             if v:
                 gt[str(k)] = list(dict.fromkeys(v))
-    tk = cu.get("tu_khoa_them") or [] if them is None else [str(t).strip() for t in them if str(t).strip()]
+    tkt = cu.get("tu_khoa_them") or [] if them is None else [str(t).strip() for t in them if str(t).strip()]
+    tkc = cu.get("tk_cau") or {}
+    if tk is not None:                                       # {id: "cụm, cụm"} hoặc {id: [cụm]} — dịch cụm mới
+        moi = {}
+        for k, v in tk.items():
+            v = v if isinstance(v, list) else str(v or "").split(",")
+            v = [str(x).strip() for x in v if str(x).strip()]
+            if v and str(k).isdigit():
+                moi[str(k)] = v
+        cu_dich = {x["vi"]: x["en"] for vv in tkc.values() for x in vv if isinstance(x, dict) and x.get("vi")}
+        dich = _dich([c for v in moi.values() for c in v], cu_dich) if moi else {}
+        tkc = {k: [{"vi": c, "en": dich.get(c, c)} for c in v] for k, v in moi.items()}
     ghi_json(_p(du_an), {"_hash": _hash(canh), "chu_the": _sach(ds), "sua_tay": True, "gan_tay": gt,
-                         "tu_khoa_them": list(dict.fromkeys(tk))})
+                         "tu_khoa_them": list(dict.fromkeys(tkt)), "tk_cau": tkc})
 
 
 def gan_tay(du_an):
-    """{id cảnh (int): [tên chủ thể, ...]} người dùng gán tay (bản cũ lưu một tên -> danh sách một phần tử)."""
-    return {int(k): (v if isinstance(v, list) else [v])
-            for k, v in ((doc_json(_p(du_an), {}) or {}).get("gan_tay") or {}).items() if str(k).isdigit() and v}
+    """{id cảnh (int): [tên chủ thể, ...]} người dùng gán tay (bản cũ lưu một tên -> danh sách một phần tử). Câu có TỪ KHOÁ
+    RIÊNG: chiếu đúng các từ khoá đó (thắng gán tay / dò tên)."""
+    gt = {int(k): (v if isinstance(v, list) else [v])
+          for k, v in ((doc_json(_p(du_an), {}) or {}).get("gan_tay") or {}).items() if str(k).isdigit() and v}
+    for k, v in tk_cau(du_an).items():
+        gt[k] = list(dict.fromkeys(x["en"] for x in v))
+    return gt
 
 
 def ds_canh(du_an):
@@ -143,6 +194,7 @@ def ds_canh(du_an):
         return []
     canh = sorted(_canh(du_an), key=lambda c: c["id"])
     gt = gan_tay(du_an)
+    tkc = tk_cau(du_an)
     gan = gan_canh(canh, ds, gt)
     mau = _mau(ds)
     ra = []
@@ -150,7 +202,7 @@ def ds_canh(du_an):
         ks = _ds_k(c, ds, gan, gt, mau)
         d = nhac(c.get("text"), mau)
         ra.append({"id": c["id"], "text": c.get("text") or "", "ds": [ds[k]["ten"] for k in ks], "tay": c["id"] in gt,
-                   "nhac": bool(d) and max(d.values()) >= 1.0})
+                   "nhac": bool(d) and max(d.values()) >= 1.0, "tk": tkc.get(c["id"]) or []})
     return ra
 
 

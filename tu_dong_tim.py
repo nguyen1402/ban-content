@@ -36,7 +36,9 @@ NGUONG_STOCK = 0.12         # điểm ảnh thu nhỏ tối thiểu để tải 
 STOCK_TOI_DA = 300           # trần số clip stock mỗi lần chạy (mỗi clip 10-30 s, 5-15 MB); 14/10: 150 -> 300 (đỡ lặp)
 TU_STOCK_MOI_NHOM = 3       # 14/10: mỗi nhóm ~1 phút tìm từ khoá video của 3 cảnh dài nhất (trước: 2) + biến thể + ảnh
 VE_AI_BU = False            # 16/10 user: bản thô KHÔNG tạo ảnh AI bù (chỗ thiếu: ảnh thật Google, không có thì dùng lại video)
-VE_AI_KHI_HET = True        # 19/10 user: chế độ chủ đề — chỗ HẾT footage đúng đối tượng (goi_y ghi thieu_chi_tiet.json)
+VE_AI_KHI_HET = False       # 20/10 user: KHÔNG vẽ ảnh AI cho chỗ hết đoạn khớp nữa — để trống, người dùng tự chỉnh
+ANH_GOOGLE_BU = False       # 20/10 user: cảnh trống cũng KHÔNG lấp ảnh Google (để trống)
+_VE_AI_KHI_HET_CU = True        # 19/10 user: chế độ chủ đề — chỗ HẾT footage đúng đối tượng (goi_y ghi thieu_chi_tiet.json)
 #                             -> Gemini vẽ ảnh ngang cho đúng chỗ đó (không lặp hình quá luật, không lấy hình lạc đề)
 GEMINI_BU_TOI_DA = 200      # 14/10 user: chỗ hết video mới -> Gemini vẽ ảnh ngang (trần mỗi lần chạy; ~17 credit/ảnh)
 ANH_MOI_DIA_DANH = 4        # mỗi địa danh: 2 ảnh phong cảnh + 2 ảnh từ trên cao
@@ -605,6 +607,9 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
         if not doan or phu_giay < float(c["dai"]) - 0.5:
             yeu.append(c)
     loi_anh = None
+    if yeu and not ANH_GOOGLE_BU:
+        log(f"  {len(yeu)} cảnh còn chỗ trống (không có đoạn khớp) — để trống cho người dùng tự chỉnh")
+        yeu = []
     if yeu:
         for k, c in enumerate(yeu):
             _tt(du_an, buoc="anh", xong=k, tong=len(yeu))
