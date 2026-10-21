@@ -43,6 +43,7 @@ def lenh_ve(ve, thoi_dai="", co_mau=False):
     return p
 
 
+CHU_PHU = False             # 21/10 user: bản hoàn thiện TẮT thêm chữ lên màn hình (lớp phủ đen + chữ trắng số liệu / mốc năm)
 SOAT_VE_LAI = 0             # 19/10: soát ảnh bằng Gemini chấm sai cả hai chiều (đo 4 ảnh cho_digo) -> TẮT
 KHOANG_GIUA = 0.5          # 17/10: khoảng đệm 0.5s đạt chuẩn 19-20 cảnh AI Storytelling (25-30% thời lượng)
 
@@ -797,14 +798,14 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
         # TRẮNG CapCut đặt chồng lên footage thật (dung_hoan_chinh.dat_chu_phu; chữ sửa tay được trong CapCut)
         if k in ("so_sanh", "song", "con_so", "cot"):
             ben = [b for b in (x.get("ben_a"), x.get("ben_b")) if isinstance(b, dict) and str(b.get("gia_tri") or "").strip()]
-            if ben:
+            if ben and CHU_PHU:
                 chu_phu.append({"kieu": "chu_phu", "cau": x["cau"], "bd": bd, "dai": dai, "mo_ta": f"số liệu: {x.get('tieu_de')}",
                                 "tieu_de": str(x.get("tieu_de") or ""),
                                 "cot": [{"so": str(b["gia_tri"]), "nhan": str(b.get("ten") or "")} for b in ben],
                                 "am": [{"t": round(bd + 0.2, 2), "kieu": "hit", "ly_do": "số liệu"}]})
             continue
         elif k == "su_kien":
-            if str(x.get("nam") or "").strip():
+            if str(x.get("nam") or "").strip() and CHU_PHU:
                 chu_phu.append({"kieu": "chu_phu", "cau": x["cau"], "bd": bd, "dai": dai, "mo_ta": f"mốc: {x.get('nam')}",
                                 "tieu_de": "", "cot": [{"so": str(x["nam"]).upper(), "nhan": ""}],
                                 "am": [{"t": round(bd + 0.15, 2), "kieu": "whoosh", "ly_do": "mốc sự kiện"}]})
