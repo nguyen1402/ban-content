@@ -629,11 +629,13 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
         nhan_hud[i][1] = round(dai_i, 2)
 
     # ---- bản đồ cho HUD
-    viec, ma = [], {}
+    viec, ma, vt_canh = [], {}, []
     for n, (bd, dai, k, x, ds_c) in enumerate(nhan_hud):
         pt = x.get("phuong_tien") if x.get("phuong_tien") in ("may_bay", "tau_thuy", "tau_hoa", "xe", "di_bo") else ""
         if k == "khoanh_vung" and x.get("dia_danh"):
-            viec.append((n, dai, B.chuan_bi_vetinh, [x["dia_danh"], x.get("ten_vi") or None]))
+            # 22/10 user ("từ ngoài trái đất, đánh dấu lãnh thổ"): bản đồ VỆ TINH THẬT (ban_do.clip_dia_danh — từ vũ
+            # trụ bay xuống, viền lãnh thổ OpenStreetMap, ghim + tên) thay khung BanDoNen cũ
+            vt_canh.append((n, dai, x))
             ma[n] = x.get("ten_vi") or x["dia_danh"]
         elif k == "duong_di" and x.get("tu") and x.get("den"):
             viec.append((n, dai, B.chuan_bi_duong, [x["tu"], x["den"], x.get("tu_vi") or None, x.get("den_vi") or None, pt]))
@@ -643,6 +645,10 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
             viec.append((n, dai, B.chuan_bi_lan_rong, [x["goc"], noi[:6], x.get("goc_vi") or None, pt]))
             ma[n] = f"{x.get('goc_vi') or x['goc']} → {len(noi)} nơi"
     clip = B.dung_clip(viec) if viec else {}
+    if vt_canh:
+        import ban_do
+        for n, dai, x in vt_canh:                            # tuần tự: mỗi lần dựng dùng chung public/ban_do
+            clip[n] = ban_do.clip_dia_danh(x["dia_danh"], x.get("ten_vi") or "", dai, khoanh=True)
 
     from concurrent.futures import ThreadPoolExecutor
 
@@ -684,7 +690,7 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
         import hashlib, anh_ve
         PUB = os.path.join(ROOT, "remotion", "public")
         os.makedirs(PUB, exist_ok=True)
-        ds_ten, ve_ds = [], []
+        ds_ten, ve_ds, huong_ds = [], [], []
         mau = None                                           # 19/10 user: ảnh 1 là NGUYÊN LIỆU cho ảnh 2-3 (cùng vật chính)
         for i, p in enumerate(prompts):
             kid = hashlib.md5(((mau or "") + "|" + p).encode("utf-8")).hexdigest()[:14]
@@ -714,12 +720,15 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
             if f_anh and os.path.isfile(f_anh):
                 ds_ten.append(f_anh)
                 ve_ds.append(p)
+                huong_ds.append(x.get(f"huong_{i + 1}") or None)   # 22/10: hướng chuyển động theo hành động của ảnh
                 mau = mau or f_anh                           # mọi ảnh sau lấy ẢNH ĐẦU làm mẫu (không trôi dần)
         x["_ve_ds"] = ve_ds                                  # 19/10 user: lưu câu mô tả từng ảnh (sửa tay trên giao diện)
+        x["_huong_ds"] = huong_ds
         return ds_ten
 
     log(f"    vẽ {len(bdv)} bản đồ, kiểm tra/vẽ {len(th)} chuỗi ảnh AI…")
-    with ThreadPoolExecutor(3) as ex:
+    import anh_ve
+    with ThreadPoolExecutor(anh_ve.so_luong_ve()) as ex:        # 22/10 user: số luồng = số tài khoản cookie (chia đều)
         for x, a in zip(bdv, ex.map(_ve_ban_do, bdv)):
             x["_anh"] = a
         for x, a in zip(th, ex.map(_ve_tai_hien, th)):
@@ -734,10 +743,15 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
             continue
         n_anh = len(ds_anh)
         phan_doan = []
+        _hd = list(x.get("_huong_ds") or [])
+
+        def _hg(k_, _hd=_hd, _n=len(ds_anh)):
+            k_ = min(k_, _n - 1)
+            return _hd[k_] if k_ < len(_hd) else None
         sfx_th = [{"t": round(bd + 0.2, 2), "kieu": "whoosh", "ly_do": "tái hiện AI"}]
 
         if n_anh == 1 or dai <= 5.25:
-            phan_doan.append({"bd": bd, "dai": dai, "file": ds_anh[0]})
+            phan_doan.append({"bd": bd, "dai": dai, "file": ds_anh[0], "huong": _hg(0)})
         elif n_anh == 2 or dai < 8.5:
             m2 = x.get("moc_2")
             t_split = _tim(ds_c, m2) if m2 else None
@@ -745,8 +759,8 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
                 t_split = round(bd + dai / 2, 2)
             d1 = round(t_split - bd, 2)
             d2 = round(dai - d1, 2)
-            phan_doan.append({"bd": bd, "dai": d1, "file": ds_anh[0]})
-            phan_doan.append({"bd": t_split, "dai": d2, "file": ds_anh[min(1, len(ds_anh)-1)]})
+            phan_doan.append({"bd": bd, "dai": d1, "file": ds_anh[0], "huong": _hg(0)})
+            phan_doan.append({"bd": t_split, "dai": d2, "file": ds_anh[min(1, len(ds_anh)-1)], "huong": _hg(1)})
             sfx_th.append({"t": round(t_split, 2), "kieu": "whoosh", "ly_do": "chuyển cảnh AI 2"})
         else:
             m2 = x.get("moc_2")
@@ -760,9 +774,9 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
             d1 = round(t1 - bd, 2)
             d2 = round(t2 - t1, 2)
             d3 = round(dai - d1 - d2, 2)
-            phan_doan.append({"bd": bd, "dai": d1, "file": ds_anh[0]})
-            phan_doan.append({"bd": t1, "dai": d2, "file": ds_anh[min(1, len(ds_anh)-1)]})
-            phan_doan.append({"bd": t2, "dai": d3, "file": ds_anh[min(2, len(ds_anh)-1)]})
+            phan_doan.append({"bd": bd, "dai": d1, "file": ds_anh[0], "huong": _hg(0)})
+            phan_doan.append({"bd": t1, "dai": d2, "file": ds_anh[min(1, len(ds_anh)-1)], "huong": _hg(1)})
+            phan_doan.append({"bd": t2, "dai": d3, "file": ds_anh[min(2, len(ds_anh)-1)], "huong": _hg(2)})
             sfx_th.append({"t": round(t1, 2), "kieu": "whoosh", "ly_do": "chuyển cảnh AI 2"})
             sfx_th.append({"t": round(t2, 2), "kieu": "whoosh", "ly_do": "chuyển cảnh AI 3"})
 

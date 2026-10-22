@@ -87,7 +87,7 @@ def _khung(diem, ids):
     xs, ys, co_vien = [], [], False
     for i in ids:
         d = diem[i]
-        pts = d.get("vien") if d.get("khoanh", True) else None
+        pts = d.get("vien")                                  # 22/10: viền luôn dùng để ÔM VỪA vùng; "khoanh" chỉ quyết VẼ viền
         for la, lo in (pts or [[d["lat"], d["lon"]]]):
             x, y = chieu(la, lo)
             xs.append(x)
@@ -248,7 +248,36 @@ def chuan_bi(bd, giay, bao=None):
     if len(co) < len(can) * 0.9:
         raise ValueError(f"Chỉ tải được {len(co)}/{len(can)} ô ảnh vệ tinh — kiểm tra mạng rồi dựng lại")
     diem = [{"lat": d["lat"], "lon": d["lon"], "nhan": d.get("nhan") or "",
-             "vien": d.get("vien") if d.get("khoanh", True) else None,
+             "vien": d.get("vien") if d.get("khoanh") else None,   # 22/10 user: chỉ VẼ viền khi được yêu cầu khoanh lãnh thổ
              "vao": float(d.get("vao") or 0), "ra": float(d.get("ra") or giay)} for d in bd["diem"]]
     return {"cam": cam, "o": co, "diem": diem, "duong": bd.get("duong") or [], "zmax": Z_MAX,
             "ghi_nguon": nen_ban_do.GHI_NGUON["vetinh"]}
+
+
+def clip_dia_danh(dia_danh, ten_vi, giay, khoanh=True):
+    """22/10 user ("ảnh địa chỉ A nhìn siêu thực từ ngoài trái đất, đánh dấu lãnh thổ" — AI vẽ không ra): clip bản đồ
+    VỆ TINH THẬT cho một địa danh — camera từ ngoài trái đất bay xuống, viền lãnh thổ thật (OpenStreetMap) chạy dần,
+    ghim + tên tiếng Việt. Dùng ở bước ✨ (dieu_phoi "khoanh_vung"). Cache theo (địa danh, tên, độ dài). Lỗi -> None."""
+    import hashlib
+    import canh_mo_ta
+    giay = round(max(3.0, float(giay)), 2)
+    thu = os.path.join(CACHE_CHUNG, "ban_do_canh")
+    os.makedirs(thu, exist_ok=True)
+    out = os.path.join(thu, hashlib.md5(f"{dia_danh}|{ten_vi}|{giay}|{khoanh}|v1".encode("utf-8")).hexdigest()[:16] + ".mp4")
+    if os.path.isfile(out) and os.path.getsize(out) > 5000:
+        return out
+    try:
+        r = tra(dia_danh)
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! bản đồ vệ tinh '{dia_danh}': {str(e)[:100]}")
+        return None
+    log(f"    bản đồ vệ tinh: «{dia_danh}» -> {r['ten_day_du'][:80]} ({r['lat']:.3f}, {r['lon']:.3f})")
+    bd = {"diem": [dict(r, tim=dia_danh, nhan=ten_vi or dia_danh.split(",")[0], khoanh=bool(khoanh and r.get("vien")),
+                        vao=min(0.8, giay * 0.2), ra=giay)],
+          "camera": [{"luc": 0.0, "nhin": "xa"}, {"luc": round(giay * 0.6, 2), "nhin": [0]}], "duong": []}
+    try:
+        canh_mo_ta.dung({"nen": "#05070b", "lop": [], "ban_do": bd}, giay, out)
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! dựng bản đồ vệ tinh '{dia_danh}': {str(e)[:120]}")
+        return None
+    return out if os.path.isfile(out) else None

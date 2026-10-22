@@ -12,6 +12,7 @@ import os
 import re
 import sys
 import threading
+from concurrent.futures import ThreadPoolExecutor
 import time
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -220,80 +221,98 @@ class FlowBatchRunner:
         self._thread.start()
         return True
 
+    def _so_luong(self):
+        """22/10 user ("nhiều luồng, nhiều cookie được nghỉ"): số luồng = số hồ sơ Flow không nghỉ (có Flow) hoặc số
+        tài khoản Gemini cookie dùng được; tối đa 8."""
+        try:
+            if flow_ve.co_ho_so():
+                return max(1, min(8, flow_ve.so_ho_so_dung_duoc()))
+            import chinh_sua.anh_ve as av
+            return max(1, min(8, av.so_luong_ve()))
+        except Exception:                                    # noqa: BLE001
+            return 1
+
+    def _lam_mot(self, idx, muc):
+        """Tạo MỘT ảnh (chạy trong luồng song song)."""
+        with self._khoa:
+            if self.da_dung:
+                return
+            if muc["trang_thai"] == "xong":
+                return
+
+            self.hien_tai = idx + 1
+            muc["trang_thai"] = "dang"
+            muc["loi"] = ""
+            self.thoi_gian_cap_nhat = time.time()
+
+        t0 = time.time()
+        prompt_day_du = muc["prompt_day_du"]
+        ten_file = muc["ten_file"]
+        self._ghi_log(f"[{idx+1}/{self.tong}] Đang tạo '{ten_file}': {muc['prompt'][:70]}...")
+
+        tep_ra = None
+        loi_msg = ""
+        ho_so_ve = ""
+        try:
+            if flow_ve.co_ho_so():
+                so_truoc = flow_ve._doc_so()             # noqa: SLF001
+                tep_ra = flow_ve.ve(prompt_day_du, self.thu_muc, ten_file, ti_le=self.ti_le)
+                so_sau = flow_ve._doc_so()              # noqa: SLF001
+                for k, v in so_sau.items():
+                    if int(v.get("so_anh", 0)) > int(so_truoc.get(k, {}).get("so_anh", 0)):
+                        ho_so_ve = f"Flow ({k})"     # (chạy song song: chỉ để hiển thị, có thể lệch hồ sơ)
+                        break
+            if not tep_ra:
+                import chinh_sua.anh_ve as av
+                if av._tai_khoan():
+                    self._ghi_log("  → Chạy qua Gemini (cookie)...")
+                    tep_ra = av.ve_prompt(prompt_day_du, self.thu_muc, ten_file)
+                    if tep_ra:
+                        ho_so_ve = "Gemini"
+        except Exception as e:                       # noqa: BLE001
+            loi_msg = str(e)
+
+        dt = round(time.time() - t0, 1)
+
+        with self._khoa:
+            muc["thoi_gian"] = dt
+            muc["ho_so"] = ho_so_ve
+            if tep_ra and kiem_tra_anh_hop_le(tep_ra):
+                muc["trang_thai"] = "xong"
+                muc["tep"] = tep_ra
+                muc["url"] = f"/file?p={common.ma_hoa_url(tep_ra)}" if hasattr(common, "ma_hoa_url") else f"/file?p={urllib_quote(tep_ra)}"
+                self.da_xong += 1
+                self._ghi_log(f"  ✔ [{idx+1}/{self.tong}] Đã tạo xong '{ten_file}' ({dt}s){' qua ' + ho_so_ve if ho_so_ve else ''}")
+            else:
+                muc["trang_thai"] = "loi"
+                if tep_ra and os.path.isfile(tep_ra):
+                    try:
+                        os.remove(tep_ra)
+                    except OSError:
+                        pass
+                if not loi_msg:
+                    # Lấy lỗi từ sổ hồ sơ nếu có
+                    d_so = flow_ve._doc_so()        # noqa: SLF001
+                    cac_loi = [v.get("loi") for v in d_so.values() if v.get("loi")]
+                    loi_msg = cac_loi[0] if cac_loi else "Không nhận được file ảnh hợp lệ"
+                muc["loi"] = loi_msg
+                self.loi += 1
+                self._ghi_log(f"  ✖ [{idx+1}/{self.tong}] Lỗi tạo '{ten_file}': {loi_msg[:120]}")
+
+            self.thoi_gian_cap_nhat = time.time()
+        self._luu_so()
+
+        time.sleep(0.5)                                     # nghỉ nhẹ trước ảnh kế của luồng này
+
     def _chay_vong_lap(self):
         try:
-            for idx, muc in enumerate(self.cac_muc):
-                with self._khoa:
-                    if self.da_dung:
-                        self._ghi_log("🛑 Đã dừng tạo hàng loạt theo yêu cầu của bạn.")
-                        break
-                    if muc["trang_thai"] == "xong":
-                        continue
-
-                    self.hien_tai = idx + 1
-                    muc["trang_thai"] = "dang"
-                    muc["loi"] = ""
-                    self.thoi_gian_cap_nhat = time.time()
-
-                t0 = time.time()
-                prompt_day_du = muc["prompt_day_du"]
-                ten_file = muc["ten_file"]
-                self._ghi_log(f"[{idx+1}/{self.tong}] Đang tạo '{ten_file}': {muc['prompt'][:70]}...")
-
-                tep_ra = None
-                loi_msg = ""
-                ho_so_ve = ""
-                try:
-                    if flow_ve.co_ho_so():
-                        so_truoc = flow_ve._doc_so()             # noqa: SLF001
-                        tep_ra = flow_ve.ve(prompt_day_du, self.thu_muc, ten_file, ti_le=self.ti_le)
-                        so_sau = flow_ve._doc_so()              # noqa: SLF001
-                        for k, v in so_sau.items():
-                            if int(v.get("so_anh", 0)) > int(so_truoc.get(k, {}).get("so_anh", 0)):
-                                ho_so_ve = f"Flow ({k})"
-                                break
-                    if not tep_ra:
-                        import chinh_sua.anh_ve as av
-                        if av._tai_khoan():
-                            self._ghi_log("  → Chạy qua Gemini (cookie)...")
-                            tep_ra = av.ve_prompt(prompt_day_du, self.thu_muc, ten_file)
-                            if tep_ra:
-                                ho_so_ve = "Gemini"
-                except Exception as e:                       # noqa: BLE001
-                    loi_msg = str(e)
-
-                dt = round(time.time() - t0, 1)
-
-                with self._khoa:
-                    muc["thoi_gian"] = dt
-                    muc["ho_so"] = ho_so_ve
-                    if tep_ra and kiem_tra_anh_hop_le(tep_ra):
-                        muc["trang_thai"] = "xong"
-                        muc["tep"] = tep_ra
-                        muc["url"] = f"/file?p={common.ma_hoa_url(tep_ra)}" if hasattr(common, "ma_hoa_url") else f"/file?p={urllib_quote(tep_ra)}"
-                        self.da_xong += 1
-                        self._ghi_log(f"  ✔ [{idx+1}/{self.tong}] Đã tạo xong '{ten_file}' ({dt}s){' qua ' + ho_so_ve if ho_so_ve else ''}")
-                    else:
-                        muc["trang_thai"] = "loi"
-                        if tep_ra and os.path.isfile(tep_ra):
-                            try:
-                                os.remove(tep_ra)
-                            except OSError:
-                                pass
-                        if not loi_msg:
-                            # Lấy lỗi từ sổ hồ sơ nếu có
-                            d_so = flow_ve._doc_so()        # noqa: SLF001
-                            cac_loi = [v.get("loi") for v in d_so.values() if v.get("loi")]
-                            loi_msg = cac_loi[0] if cac_loi else "Không nhận được file ảnh hợp lệ"
-                        muc["loi"] = loi_msg
-                        self.loi += 1
-                        self._ghi_log(f"  ✖ [{idx+1}/{self.tong}] Lỗi tạo '{ten_file}': {loi_msg[:120]}")
-
-                    self.thoi_gian_cap_nhat = time.time()
-                self._luu_so()
-
-                # Nghỉ nhẹ giữa các ảnh để tránh nghẽn
-                time.sleep(1.0)
+            cho = [(idx, m) for idx, m in enumerate(self.cac_muc) if m["trang_thai"] != "xong"]
+            n = self._so_luong()
+            self._ghi_log(f"  chạy SONG SONG {n} luồng (mỗi luồng giữ một hồ sơ Flow / tài khoản Gemini rảnh)")
+            with ThreadPoolExecutor(n) as ex:
+                list(ex.map(lambda x: self._lam_mot(*x), cho))
+            if self.da_dung:
+                self._ghi_log("🛑 Đã dừng tạo hàng loạt theo yêu cầu của bạn.")
 
             with self._khoa:
                 self.dang_chay = False

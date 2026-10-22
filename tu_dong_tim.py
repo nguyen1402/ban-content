@@ -14,6 +14,7 @@
 
 Cảnh người dùng đã tự dựng giữ nguyên."""
 import os
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -174,7 +175,13 @@ def tu_khoa_nhom(can):
     return ra
 
 
-TAI_CUNG_LUC = 5             # 15/10 user: 5 clip tải cùng lúc (trước: lô 3, chờ cả lô xong)
+AN_TOAN_BAN_QUYEN = False   # 22/10 user: TẮT (thử America_an_toan: toa tàu chỉ 50/172 mảnh) -> quay về MỌI NGUỒN.
+#                             Bật True = chế độ chủ thể chỉ lấy nguồn ĐƯỢC PHÉP DÙNG — stock miễn phí
+#                             (Pexels / Pixabay / Mixkit / Coverr / Wikimedia PD-CC0-CC BY) + YouTube Creative Commons (kiểm
+#                             lại từng video) + kênh cơ quan chính phủ Mỹ; bỏ Google Videos; ghi nguồn ra ghi_nguon.txt
+STOCK_MOI_CD = 6            # mỗi chủ thể tải tối đa bấy nhiêu clip stock khớp nhất (ảnh thu nhỏ) trước khi tìm YouTube
+BAM_GOP = 6                # 22/10 user: chế độ băm cả video — một video nguồn tính góp tối đa bấy nhiêu mảnh khi chọn video
+TAI_CUNG_LUC = 10            # 22/10 đo 20-30 video thật: 5 cùng lúc 78 Mbit/s, 10 -> 99, 15 -> 121, 0 lỗi (trước: 5)
 TAI_TOI_DA_NGUON = {"pixabay": 2}   # Pixabay trả 429 khi tải dồn -> tối đa 2 clip Pixabay cùng lúc
 
 
@@ -204,6 +211,17 @@ def _tai_cuon(du_an, viec, ten_buoc):
             log(f"  tải stock {xong}/{tong} ({(time.time() - t0) / 60:.1f} phút)")
             bao = xong
         time.sleep(1)
+
+
+def _so_luong_ve():
+    """22/10 user: số luồng vẽ ảnh = số tài khoản Gemini cookie dùng được (anh_ve.so_luong_ve)."""
+    try:
+        import sys
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "chinh_sua"))
+        import anh_ve
+        return anh_ve.so_luong_ve()
+    except Exception:                                        # noqa: BLE001
+        return 3
 
 
 def _cho_tai(du_an, kids, ten_buoc):
@@ -287,6 +305,13 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
         if not any(x["cd"] == k for x in P):
             P.append({"cd": k, "canh": cd["canh_tu"], "tim": ""})
             QV_ds.append(np.asarray(vec_cd[k]))
+        # 22/10 user: chế độ chủ thể — thêm mô tả hình TỪNG TRẠNG THÁI của chủ thể (storyboard / băm cảnh chấm cả các
+        # trạng thái: "toa tàu bị cần cẩu thả xuống biển" khác "toa tàu chạy ở New York")
+        tt_ = [x for x in cd.get("trang_thai") or [] if x.get("en")]
+        if tt_:
+            for x, vv in zip(tt_, nhung_siglip.nhung_chu([x["en"] for x in tt_])):
+                P.append({"cd": k, "canh": (x.get("cau") or [cd["canh_tu"]])[0], "tim": x.get("tu_khoa") or ""})
+                QV_ds.append(vv)
     QV = np.stack(QV_ds)
     idx_cd = [np.array([j for j, x in enumerate(P) if x["cd"] == k]) for k in range(len(ds_chu_de))]
     Q_cd = [QV[ix] for ix in idx_cd]                         # cắt sát mảnh: chấm khung thật với các vế của chủ đề
@@ -336,7 +361,23 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
     kq, da_xet = {}, set()
     diem_theo_cd = {cd["id"]: [] for cd in ds_chu_de}
 
+    def tim_yt_an_toan(q, n):
+        """22/10 user (an toàn bản quyền): YouTube CHỈ video Creative Commons + video kênh cơ quan chính phủ Mỹ; bỏ
+        nguồn rủi ro cao (tin tức, truyền hình, stock bán bản quyền, hãng phim). Giấy phép kiểm lại trước khi tải."""
+        r = []
+        try:
+            r += dung_tay.tim_youtube(q, n, chi_cc=True)
+        except Exception as e:                               # noqa: BLE001
+            log(f"    ! tìm CC '{q[:40]}': {str(e)[:80]}")
+        try:
+            r += [v for v in dung_tay.tim_youtube(q, n) if dung_tay.la_kenh_cong(v.get("kenh"))]
+        except Exception as e:                               # noqa: BLE001
+            log(f"    ! tìm '{q[:40]}': {str(e)[:80]}")
+        return [v for v in r if not dung_tay.bi_chan(v)]
+
     def tim_mot_tu(q, n):
+        if AN_TOAN_BAN_QUYEN:
+            return tim_yt_an_toan(q, n)
         r = []
         try:
             import anh_google
@@ -418,6 +459,57 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
                 log(f"  90 video liền không thêm mảnh cho {len(con)} chủ đề còn thiếu -> dừng chấm")
                 break
 
+    # 3a. 22/10 user (an toàn bản quyền): STOCK MIỄN PHÍ TRƯỚC (Pexels / Pixabay / Mixkit / Coverr / Wikimedia PD-CC0-CC BY)
+    #     theo từ khoá các trạng thái chủ thể -> chấm ảnh thu nhỏ với từng chủ thể, tải mỗi chủ thể <= STOCK_MOI_CD clip
+    #     khớp nhất, BĂM theo cảnh như video YouTube; số mảnh stock được trừ vào số mảnh còn phải tìm trên YouTube
+    if AN_TOAN_BAN_QUYEN and getattr(dung_tay, "BAM_CA_VIDEO", False) and not chi_chon:
+        try:
+            import kho_video_free
+            tu_s = list(dict.fromkeys(q for cd in ds_chu_de for q in (cd.get("tu_khoa_en") or [])[:5] if q))
+            _tt(du_an, buoc="tim_stock", xong=0, tong=len(tu_s))
+            theo_tu = kho_video_free.tim_nhieu(tu_s, bao=lambda x, n: _tt(du_an, buoc="tim_stock", xong=x, tong=n)) \
+                if tu_s else {}
+            ds_s = list({x["id"]: x for v in theo_tu.values() for x in v if x.get("file") and x.get("thumb")}.values())
+            co_s, E_s = xep_hang.nhung_url([x["thumb"] for x in ds_s]) if ds_s else ([], None)
+            chon_s = {}                                      # id clip -> (clip, id chủ thể)
+            for k_, cd in enumerate(ds_chu_de):
+                if not len(co_s) or not len(idx_cd[k_]):
+                    continue
+                S_ = (E_s @ QV[idx_cd[k_]].T).max(1)
+                for i in np.argsort(-S_)[:STOCK_MOI_CD]:
+                    x = ds_s[co_s[int(i)]]
+                    if S_[i] >= NGUONG_DUNG and x["id"] not in chon_s:
+                        chon_s[x["id"]] = (x, cd["id"])
+            log(f"  stock miễn phí: {len(tu_s)} từ khoá -> {len(ds_s)} clip, chọn tải {len(chon_s)}")
+
+            def gn(x):
+                return x.get("ghi_nguon") or (f"{x.get('ten', '')} — {x.get('nguon', '')} (giấy phép {x.get('nguon', '')}: "
+                                              f"dùng miễn phí) — {x.get('trang') or x.get('file', '')}")
+            if chon_s:
+                _tai_cuon(du_an, [(x["nguon"], (lambda x=x: dung_tay.tai_file(du_an, x["id"], x["file"], x.get("ten", ""),
+                                                                             x["nguon"], gn(x))))
+                                  for x, _ in chon_s.values()], "tai_stock")
+                kho_s = dung_tay.doc_kho(du_an)
+                viec_s = [(kid_, cd_id, x) for kid_, (x, cd_id) in chon_s.items()
+                          if kho_s.get(kid_, {}).get("trang_thai") == "xong"]
+
+                def bam_stock(v_):
+                    kid_, cd_id, x = v_
+                    f_ = kho_s[kid_]["file"]
+                    g_, n_ = dung_tay.bam_theo_canh(du_an, kid_, f_, QV, cd_id, {
+                        "tieu_de": x.get("ten", ""), "kenh": x.get("nguon", ""), "ghi_nguon": gn(x),
+                        "giay_phep": f"stock miễn phí ({x.get('nguon', '')})", "nguon_kho": x.get("nguon", "")})
+                    dung_tay._cap_nhat_kho(du_an, kid_, trang_thai="tach", so_manh=n_)   # noqa: SLF001  clip gốc -> mảnh
+                    return cd_id, n_
+                with ThreadPoolExecutor(4) as ex:
+                    da_bam = list(ex.map(bam_stock, viec_s))
+                for cd_id, n_ in da_bam:                     # mảnh stock trừ vào số mảnh còn phải tìm trên YouTube
+                    can_manh[cd_id] = max(1, can_manh.get(cd_id, 1) - n_)
+                log(f"  stock miễn phí: {len(viec_s)} clip -> {sum(n for _, n in da_bam)} mảnh; còn cần trên YouTube: "
+                    + ", ".join(f"CĐ{k} {v}" for k, v in can_manh.items()))
+        except Exception as e:                               # noqa: BLE001
+            log(f"    ! stock miễn phí lỗi (bỏ qua, chỉ dùng YouTube an toàn): {str(e)[:150]}")
+
     tim_va_cham(tu_khoa_ds, KQ_MOI_TU, 1)
     if thieu():                                              # vòng 2: chủ đề còn thiếu -> nhiều kết quả hơn mỗi từ khoá
         tim_va_cham(tao_tu_khoa_broll(thieu()), 30, 2)
@@ -442,7 +534,8 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
         log(f"  {len(ve_thieu)}/{len(P)} vế chưa có clip khớp -> tìm bổ sung {len(tu_ve)} từ khoá theo vế")
         _tt(du_an, buoc="tim_ve", xong=0, tong=len(tu_ve))
         with ThreadPoolExecutor(4) as ex:
-            kq_ve = list(ex.map(lambda q: dung_tay.tim_youtube(q, VE_KQ_MOI_TU), tu_ve))
+            kq_ve = list(ex.map(lambda q: (tim_yt_an_toan(q, VE_KQ_MOI_TU) if AN_TOAN_BAN_QUYEN
+                                           else dung_tay.tim_youtube(q, VE_KQ_MOI_TU)), tu_ve))
         ung_ve = []
         for r in kq_ve:
             for v in r or []:
@@ -473,7 +566,8 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
             if tich_luy >= can_manh[cd_id]:
                 break
             video_duoc_chon.append((v, k_best, t, e, tong, khoang))
-            tich_luy += uoc_manh(khoang)
+            # 22/10 user: băm cả video -> mỗi video tính góp tối đa BAM_GOP mảnh -> chọn NHIỀU video nguồn hơn (đa dạng)
+            tich_luy += min(uoc_manh(khoang), BAM_GOP) if getattr(dung_tay, "BAM_CA_VIDEO", False) else uoc_manh(khoang)
             tong_giay_chon += sum(kt - bd for bd, kt, _ in khoang)
 
     # 5b. Vế mà các video đã chọn chưa phủ (điểm < NGUONG_DUNG) nhưng có video khác khớp -> thêm video khớp nhất của
@@ -508,9 +602,30 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
         return {"chon": [(v["id"], v.get("tieu_de", ""), v.get("dai")) for v, _, _, _, _, _ in video_duoc_chon],
                 "phut": round(tong_giay_chon / 60, 1), "so_canh": len(can)}
 
+    giay_phep = {}                                           # id YouTube -> giấy phép đã kiểm (ghi nguồn)
+
+    def loc_giay_phep(chon):
+        """22/10 user (an toàn bản quyền): đọc GIẤY PHÉP THẬT từng video đã chọn (song song, cache) — giữ Creative Commons
+        thật / kênh chính phủ Mỹ, bỏ phần còn lại (bộ lọc CC lúc tìm có thể sót; người đăng lại hay gắn CC bừa)."""
+        if not AN_TOAN_BAN_QUYEN or not chon:
+            return chon
+        with ThreadPoolExecutor(8) as ex:
+            kq_gp = list(ex.map(lambda x: dung_tay.nguon_an_toan(x[0]["id"], x[0].get("kenh")), chon))
+        giu = []
+        for x, (ok, gp) in zip(chon, kq_gp):
+            if ok:
+                giay_phep[x[0]["id"]] = gp
+                giu.append(x)
+        log(f"  kiểm giấy phép: giữ {len(giu)}/{len(chon)} video (Creative Commons thật / kênh chính phủ Mỹ)")
+        return giu
+
     def ds_tai(chon):
         return [{"vid": v["id"], "bd": bd, "kt": kt, "tieu_de": v.get("tieu_de", ""), "kenh": v.get("kenh", ""),
-                 "chu_de_id": ds_chu_de[k_best]["id"]} for v, k_best, t, e, tong, khoang in chon for bd, kt, _ in khoang]
+                 "chu_de_id": ds_chu_de[k_best]["id"],
+                 "giay_phep": giay_phep.get(v["id"], ""),
+                 "ghi_nguon": (f"{v.get('tieu_de', '')} — {v.get('kenh', '')} — {giay_phep[v['id']]} — "
+                               f"https://youtu.be/{v['id']}" if v["id"] in giay_phep else "")}
+                for v, k_best, t, e, tong, khoang in chon for bd, kt, _ in khoang]
 
     id_cd = [c["id"] for c in ds_chu_de]
     tk_cat = {"giu": 0.0, "manh": 0, "khoang": 0}
@@ -528,6 +643,11 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
                 tk_cat["giu"] += g_
                 tk_cat["manh"] += m_
                 tk_cat["khoang"] += 1
+
+    bam_ca = None
+    if getattr(dung_tay, "BAM_CA_VIDEO", False):            # 22/10 user: băm CẢ video theo cảnh quay, chấm với mọi chủ thể
+        def bam_ca(vid, f, ds_it):
+            return dung_tay.bam_theo_canh(du_an, vid, f, QV, ds_it[0].get("chu_de_id"), ds_it[0])
 
     def cat_sat(chon):
         """18/10: chấm KHUNG THẬT từng khoảng vừa tải với mô tả các cảnh của chủ đề -> cắt sát đoạn khớp."""
@@ -549,11 +669,13 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
 
     # 6. Tải các KHOẢNG KHỚP (tải cả video 720p rồi cắt — 18/10 đo: --download-sections 20 s mất 128 s, cả video
     #    230 s chỉ 6 s), rồi cắt sát theo khung thật
+    video_duoc_chon = loc_giay_phep(video_duoc_chon)
     ds_khoang_tai = ds_tai(video_duoc_chon)
-    log(f"  tải từng khoảng: {len(ds_khoang_tai)} khoảng khớp từ {len(video_duoc_chon)} video được chọn (5 video cùng lúc, cắt sát ngay)...")
+    log(f"  tải từng khoảng: {len(ds_khoang_tai)} khoảng khớp từ {len(video_duoc_chon)} video được chọn ({TAI_CUNG_LUC} video cùng lúc, "
+        f"{'băm cả video theo cảnh quay' if bam_ca else 'cắt sát ngay'})...")
     _tt(du_an, buoc="tai_khoang", xong=0, tong=len(ds_khoang_tai))
     dung_tay.tai_khoang_cuon(du_an, ds_khoang_tai, ten_buoc="tai_khoang", max_cung_luc=TAI_CUNG_LUC,
-                             sau_moi_video=cat_ngay, chi_hinh=True,
+                             sau_moi_video=cat_ngay, chi_hinh=True, bam_ca=bam_ca,
                              on_tien_do=lambda x, n: _tt(du_an, buoc="tai_khoang", xong=x, tong=n,
                                                          pt=round(x * 100 / max(1, n), 1)))
     log(f"  cắt sát ngay sau tải: {tk_cat['khoang']} khoảng -> {tk_cat['manh']} mảnh ~{dung_tay.MANH_GIAY:.0f}s, "
@@ -573,11 +695,12 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
             for v_dp, sc, k_best, t, e, tong, khoang, _mp in ung_con[:3]:
                 da_tai_vids.add(v_dp["id"])
                 du_phong.append((v_dp, k_best, t, e, tong, khoang))
+    du_phong = loc_giay_phep(du_phong)
     if du_phong:
         ds_du_phong = ds_tai(du_phong)
         log(f"  tải dự phòng: {len(ds_du_phong)} khoảng bù cho các chủ đề thiếu footage...")
         dung_tay.tai_khoang_cuon(du_an, ds_du_phong, ten_buoc="tai_du_phong", max_cung_luc=TAI_CUNG_LUC,
-                                 sau_moi_video=cat_ngay, chi_hinh=True,
+                                 sau_moi_video=cat_ngay, chi_hinh=True, bam_ca=bam_ca,
                                  on_tien_do=lambda x, n: _tt(du_an, buoc="tai_khoang", xong=x, tong=n,
                                                              pt=round(x * 100 / max(1, n), 1)))
         cat_sat(du_phong)
@@ -642,6 +765,30 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
             raise ValueError("không dò được thư mục CapCut Drafts")
         _tt(du_an, buoc="nhap", xong=0, tong=0)
         nhap = {"ten": ten_nhap, "so": dung_tay.tao_nhap(du_an, ten_nhap, dd)}
+
+    # 10b. 22/10 user (an toàn bản quyền): GHI NGUỒN mọi nguồn đang có hình trong kế hoạch (CC BY bắt buộc ghi tác giả)
+    #      -> ra/<dự án>/ghi_nguon.txt, gộp theo video gốc — dán vào mô tả video YouTube
+    try:
+        dung_ = dung_tay.doc_dung(du_an)
+        kho_ = dung_tay.doc_kho(du_an)
+        nguon_ = {}
+        for kh in dung_.values():
+            for x in kh.get("doan", []):
+                m = kho_.get(x["kho_id"]) or {}
+                goc_ = m.get("video_goc") or x["kho_id"]
+                if goc_ in nguon_:
+                    continue
+                if m.get("ghi_nguon"):
+                    nguon_[goc_] = m["ghi_nguon"]
+                elif len(str(goc_)) == 11:                   # id YouTube (chế độ cũ / chưa kiểm giấy phép)
+                    td = re.sub(r"\s*\[cảnh [^\]]*\]$", "", str(m.get("tieu_de") or ""))
+                    nguon_[goc_] = f"{td} — {m.get('kenh', '')} — https://youtu.be/{goc_}"
+        with open(os.path.join(out, "ghi_nguon.txt"), "w", encoding="utf-8") as f:
+            f.write("Nguồn tư liệu hình ảnh (giấy phép Creative Commons / public domain / stock miễn phí):\n")
+            f.write("\n".join(f"- {v}" for v in sorted(nguon_.values())) + "\n")
+        log(f"  ghi nguồn: {len(nguon_)} nguồn -> ghi_nguon.txt")
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! ghi nguồn lỗi: {str(e)[:120]}")
 
     dung = dung_tay.doc_dung(du_an)
     co_hinh = sum(1 for c in canh if dung.get(str(c["id"]), {}).get("doan"))
@@ -966,7 +1113,7 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False, du
                 dem_v[0] += 1
             _tt(du_an, buoc="anh_ve", xong=dem_v[0], tong=len(viec))
             return r
-        with ThreadPoolExecutor(3) as ex:
+        with ThreadPoolExecutor(_so_luong_ve()) as ex:
             duoc = sum(1 for r in ex.map(ve1, viec) if r)
         log(f"  Gemini vẽ bù được {duoc}/{len(viec)} ảnh")
         if duoc:
@@ -1102,7 +1249,7 @@ def _ve_cho_het_hinh(du_an, can):
             dem[0] += 1
         _tt(du_an, buoc="anh_ve", xong=dem[0], tong=len(viec))
         return r
-    with ThreadPoolExecutor(3) as ex:
+    with ThreadPoolExecutor(_so_luong_ve()) as ex:
         duoc = sum(1 for r in ex.map(ve1, viec) if r)
     log(f"  Gemini vẽ được {duoc}/{len(viec)} ảnh cho chỗ hết hình")
     if duoc:

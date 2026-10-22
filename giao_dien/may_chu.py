@@ -1553,6 +1553,29 @@ def chen_anh_tai_len():
     return json_ok({"file": f, "url": url_tep(f) + f"&v={int(time.time())}"})
 
 
+@app.get("/api/hook_video")
+def hook_video_doc():
+    """22/10 user: danh sách câu lệnh video đoạn HOOK đã lập (chỉ để người dùng tự tạo — không tự chạy)."""
+    import hook_video
+    t = slug(tham_so_q("du_an"))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    return json_ok(hook_video.doc(t))
+
+
+@app.post("/api/hook_video/lap")
+def hook_video_lap():
+    """Lập (hoặc lập lại) câu lệnh video hook — một lần hỏi AI, chạy nền, trả job."""
+    import hook_video
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    hoi_lai = bool(d.get("hoi_lai"))
+    giay = max(10.0, min(90.0, float(d.get("giay") or hook_video.HOOK_GIAY)))
+    return json_ok({"job": _job_doi_thu(lambda bao: hook_video.lap(t, hoi_lai=hoi_lai, giay=giay))})
+
+
 @app.post("/api/flow_video")
 def flow_video_tao():
     """20/10 user: ô nhập câu lệnh tạo VIDEO bằng Google Flow (giống ô của Flow) -> MP4 xem trước ở anh_ai_thu/ (chạy nền).

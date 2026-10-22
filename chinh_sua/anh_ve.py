@@ -63,6 +63,39 @@ def _xep_tai_khoan(do_credit=True):
         return sorted(ds, key=lambda a: -(_CON.get(a["label"]) if _CON.get(a["label"]) is not None else -1))
 
 
+LUONG_VE_TOI_DA = 8         # 22/10 user ("nhiều cookie được nghỉ ngơi"): số luồng vẽ = số tài khoản dùng được, tối đa bấy nhiêu
+_DANG = {}                  # nhãn tài khoản -> số lượt vẽ đang chạy trên nó
+_KHOA_DANG = __import__("threading").Lock()
+
+
+def so_luong_ve():
+    """Số luồng vẽ song song nên dùng = số tài khoản Gemini còn dùng được (3..LUONG_VE_TOI_DA)."""
+    n = sum(1 for a in _tai_khoan() if a.get("label") not in _HONG)
+    return max(3, min(LUONG_VE_TOI_DA, n))
+
+
+def _lan_luot(ds):
+    """22/10: chia đều — tài khoản ĐANG ÍT VIỆC nhất lên trước (cùng mức thì giữ thứ tự credit). Trước đây mọi luồng
+    cùng chọn tài khoản nhiều credit nhất -> 3 luồng dồn một tài khoản, 7 tài khoản kia ngồi không."""
+    with _KHOA_DANG:
+        return sorted(ds, key=lambda a: _DANG.get(a.get("label"), 0))
+
+
+class _Giu:
+    """Đánh dấu tài khoản đang có một lượt vẽ (with _Giu(nhan): ...)."""
+
+    def __init__(self, nhan):
+        self.nhan = nhan
+
+    def __enter__(self):
+        with _KHOA_DANG:
+            _DANG[self.nhan] = _DANG.get(self.nhan, 0) + 1
+
+    def __exit__(self, *a):
+        with _KHOA_DANG:
+            _DANG[self.nhan] = max(0, _DANG.get(self.nhan, 1) - 1)
+
+
 def _loai_han(e):
     """Lỗi làm tài khoản hỏng hẳn trong lượt chạy (cookie hết hạn, bị chặn, hết lượt) — khác lỗi mạng tạm thời."""
     t = (type(e).__name__ + " " + str(e)).lower()
@@ -240,11 +273,37 @@ PHONG_CACH = ("Style: a REAL photograph, 50mm lens, aperture f/1.8, softly blurr
               "calm muted colours, not oversaturated.")
 
 
+NAM_QUA_KHU = 1990          # 22/10 user ("màu ảnh phù hợp với năm"): cảnh trước năm này -> màu / chất ảnh THEO THỜI ĐẠI
+PHONG_CACH_CU = ("Style: a REAL photograph, 50mm lens, softly blurred background, clean composition with no unnecessary "
+                 "clutter, soft natural shadows.")
+
+
+def nam_cua(thoi_dai):
+    """Năm sớm nhất đọc được trong chữ thời đại ('1904', 'the 1960s', 'early 20th century', 'thế kỷ 19') | None."""
+    import re
+    t = str(thoi_dai or "").lower()
+    ds = [int(x) for x in re.findall(r"(?<!\d)(1[0-9]{3}|20[0-9]{2})(?!\d)", t)]
+    for m in re.finditer(r"(\d{1,2})(?:st|nd|rd|th)?\s*century|thế kỷ\s*(\d{1,2})", t):
+        tk = int(m.group(1) or m.group(2))
+        ds.append((tk - 1) * 100 + (30 if "early" in t or "đầu" in t else 50))
+    return min(ds) if ds else None
+
+
 def phong_cach(thoi_dai=""):
-    """Đuôi câu lệnh vẽ: thời đại của cảnh (trang phục, xe cộ, đồ vật, tông màu đúng thời ấy) + PHONG_CACH."""
+    """Đuôi câu lệnh vẽ: thời đại của cảnh (trang phục, xe cộ, đồ vật đúng thời ấy) + phong cách ảnh.
+    22/10 user: cảnh QUÁ KHỨ (trước NAM_QUA_KHU) — màu, độ hạt, đen trắng / màu đời đầu do THỜI ĐẠI quyết (như ảnh chụp
+    thật thời đó), thắng màu cố định 5500K; cảnh hiện đại giữ nguyên phong cách cố định của user (PHONG_CACH)."""
     td = str(thoi_dai or "").strip()
-    return ((f"Period: the scene takes place in {td} — clothing, hairstyles, vehicles, equipment, buildings and the colour "
-             f"palette must match real photographs of that period (white balance stays neutral). ") if td else "") + PHONG_CACH
+    if not td:
+        return PHONG_CACH
+    nam = nam_cua(td)
+    if nam is not None and nam < NAM_QUA_KHU:
+        return (f"Period: the scene takes place in {td} — clothing, hairstyles, vehicles, equipment and buildings exactly of "
+                f"that time. It must look like an AUTHENTIC photograph actually taken in {td}: the camera, film stock, grain, "
+                f"tonality and colours of real photographs from that era (black-and-white, sepia or early colour film as was "
+                f"usual then) — the era decides the colours, not a modern neutral grade. " + PHONG_CACH_CU)
+    return (f"Period: the scene takes place in {td} — clothing, hairstyles, vehicles, equipment, buildings and the colour "
+            f"palette must match real photographs of that period (white balance stays neutral). ") + PHONG_CACH
 
 
 def xoa_dau_gemini(f):
@@ -340,12 +399,13 @@ def soat(f, cau, ve, timeout=90):
     import json
     import re
     p = _P_SOAT.format(cau=str(cau or "")[:600], ve=str(ve or "")[:900])
-    for a in _xep_tai_khoan():
+    for a in _lan_luot(_xep_tai_khoan()):
         nhan = a.get("label")
         if nhan in _HONG:
             continue
         try:
-            t = asyncio.run(asyncio.wait_for(_hoi_anh(a["cookies"], p, f, timeout), timeout + 30))
+            with _Giu(nhan):
+                t = asyncio.run(asyncio.wait_for(_hoi_anh(a["cookies"], p, f, timeout), timeout + 30))
         except Exception as e:                               # noqa: BLE001
             log(f"    ! soát ảnh (tài khoản {nhan}): {type(e).__name__}: {str(e)[:80]}")
             continue
@@ -381,13 +441,14 @@ def _qua_flow(prompt, thu, ten):
 def ve_prompt(prompt, thu, ten, tep=None, timeout=150, do_credit=True):
     """Vẽ theo câu lệnh đầy đủ (kèm ảnh mẫu `tep` nếu có) -> đường dẫn ảnh hoặc None; xoay tài khoản khi lỗi."""
     os.makedirs(thu, exist_ok=True)
-    for a in _xep_tai_khoan(do_credit):
+    for a in _lan_luot(_xep_tai_khoan(do_credit)):
         nhan = a.get("label")
         if nhan in _HONG:
             continue
         try:
             _tru(nhan)
-            f, ly = asyncio.run(asyncio.wait_for(_ve(a["cookies"], prompt, thu, ten, timeout, tep), timeout + 30))
+            with _Giu(nhan):
+                f, ly = asyncio.run(asyncio.wait_for(_ve(a["cookies"], prompt, thu, ten, timeout, tep), timeout + 30))
         except Exception as e:                               # noqa: BLE001
             log(f"    ! vẽ ảnh (tài khoản {nhan}): {type(e).__name__}: {str(e)[:100]}")
             if _loai_han(e):                                 # 13/10: chỉ loại tài khoản khi lỗi đăng nhập / hết lượt;
@@ -414,13 +475,14 @@ def ve(mo_ta, thu, ten, timeout=120):
               f"subject itself is a flat thing. No text, no letters, no numbers, no labels, no arrows, no border, no frame; "
               f"any screen or display must be blank.")
     os.makedirs(thu, exist_ok=True)
-    for a in _xep_tai_khoan():
+    for a in _lan_luot(_xep_tai_khoan()):
         nhan = a.get("label")
         if nhan in _HONG:
             continue
         try:
             _tru(nhan)
-            f, ly = asyncio.run(asyncio.wait_for(_ve(a["cookies"], prompt, thu, ten, timeout), timeout + 30))
+            with _Giu(nhan):
+                f, ly = asyncio.run(asyncio.wait_for(_ve(a["cookies"], prompt, thu, ten, timeout), timeout + 30))
         except Exception as e:                               # noqa: BLE001
             log(f"    ! vẽ ảnh (tài khoản {nhan}): {type(e).__name__}: {str(e)[:100]}")
             if _loai_han(e):                                 # 13/10: chỉ loại tài khoản khi lỗi đăng nhập / hết lượt;

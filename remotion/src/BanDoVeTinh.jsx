@@ -48,7 +48,16 @@ export const BanDoVeTinh = ({bd}) => {
     }
   }
   const diem = bd.diem || [];
-  // 20/10 user: chỉ cần icon vị trí + tên địa danh bên trên — không vẽ viền vùng (viền chỉ dùng để camera ôm vừa vùng).
+  // 20/10 user: mặc định chỉ icon vị trí + tên địa danh bên trên. 22/10 user ("đánh dấu lãnh thổ"): điểm được yêu cầu
+  // KHOANH (Python chỉ gửi d.vien khi khoanh) -> vẽ viền lãnh thổ chạy dần + tô mờ.
+  const vien = diem.map((d, i) => {
+    const a = hien(f, fps, d.vao ?? 0, d.ra ?? tong, tong);
+    if (!a || !d.vien) return null;
+    const ve = interpolate(f - (d.vao ?? 0) * fps, [0, 1.2 * fps], [0, 1], {...clamp, easing: Easing.inOut(Easing.cubic)});
+    const pts = d.vien.map(([la, lo]) => lenMan(cam, la, lo).map((v) => v.toFixed(1)).join(',')).join(' ');
+    return <polygon key={`v${i}`} points={pts} pathLength={1} fill={`rgba(255,213,79,${0.18 * ve})`} stroke="#ffd54f"
+      strokeWidth={5} strokeLinejoin="round" strokeDasharray="1" strokeDashoffset={1 - ve} opacity={a} />;
+  });
   const duong = (bd.duong || []).map((d, i) => {
     const A = diem[d.tu], B = diem[d.den];
     if (!A || !B) return null;
@@ -91,7 +100,7 @@ export const BanDoVeTinh = ({bd}) => {
   return (
     <AbsoluteFill style={{background: '#05070b', overflow: 'hidden'}}>
       {o}
-      <svg width={W} height={H} style={{position: 'absolute', left: 0, top: 0}}>{duong}</svg>
+      <svg width={W} height={H} style={{position: 'absolute', left: 0, top: 0}}>{vien}{duong}</svg>
       {ghim}
       {bd.ghi_nguon ? <div style={{position: 'absolute', right: 14, bottom: 10, fontFamily: FONT, fontSize: 15,
         color: 'rgba(255,255,255,.75)', textShadow: '0 1px 3px #000'}}>{bd.ghi_nguon}</div> : null}

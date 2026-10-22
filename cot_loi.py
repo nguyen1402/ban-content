@@ -230,7 +230,7 @@ def _phong_cach():
     return anh_ve.phong_cach()
 
 
-def ve(du_an, luong=3):
+def ve(du_an, luong=None):
     """Vẽ mọi ảnh cốt lõi còn thiếu -> kho dự án (kid "ai_<hash>"). Trả số ảnh vẽ được trong lượt này."""
     import sys
     from concurrent.futures import ThreadPoolExecutor
@@ -288,6 +288,9 @@ def ve(du_an, luong=3):
             return True
         log(f"    ! không vẽ được ảnh cốt lõi: {a['mo_ta_en'][:70]}")
         return False
+    if not luong:                                            # 22/10 user: số luồng = số tài khoản cookie (chia đều)
+        import anh_ve
+        luong = anh_ve.so_luong_ve()
     with ThreadPoolExecutor(luong) as ex:
         n = sum(1 for r in ex.map(mot, viec) if r)
     TT[du_an]["dang"] = False

@@ -55,19 +55,23 @@ def _sach_ten(s, n=60):
 
 
 # --------------------------------------------------------------------------- tìm
-def tim_youtube(q, n=12, lam_moi=False):
-    """Kết quả tìm YouTube (không tải): [{id, tieu_de, dai, kenh, luot_xem, xac_minh}] — dùng yt-dlp --flat-playlist."""
+def tim_youtube(q, n=12, lam_moi=False, chi_cc=False):
+    """Kết quả tìm YouTube (không tải): [{id, tieu_de, dai, kenh, luot_xem, xac_minh}] — dùng yt-dlp --flat-playlist.
+    chi_cc (22/10 user "an toàn nhất"): chỉ video giấy phép CREATIVE COMMONS (bộ lọc của trang kết quả YouTube)."""
     cache = os.path.join(CACHE_CHUNG, "tim_tay.json")
     da = doc_json(cache, {}) or {}
-    k = f"yt|{n}|{q.strip().lower()}"
+    dau = "ytcc" if chi_cc else "yt"
+    k = f"{dau}|{n}|{q.strip().lower()}"
     if not lam_moi:
         if k in da and time.time() - da[k].get("luc", 0) < 7 * 86400:
             return da[k]["ds"]
-        for n2 in (10, 12, 15, 20, 25):                              # đã tìm cùng từ khoá với nhiều kết quả hơn: cắt bớt
-            k2 = f"yt|{n2}|{q.strip().lower()}"
+        for n2 in (10, 12, 15, 20, 25, 30):                          # đã tìm cùng từ khoá với nhiều kết quả hơn: cắt bớt
+            k2 = f"{dau}|{n2}|{q.strip().lower()}"
             if n2 > n and k2 in da and time.time() - da[k2].get("luc", 0) < 7 * 86400:
                 return da[k2]["ds"][:n]
-    p = subprocess.run([YTDLP, *YT_JS, "--flat-playlist", "-J", "--no-warnings", f"ytsearch{n}:{q}"],
+    nguon = (["--playlist-end", str(n), "https://www.youtube.com/results?search_query=" + urllib.parse.quote(q)
+              + "&sp=EgIwAQ%3D%3D"] if chi_cc else [f"ytsearch{n}:{q}"])
+    p = subprocess.run([YTDLP, *YT_JS, "--flat-playlist", "-J", "--no-warnings", *nguon],
                        capture_output=True, timeout=120, creationflags=0x08000000 if os.name == "nt" else 0)
     try:
         j = json.loads(p.stdout.decode("utf-8", "ignore") or "{}")
@@ -85,6 +89,72 @@ def tim_youtube(q, n=12, lam_moi=False):
         da[k] = {"luc": time.time(), "ds": ds}
         ghi_json(cache, da)
     return ds
+
+
+# 22/10 user ("làm an toàn nhất" về bản quyền): nguồn YouTube chỉ nhận Creative Commons (kiểm lại từng video) hoặc kênh
+# CƠ QUAN CHÍNH PHỦ MỸ (tác phẩm của chính phủ liên bang thường là public domain); CHẶN hẳn đài tin tức / truyền hình,
+# kho stock bán bản quyền (bản xem trước có watermark), hãng phim — kể cả khi gắn nhãn CC (thường là đăng lại trái phép).
+KENH_CONG = re.compile(r"\b(NOAA|NASA|U\.?S\.? ?Navy\w*|US Navy|U\.?S\.? ?Army|Army Corps of Engineers|USACE|DVIDS\w*|USGS|"
+                       r"National Park Service|NPS|U\.?S\.? Fish (and|&) Wildlife|USFWS|U\.?S\.? ?EPA|"
+                       r"National Archives|Library of Congress|U\.?S\.? Coast Guard|USCG|U\.?S\.? ?Air Force|"
+                       r"U\.?S\.? Marine Corps|USMC|Department of (Defense|Energy|the Interior|Agriculture)|"
+                       r"National Ocean Service|NOAA Fisheries|Smithsonian Environmental)\b", re.I)
+CHAN_NGUON = re.compile(r"\b(CNN|BBC|NBC|ABC|CBS|Fox|PIX ?11|WPIX|Sky News|Al Jazeera|Reuters|AP Archive|Associated Press|"
+                        r"Bloomberg|CNBC|MSNBC|Yahoo Finance|Euronews|DW News|France 24|Channel 4|ITV|NHK|CGTN|"
+                        r"Insider|Business Insider|Vox|Vice|NowThis|Washington Post|New York Times|NYT|Guardian|"
+                        r"National Geographic|Nat Geo|Discovery|Smithsonian Channel|History Channel|PBS|Netflix|"
+                        r"Disney|HBO|Warner|Universal|Paramount|Sony Pictures|Pathe|Pathé|CriticalPast|Getty|"
+                        r"Shutterstock|Pond5|Storyblocks|Videoblocks|Alamy|Adobe Stock|iStock|Dissolve|Framepool|"
+                        r"Artgrid|Envato|Motion Array|MyFootage|Film Supply|Filmsupply|Footage Farm|Huntley Film|"
+                        r"British Movietone|Movietone|Archive Films)\b", re.I)
+
+
+def la_kenh_cong(kenh):
+    return bool(KENH_CONG.search(str(kenh or "")))
+
+
+def bi_chan(v):
+    """Kênh / tiêu đề thuộc nguồn rủi ro cao (tin tức, truyền hình, stock bán bản quyền, hãng phim)."""
+    return bool(CHAN_NGUON.search(f"{v.get('kenh') or ''} | {v.get('tieu_de') or ''}"))
+
+
+def giay_phep_youtube(vid):
+    """Giấy phép THẬT của một video YouTube ('Creative Commons Attribution license (reuse allowed)' / '' = chuẩn YouTube)
+    + tên kênh — đọc metadata đầy đủ, cache vĩnh viễn ở cache/giay_phep_yt.json. Lỗi đọc -> None."""
+    cache = os.path.join(CACHE_CHUNG, "giay_phep_yt.json")
+    da = doc_json(cache, {}) or {}
+    if vid in da:
+        return da[vid]
+    p = subprocess.run([YTDLP, *YT_JS, "-J", "--skip-download", "--no-warnings", "--no-playlist",
+                        f"https://www.youtube.com/watch?v={vid}"], capture_output=True, timeout=120,
+                       creationflags=0x08000000 if os.name == "nt" else 0)
+    try:
+        d = json.loads(p.stdout.decode("utf-8", "ignore") or "{}")
+    except ValueError:
+        return None
+    if not d.get("id"):
+        return None
+    kq = {"license": d.get("license") or "", "kenh": d.get("channel") or d.get("uploader") or "",
+          "tieu_de": d.get("title") or ""}
+    with _KHOA:
+        da = doc_json(cache, {}) or {}
+        da[vid] = kq
+        ghi_json(cache, da)
+    return kq
+
+
+def nguon_an_toan(vid, kenh=""):
+    """(được dùng?, giấy phép ghi nguồn) — Creative Commons thật hoặc kênh cơ quan chính phủ Mỹ, không thuộc nguồn chặn."""
+    gp = giay_phep_youtube(vid)
+    if not gp:
+        return False, ""
+    if bi_chan({"kenh": gp["kenh"], "tieu_de": gp["tieu_de"]}):
+        return False, ""
+    if "creative commons" in gp["license"].lower():
+        return True, "CC BY (YouTube Creative Commons)"
+    if la_kenh_cong(gp["kenh"] or kenh):
+        return True, "tư liệu cơ quan chính phủ Mỹ (public domain)"
+    return False, ""
 
 
 def tim_anh(q, n=40):
@@ -381,6 +451,95 @@ def cat_sat_khop(du_an, kid, Q):
     return giu, so_giu
 
 
+BAM_CA_VIDEO = True         # 22/10 user: tải về thì BĂM CẢ VIDEO theo cảnh quay (không chỉ vài khoảng khớp ảnh xem trước)
+BAM_SHOT_MIN = 1.5          # cảnh quay ngắn hơn bỏ (chớp nhoáng / chuyển cảnh)
+BAM_TOI_DA = 12             # tối đa bấy nhiêu mảnh / video (điểm cao trước) — 22/10 user: băm từ NHIỀU video khác nhau
+BAM_DU = 1.0                # 22/10 user ("cắt hụt"): file mảnh cắt DƯ bấy nhiêu giây mỗi đầu; khớp chỉ trong phần LÕI
+#                             (loi_bd / loi_kt = giây lõi tính trong file mảnh)
+BAM_LE = 0.15               # cắt lùi vào trong mỗi đầu cảnh (tránh dính khung cảnh bên cạnh)
+
+
+def bam_theo_canh(du_an, vid, file_goc, Q, chu_de=None, meta=None):
+    """22/10 user ("băm video gần chủ thể lấp vào"): băm CẢ video gốc vừa tải thành MẢNH = MỘT CẢNH QUAY (điểm đổi cảnh
+    sach_hinh.canh_cat); cảnh dài quá 1,5 x MANH_GIAY chia đều ~MANH_GIAY. Mỗi mảnh chấm SigLIP (nửa khung tốt nhất) với
+    các mô tả chủ thể Q, đạt NGUONG_KHUNG_THAT mới giữ; khung hoạt hình / game / ẢNH TĨNH kéo chậm > 30% mảnh -> bỏ.
+    Mảnh = mục kho "v_<vid>_c<i>" (manh_cua = video gốc). Trả (giây giữ, số mảnh)."""
+    import numpy as np
+    from PIL import Image
+    import nhung_siglip
+    import sach_hinh
+    meta = meta or {}
+    vid_safe = re.sub(r"[^\w-]", "", vid)[:30]
+    tong = _do_dai(file_goc) or 0.0
+    if tong < 2:
+        return 0.0, 0
+    fps = 2 if tong <= 300 else 1                            # video dài: 1 khung/giây cho nhẹ (cảnh >= 1,5 s vẫn có khung)
+    W, H = 256, 144
+    buf = subprocess.run([FFMPEG, "-v", "error", "-i", file_goc, "-an", "-vf", f"fps={fps},scale={W}:{H}", "-f", "rawvideo",
+                          "-pix_fmt", "rgb24", "-"], capture_output=True, timeout=1800,
+                         creationflags=0x08000000 if os.name == "nt" else 0).stdout
+    n = len(buf) // (W * H * 3)
+    if n < 2:
+        return 0.0, 0
+    E = nhung_siglip.nhung_anh([Image.fromarray(np.frombuffer(buf, np.uint8, W * H * 3, k * W * H * 3).reshape(H, W, 3))
+                               for k in range(n)])
+    del buf
+    diem = (E @ np.asarray(Q).T).max(1)
+    xau = np.zeros(n, bool)
+    try:                                                     # hoạt hình / game: như cat_sat_khop
+        import loc_minh_hoa
+        xau |= loc_minh_hoa.diem_hoat_hinh(E) > loc_minh_hoa.NGUONG_HOAT_HINH
+        _ = loc_minh_hoa.la_game(E[:1])
+        xau |= ((E @ loc_minh_hoa._V["game"].T).max(1) - (E @ loc_minh_hoa._V["t"].T).max(1)) > loc_minh_hoa.LE_GAME   # noqa: SLF001
+        for a_, b_ in loc_minh_hoa.keo_tinh("goc_" + vid_safe, file_goc):   # ảnh tĩnh phóng / lia chậm
+            xau[max(0, int(a_ * fps)):min(n, int(np.ceil(b_ * fps)) + 1)] = True
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! băm {vid_safe}: lọc hoạt hình / ảnh tĩnh lỗi ({str(e)[:80]})")
+    moc = [0.0] + [b for b in sach_hinh.canh_cat(file_goc, "goc_" + vid_safe) if 0 < b < tong] + [tong]
+    ung = []
+    for a, b in zip(moc, moc[1:]):
+        a, b = a + BAM_LE, b - BAM_LE
+        if b - a < BAM_SHOT_MIN:
+            continue
+        so = max(1, int(round((b - a) / MANH_GIAY))) if b - a > 1.5 * MANH_GIAY else 1
+        d = (b - a) / so
+        for q in range(so):
+            t0, t1 = a + q * d, a + (q + 1) * d
+            k0, k1 = int(t0 * fps), max(int(t0 * fps) + 1, int(t1 * fps))
+            s = diem[k0:k1]
+            if not len(s) or xau[k0:k1].mean() > 0.3:
+                continue
+            sc = float(np.sort(s)[-max(1, len(s) // 2):].mean())
+            if sc >= NGUONG_KHUNG_THAT:
+                ung.append((sc, t0, t1))
+    ung = sorted(sorted(ung, key=lambda x: -x[0])[:BAM_TOI_DA], key=lambda x: x[1])
+    thu = os.path.dirname(file_goc)
+    giu, so_giu = 0.0, 0
+    for i, (sc, t0, t1) in enumerate(ung):
+        kid = f"v_{vid_safe}_c{i}"
+        dich = os.path.join(thu, kid + ".mp4")
+        a0, b0 = max(0.0, t0 - BAM_DU), min(tong, t1 + BAM_DU)   # cắt DƯ hai đầu
+        if not (os.path.isfile(dich) and os.path.getsize(dich) > 5000):
+            p = subprocess.run([FFMPEG, "-v", "error", "-y", "-ss", f"{a0:.2f}", "-i", file_goc, "-t", f"{b0 - a0:.2f}", "-an",
+                                "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", dich],
+                               capture_output=True, timeout=180, creationflags=0x08000000 if os.name == "nt" else 0)
+            if p.returncode != 0 or not os.path.isfile(dich) or os.path.getsize(dich) < 5000:
+                continue
+        w, h = _kich_thuoc(dich)
+        _cap_nhat_kho(du_an, kid, loai="video", video_goc=vid, manh_cua=f"v_{vid_safe}", chu_de=chu_de,
+                      kenh=meta.get("kenh", ""), tieu_de=f"{meta.get('tieu_de', '')} [cảnh {int(t0)}s-{int(t1)}s]",
+                      file=dich, dai=_do_dai(dich) or round(b0 - a0, 2), rong=w, cao=h, trang_thai="xong", pt=100.0,
+                      ghi_nguon=meta.get("ghi_nguon", ""), giay_phep=meta.get("giay_phep", ""),
+                      nguon_kho=meta.get("nguon_kho", "youtube"),
+                      cat_sat=True, bam_canh=True, diem_khop=round(sc, 3), giay_bat_dau=round(a0, 2),
+                      giay_ket_thuc=round(b0, 2), loi_bd=round(t0 - a0, 2), loi_kt=round(t1 - a0, 2),
+                      luc=time.time(), tay=True)
+        giu += t1 - t0
+        so_giu += 1
+    log(f"    băm {vid_safe}: {len(moc) - 1} cảnh quay / {tong:.0f}s -> giữ {so_giu} mảnh ({giu:.0f}s)")
+    return giu, so_giu
+
+
 def chon_khoang_video(t, e, qv, tong, min_dai=20.0, max_dai=40.0, toi_da_khoang=4):
     """Giai đoạn 3: Chọn 1–4 khoảng tốt nhất (20–40s) dựa vào điểm chấm ảnh xem trước (storyboard) so với mô tả chủ đề qv.
     Các khoảng không chồng nhau. Hai khoảng cách nhau dưới 10 giây thì gộp làm một."""
@@ -596,7 +755,7 @@ def tai_khoang_video(du_an, vid, bd, kt, tieu_de="", kenh="", chu_de_id=None, ta
 
 
 def tai_khoang_cuon(du_an, ds_khoang, ten_buoc="tai_khoang", max_cung_luc=3, on_tien_do=None, sau_moi_video=None,
-                    chi_hinh=False):
+                    chi_hinh=False, bam_ca=None):
     """Tải các khoảng video theo cơ chế Batch-per-source:
     Gom các khoảng theo từng video nguồn (vid). Với mỗi video nguồn:
     1. Tải bản 720p một lần bằng bộ tải gốc yt-dlp (nhanh 10-15s, không bị bóp băng thông).
@@ -671,6 +830,27 @@ def tai_khoang_cuon(du_an, ds_khoang, ten_buoc="tai_khoang", max_cung_luc=3, on_
                         on_tien_do(xong[0], tong)
             return
 
+        # 2'. 22/10 user: BĂM CẢ VIDEO theo cảnh quay (bam_ca(vid, file gốc, danh sách khoảng) -> (giây, số mảnh)); các
+        #     khoảng định vị thô chỉ còn là dấu "đã xử lý" (trang_thai "tach") — không cắt khoảng ±1,5 s nữa
+        if bam_ca is not None:
+            try:
+                _g, so_m = bam_ca(vid, file_goc, danh_sach)
+            except Exception as e:                           # noqa: BLE001
+                log(f"    ! băm cả video {vid_safe}: {str(e)[:120]}")
+                so_m = 0
+            for it, kid, dich in can_cat:
+                _cap_nhat_kho(du_an, kid, trang_thai="tach" if so_m else "loi", cat_sat=True, so_manh=so_m,
+                              loi="" if so_m else "băm cả video: không cảnh nào khớp", tay=True)
+                with khoa_local:
+                    xong[0] += 1
+                    if on_tien_do:
+                        on_tien_do(xong[0], tong)
+            try:
+                os.remove(file_goc)
+            except OSError:
+                pass
+            return
+
         # 2. Cắt từng khoảng cục bộ bằng ffmpeg (-c copy)
         for it, kid, dich in can_cat:
             ok_cat, thoi_luong = _cat_khoang_local(file_goc, it["bd"], it["kt"], dich)
@@ -701,7 +881,7 @@ def tai_khoang_cuon(du_an, ds_khoang, ten_buoc="tai_khoang", max_cung_luc=3, on_
             except Exception as e:                           # noqa: BLE001
                 log(f"    ! xử lý sau tải {vid_safe}: {str(e)[:100]}")
 
-    so_luong_thread = min(max(1, max_cung_luc), len(theo_vid), 5)   # 18/10: tối đa 5 video cùng lúc (trước: 3)
+    so_luong_thread = min(max(1, max_cung_luc), len(theo_vid), 10)  # 22/10: tối đa 10 video cùng lúc (trước: 5)
     with ThreadPoolExecutor(max_workers=so_luong_thread) as executor:
         for vid, ds_it in theo_vid.items():
             executor.submit(xu_ly_video, vid, ds_it)

@@ -237,8 +237,15 @@ def tao(prompt, thu, ten_goc, ti_le="16:9", model="Veo 3.1 - Fast", phan_giai=""
     ds = [h for h in flow_ve.ds_ho_so() if not h["dang_nghi"] and (not ho_so or h["ten"] == ho_so)]
     if not ds:
         raise RuntimeError("chưa có hồ sơ Flow dùng được — tạo / đăng nhập ở «🎨 Hồ sơ Flow» trên trang chính")
-    ds.sort(key=lambda h: flow_ve._KHOA_PHIEN.setdefault(h["ten"], threading.Lock()).locked())   # noqa: SLF001
-    ten = ds[0]["ten"]
+    # 22/10 user: nhiều video cùng lúc -> mỗi lượt GIỮ CHỖ một hồ sơ rảnh (flow_ve._giu_ho_so), không giành nhau
+    ten = flow_ve._giu_ho_so([h["ten"] for h in ds])           # noqa: SLF001
+    try:
+        return _tao_tren(ten, prompt, thu, ten_goc, ti_le, model, phan_giai, do_dai, so, anh_dau, anh_cuoi, bao)
+    finally:
+        flow_ve._tha_ho_so(ten)                                  # noqa: SLF001
+
+
+def _tao_tren(ten, prompt, thu, ten_goc, ti_le, model, phan_giai, do_dai, so, anh_dau, anh_cuoi, bao):
     with flow_ve._KHOA_PHIEN.setdefault(ten, threading.Lock()):  # noqa: SLF001
         ph = flow_ve._PHIEN.get(ten)                              # noqa: SLF001
         try:

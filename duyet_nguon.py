@@ -310,7 +310,8 @@ def tai_va_ghep_da_chon(du_an, chon_video, chon_anh=None, ten_nhap=None):
     if ds_khoang_tai:
         log(f"  [duyệt nguồn] Tải {len(ds_khoang_tai)} khoảng đa dạng từ {sum(len(v) for v in chon_video.values())} video đã chọn...")
         _tt(du_an, buoc="tai_khoang", xong=0, tong=len(ds_khoang_tai))
-        dung_tay.tai_khoang_cuon(du_an, ds_khoang_tai, ten_buoc="tai_khoang", max_cung_luc=3,
+        import tu_dong_tim                                   # 22/10: cùng mức tải song song với tìm tự động (10)
+        dung_tay.tai_khoang_cuon(du_an, ds_khoang_tai, ten_buoc="tai_khoang", max_cung_luc=tu_dong_tim.TAI_CUNG_LUC,
                                  on_tien_do=lambda x, n: _tt(du_an, buoc="tai_khoang", xong=x, tong=n,
                                                              pt=round(x * 100 / max(1, n), 1)))
     else:

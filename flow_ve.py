@@ -352,6 +352,30 @@ def _link(kq, dau):
     return ra
 
 
+_GIU = {}                    # tên hồ sơ -> số luồng đang giữ (vẽ ảnh / tạo video)
+_KHOA_GIU = threading.Lock()
+
+
+def _giu_ho_so(ten_ds, bo=()):
+    """Chọn và GIỮ một hồ sơ trong ten_ds (trừ bo): ít luồng giữ nhất trước (rảnh = 0). Trả tên | None."""
+    with _KHOA_GIU:
+        ung = [t for t in ten_ds if t not in bo]
+        if not ung:
+            return None
+        t = min(ung, key=lambda x: _GIU.get(x, 0))
+        _GIU[t] = _GIU.get(t, 0) + 1
+        return t
+
+
+def _tha_ho_so(ten):
+    with _KHOA_GIU:
+        _GIU[ten] = max(0, _GIU.get(ten, 1) - 1)
+
+
+def so_ho_so_dung_duoc():
+    return sum(1 for h in ds_ho_so() if not h["dang_nghi"])
+
+
 def ve(prompt, thu, ten_file, ti_le="16:9"):
     """Vẽ một ảnh qua Flow -> đường dẫn file đã tải | None (chưa có hồ sơ / mọi hồ sơ lỗi — bên gọi lùi về Gemini)."""
     goc = re.sub(r"\s*(Remember: NO writing at all\.|Absolutely NO writing anywhere\.)\s*$", "", prompt).strip()
@@ -363,57 +387,64 @@ def ve(prompt, thu, ten_file, ti_le="16:9"):
             os.replace(f, dich)
             return dich
     ds = [h for h in ds_ho_so() if not h["dang_nghi"]]
-    # 15/10: nhiều hồ sơ -> nhiều luồng vẽ SONG SONG: hồ sơ nào đang RẢNH dùng trước, hồ sơ bận xếp sau (chờ)
-    ds.sort(key=lambda h: _KHOA_PHIEN.setdefault(h["ten"], threading.Lock()).locked())
-    for k, h in enumerate(ds):
-        ten = h["ten"]
-        khoa = _KHOA_PHIEN.setdefault(ten, threading.Lock())
-        with khoa:
-            try:
-                ph = _PHIEN.get(ten)
-                if ph is None:
-                    ph = _Phien(ten, CONG_DAU + list(_doc_so()).index(ten) % 40)
-                    _PHIEN[ten] = ph
-                    _vao_du_an(ph)
-                ph.loi = ""
-                link = _tao(ph, prompt, ti_le)
-            except PermissionError as e:
-                log(f"    ! Flow '{ten}': {e}")
-                _cap_nhat(ten, nghi_den=time.time() + NGHI_LOI, loi=str(e)[:160])
-                dong(ten)
-                continue
-            except Exception as e:                               # noqa: BLE001
-                log(f"    ! Flow '{ten}': {type(e).__name__}: {str(e)[:140]}")
-                dong(ten)
-                continue
-            if not link:
-                loi = getattr(ph, "loi", "") or "không có ảnh"
-                log(f"    ! Flow '{ten}': {loi[:140]}")
-                if re.search(r"unusual|verify|captcha", loi, re.I):
-                    ph.hien_cua_so()                           # để người dùng giải xác minh
-                    _cap_nhat(ten, nghi_den=time.time() + NGHI_LOI, loi="cần xác minh: " + loi[:120])
-                elif re.search(r"limit|quota|later", loi, re.I):
-                    _cap_nhat(ten, nghi_den=time.time() + 6 * 3600, loi="hết lượt: " + loi[:120])
+    # 22/10 user ("nhiều luồng"): mỗi luồng GIỮ CHỖ một hồ sơ RẢNH (dưới khoá chung) — trước đây các luồng cùng xếp
+    # theo .locked() một lúc nên cùng chọn hồ sơ đầu rồi chờ nhau. Hết hồ sơ rảnh thì xếp hồ sơ ít người chờ nhất.
+    da_thu = set()
+    while True:
+        ten = _giu_ho_so([h["ten"] for h in ds], da_thu)
+        if ten is None:
+            break
+        da_thu.add(ten)
+        try:
+            khoa = _KHOA_PHIEN.setdefault(ten, threading.Lock())
+            with khoa:
+                try:
+                    ph = _PHIEN.get(ten)
+                    if ph is None:
+                        ph = _Phien(ten, CONG_DAU + list(_doc_so()).index(ten) % 40)
+                        _PHIEN[ten] = ph
+                        _vao_du_an(ph)
+                    ph.loi = ""
+                    link = _tao(ph, prompt, ti_le)
+                except PermissionError as e:
+                    log(f"    ! Flow '{ten}': {e}")
+                    _cap_nhat(ten, nghi_den=time.time() + NGHI_LOI, loi=str(e)[:160])
                     dong(ten)
-                continue
-        os.makedirs(thu, exist_ok=True)
-        tep = []
-        for i, u in enumerate(link[:2]):
-            dich = os.path.join(thu, ten_file if i == 0 else f"_du_{os.getpid()}_{time.time_ns()}.png")
-            try:
-                with urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"}), timeout=60) as r:
-                    data = r.read()
-                from PIL import Image
-                import io
-                Image.open(io.BytesIO(data)).convert("RGB").save(dich)
-                tep.append(dich)
-            except Exception as e:                               # noqa: BLE001
-                log(f"    ! Flow tải ảnh lỗi: {str(e)[:100]}")
-        if tep:
-            if len(tep) > 1:
-                _DU.setdefault(goc, []).extend(tep[1:])
-            _cap_nhat(ten, dung_luc=time.time(), so_anh=int(_doc_so().get(ten, {}).get("so_anh") or 0) + len(tep), loi="")
-            if tep[0] != os.path.join(thu, ten_file):
-                os.replace(tep[0], os.path.join(thu, ten_file))
-            return os.path.join(thu, ten_file)
+                    continue
+                except Exception as e:                               # noqa: BLE001
+                    log(f"    ! Flow '{ten}': {type(e).__name__}: {str(e)[:140]}")
+                    dong(ten)
+                    continue
+                if not link:
+                    loi = getattr(ph, "loi", "") or "không có ảnh"
+                    log(f"    ! Flow '{ten}': {loi[:140]}")
+                    if re.search(r"unusual|verify|captcha", loi, re.I):
+                        ph.hien_cua_so()                           # để người dùng giải xác minh
+                        _cap_nhat(ten, nghi_den=time.time() + NGHI_LOI, loi="cần xác minh: " + loi[:120])
+                    elif re.search(r"limit|quota|later", loi, re.I):
+                        _cap_nhat(ten, nghi_den=time.time() + 6 * 3600, loi="hết lượt: " + loi[:120])
+                        dong(ten)
+                    continue
+            os.makedirs(thu, exist_ok=True)
+            tep = []
+            for i, u in enumerate(link[:2]):
+                dich = os.path.join(thu, ten_file if i == 0 else f"_du_{os.getpid()}_{time.time_ns()}.png")
+                try:
+                    with urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"}), timeout=60) as r:
+                        data = r.read()
+                    from PIL import Image
+                    import io
+                    Image.open(io.BytesIO(data)).convert("RGB").save(dich)
+                    tep.append(dich)
+                except Exception as e:                               # noqa: BLE001
+                    log(f"    ! Flow tải ảnh lỗi: {str(e)[:100]}")
+            if tep:
+                if len(tep) > 1:
+                    _DU.setdefault(goc, []).extend(tep[1:])
+                _cap_nhat(ten, dung_luc=time.time(), so_anh=int(_doc_so().get(ten, {}).get("so_anh") or 0) + len(tep), loi="")
+                if tep[0] != os.path.join(thu, ten_file):
+                    os.replace(tep[0], os.path.join(thu, ten_file))
+                return os.path.join(thu, ten_file)
+        finally:
+            _tha_ho_so(ten)
     return None

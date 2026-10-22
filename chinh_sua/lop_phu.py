@@ -359,3 +359,70 @@ def dat(script, ds, SEC=1_000_000, W=1920, H=1080):
         script.add_segment(seg_k, track_name="lop_phu_khung")
         script.add_segment(seg_c, track_name="lop_phu_chu")
     return len(ds)
+
+
+NV_CO = 0.5                # 22/10 user: thẻ ảnh NHÂN VẬT THẬT chiếm ~50% khung, lệch trái / phải xen kẽ
+NV_DAI = (3.0, 6.0)        # thẻ hiện 3-6 s
+
+
+def lap_nhan_vat(cau, out, ds_nv, cam=()):
+    """22/10 user ("nhân vật thật sự tồn tại thì không dùng ảnh AI vẽ mà tìm ảnh google tải về rồi phủ lên nền video
+    đang chạy"): mỗi nhân vật THẬT (dieu_phoi kieu "nhan_vat": ten, anh = từ khoá Google, moc) -> ẢNH THẬT tìm trên
+    Google Images (cùng bộ lọc ảnh có chữ / hoạt hình / trùng của thẻ highlight) làm thẻ bo góc KHÔNG CHỮ (21/10 user tắt
+    chữ trên màn hình) -> [{cau, ten, anh, file(PNG thẻ), bd, dai, ben}]. Cache out/nhan_vat.json."""
+    from PIL import Image
+    thu = os.path.join(out, "lop_phu")
+    os.makedirs(thu, exist_ok=True)
+    theo_i = {c["i"]: c for c in cau}
+    p_cache = os.path.join(out, "nhan_vat.json")
+    cu = {(x["cau"], x["anh"]): x for x in doc_json(p_cache, []) or [] if os.path.isfile(x.get("file") or "")}
+    da_dung = {"url": set(), "v": []}
+    ra, ben = [], 1
+    for x in sorted(ds_nv, key=lambda z: int(z.get("cau") or 0)):
+        try:
+            c = theo_i.get(int(x.get("cau")))
+        except (TypeError, ValueError):
+            continue
+        q = str(x.get("anh") or "").strip()
+        if not c or not q:
+            continue
+        moc = str(x.get("moc") or "").strip()
+        bd, kt = _luc_hien(c, moc)
+        if any(bd < b_ + 0.3 and bd + NV_DAI[0] > a_ - 0.3 for a_, b_ in cam):
+            continue                                         # trùng giờ bản đồ / sơ đồ: không thẻ
+        if ra and bd < ra[-1]["bd"] + ra[-1]["dai"] + 0.5:
+            continue
+        y = cu.get((c["i"], q))
+        if not y:
+            jpg = _chon_anh(q, thu, f"nv_{c['i']:04d}", da_dung)
+            if not jpg:
+                log(f"    ! nhân vật «{x.get('ten')}»: không tìm được ảnh thật ('{q}')")
+                continue
+            png = jpg[:-4] + "_the.png"
+            _the(Image.open(jpg), png, chu="")
+            y = {"cau": c["i"], "ten": str(x.get("ten") or ""), "anh": q, "file": png}
+        y = dict(y, bd=round(bd, 2), dai=round(max(NV_DAI[0], min(NV_DAI[1], kt - bd)), 2), ben=ben)
+        ra.append(y)
+        ben = -ben
+    ghi_json(p_cache, ra)
+    log(f"    {len(ra)} thẻ ảnh NHÂN VẬT THẬT (ảnh Google) / {len(ds_nv)} nhân vật điều phối nêu")
+    return ra
+
+
+def dat_nhan_vat(script, ds, SEC=1_000_000):
+    """Đặt thẻ nhân vật lên track "nhan_vat" (đã tạo): nảy vào, mờ ra, lệch trái / phải xen kẽ."""
+    import pycapcut as draft
+    from pycapcut import trange
+    KP = draft.KeyframeProperty
+    for x in ds:
+        d = int(x["dai"] * SEC)
+        seg = draft.VideoSegment(draft.VideoMaterial(x["file"]), trange(int(x["bd"] * SEC), d),
+                                 clip_settings=draft.ClipSettings(scale_x=NV_CO, scale_y=NV_CO, transform_x=0.42 * x["ben"]))
+        for t, s_ in ((0, NV_CO * 0.72), (int(0.22 * SEC), NV_CO * 1.04), (int(0.36 * SEC), NV_CO)):
+            seg.add_keyframe(KP.uniform_scale, t, s_)
+        seg.add_keyframe(KP.alpha, 0, 0.0)
+        seg.add_keyframe(KP.alpha, int(0.18 * SEC), 1.0)
+        seg.add_keyframe(KP.alpha, max(d - int(0.3 * SEC), int(0.4 * SEC)), 1.0)
+        seg.add_keyframe(KP.alpha, d - 1000, 0.0)
+        script.add_segment(seg, track_name="nhan_vat")
+    return len(ds)

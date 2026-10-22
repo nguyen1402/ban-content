@@ -32,7 +32,8 @@ Template:
         {{"tim": "<FULL official English name + region/state + country, e.g. 'Blackwater National Wildlife Refuge, Maryland,
                   USA', or exact coordinates 'lat,lon' if the user gave them>",
           "nhan": "<short Vietnamese label shown on the map, as the user names it>",
-          "khoanh": true (outline the real boundary of an area: park, refuge, island, peninsula, country…) | false (just a pin),
+          "khoanh": true ONLY when the user asks to outline / mark / highlight the territory or boundary of the place
+                    (e.g. "khoanh vùng", "đánh dấu lãnh thổ", "tô ranh giới") | false (default: a location pin + label),
           "vao": seconds, "ra": seconds}} ],
       "camera": [ keyframes the camera flies through, in time order:
         {{"luc": seconds, "nhin": "xa" (seen from space, very far) | "tat_ca" (frame all places) | [place indexes to frame],

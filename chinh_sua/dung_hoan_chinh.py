@@ -34,6 +34,8 @@ NHAC_BAT = True
 NHAC_NGUON = "kho_chuan"  # "kho_chuan" (kho_am_thanh sạch) | "mixkit" | "kho"
 CHU_BAT = False
 #: 12/10 user: lớp ẢNH PHỦ minh hoạ khi cần (chinh_sua/lop_phu.py). Tắt bằng --khong-lop-phu.
+NHAN_VAT_BAT = False       # 22/10 user: TẮT ảnh Google người thật (dễ nhầm người) -> người thật chỉ được vẽ ảnh AI DIỄN BIẾN
+#                            việc họ làm, không lộ mặt (luật trong dieu_phoi._P_AI). Bật True = thẻ ảnh thật lop_phu.lap_nhan_vat
 LOP_PHU_BAT = False        # 13/10 user: ẨN thẻ highlight ("hiện tại chưa cần dùng tới") — bật lại: True / bỏ --khong-lop-phu
 #: 12/10 user: hiệu ứng kiểu video mẫu (chinh_sua/hieu_ung.py): bản đồ đường đi A->B, khung highlight viền vàng,
 #: phủ màu khi đổi chương. Tắt bằng --khong-hieu-ung.
@@ -580,9 +582,23 @@ def dat_chu_phu(script, ds, KP):
     return len(ds)
 
 
-def chuyen_dong_anh_ai(seg, d, k, KP):
+def chuyen_dong_anh_ai(seg, d, k, KP, huong=None):
     """Chuyển động lia máy Ken Burns chậm rãi, điện ảnh cho chuỗi ảnh AI.
-    19/10 user: nền phóng 120% (giấu dấu ✦ Gemini ở góc phải dưới — ảnh không còn bị làm mờ chỗ dấu)."""
+    19/10 user: nền phóng 120% (giấu dấu ✦ Gemini ở góc phải dưới — ảnh không còn bị làm mờ chỗ dấu).
+    22/10 user: `huong` (điều phối ghi theo HÀNH ĐỘNG của ảnh): trai / phai / len / xuong / vao / ra; không có -> luân phiên."""
+    if huong in ("vao", "ra"):
+        a_, b_ = (1.18, 1.30) if huong == "vao" else (1.30, 1.18)
+        seg.add_keyframe(KP.uniform_scale, 0, a_)
+        seg.add_keyframe(KP.uniform_scale, d - 1000, b_)
+        return
+    if huong in ("trai", "phai", "len", "xuong"):
+        seg.add_keyframe(KP.uniform_scale, 0, 1.24)
+        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.26)
+        kp = KP.position_x if huong in ("trai", "phai") else KP.position_y
+        a_ = {"trai": 0.03, "phai": -0.03, "len": -0.03, "xuong": 0.03}[huong]
+        seg.add_keyframe(kp, 0, a_)
+        seg.add_keyframe(kp, d - 1000, -a_)
+        return
     kieu = k % 4
     if kieu == 0:                                             # zoom in chậm rãi
         seg.add_keyframe(KP.uniform_scale, 0, 1.20)
@@ -630,6 +646,8 @@ def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
         script.add_track(draft.TrackType.video, track_name="lop_phu", relative_index=5)   # thẻ: ảnh thật
         script.add_track(draft.TrackType.video, track_name="lop_phu_khung", relative_index=6)   # thẻ: khung trắng
         script.add_track(draft.TrackType.text, track_name="lop_phu_chu", relative_index=1)   # thẻ: chữ (sửa tay được)
+    if kh.get("nhan_vat"):                                   # 22/10 user: ảnh THẬT nhân vật có thật phủ lên video
+        script.add_track(draft.TrackType.video, track_name="nhan_vat", relative_index=7)
     KP0 = draft.KeyframeProperty
     kieu_anh = 0
     vat_lieu = {}
@@ -735,7 +753,7 @@ def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
             for pd in x.get("phan_doan", []):
                 f_anh = pd["file"]
                 if os.path.isfile(f_anh) and os.path.getsize(f_anh) > 5000:
-                    ds_pd.append({"bd": pd["bd"], "dai": pd["dai"], "file": f_anh})
+                    ds_pd.append({"bd": pd["bd"], "dai": pd["dai"], "file": f_anh, "huong": pd.get("huong")})
         ds_pd.sort(key=lambda z: z["bd"])
         cuoi_ai = 0
         k_anh_ai = 0
@@ -750,7 +768,7 @@ def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
                 continue
             mat = draft.VideoMaterial(pd["file"])
             seg = draft.VideoSegment(mat, trange(st, d), volume=0.0)
-            chuyen_dong_anh_ai(seg, d, k_anh_ai, KP)
+            chuyen_dong_anh_ai(seg, d, k_anh_ai, KP, pd.get("huong"))
             script.add_segment(seg, track_name="anh_ai")
             cuoi_ai = st + d
             k_anh_ai += 1
@@ -761,6 +779,9 @@ def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
     if kh.get("lop_phu"):
         import lop_phu
         lop_phu.dat(script, kh["lop_phu"], SEC)
+    if kh.get("nhan_vat"):
+        import lop_phu
+        lop_phu.dat_nhan_vat(script, kh["nhan_vat"], SEC)
     if kh.get("bang_giay"):
         import bang_giay
         bang_giay.dat(script, kh["bang_giay"], SEC)
@@ -1005,6 +1026,13 @@ def main():
             hu = [(y["bd"], y["bd"] + y["dai"]) for y in kh.get("hieu_ung") or [] if y["kieu"] != "phu_mau"]
             kh["lop_phu"] = [x for x in kh["lop_phu"]                          # thẻ ảnh không đè lên bản đồ/highlight
                              if all(x["bd"] + x["dai"] <= a or x["bd"] >= b for a, b in hu) and ngoai_bg(x)]
+        # 22/10 user: NHÂN VẬT THẬT (điều phối "nhan_vat") -> ảnh thật Google phủ lên video, không vẽ AI
+        nv_ = [x for x in (de or []) if x.get("kieu") == "nhan_vat"]
+        if NHAN_VAT_BAT and nv_:
+            import lop_phu
+            cam_ = [(y["bd"], y["bd"] + y["dai"]) for y in kh.get("hieu_ung") or [] if y["kieu"] != "phu_mau"]
+            cam_ += [(y["bd"], y["bd"] + y["dai"]) for y in kh.get("lop_phu") or []]
+            kh["nhan_vat"] = [x for x in lop_phu.lap_nhan_vat(cau, OUT, nv_, cam=cam_) if ngoai_bg(x)]
         kh["sfx"] = chon_sfx(kh["sfx"], am) if SFX_BAT else []
         ghi_json(KE_HOACH, kh)
         log(f"[2] kế hoạch: {len(kh['chuong'])} chương, {len(kh['chu'])} chữ nhấn mạnh, {len(kh.get('lop_phu') or [])} ảnh phủ, "
