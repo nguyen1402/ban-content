@@ -59,7 +59,7 @@ dialog::backdrop{background:#000a}dialog video{width:100%;display:block;border-r
   <button class="p" id="nutck" title="Tài khoản Gemini / ChatGPT (cookie) — kho riêng của bán-content">🍪 Cookie</button>
   <a class="p" href="/doi_thu" target="_blank" title="Quét giờ đăng của kênh đối thủ + tìm video đột biến của kênh ít sub cùng ngách" style="padding:6px 12px;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:var(--ink)">📈 Đối thủ</a>
   <button class="p" id="nutflow" title="Hồ sơ Chrome để vẽ ảnh bằng Google Flow (Nano Banana, 0 điểm)">🎨 Hồ sơ Flow</button>
-  <button class="p" id="nutflow_hl" title="Nhập câu tạo ảnh rồi tạo hàng loạt ảnh thông qua script Flow">🖼️ Tạo hàng loạt ảnh Flow</button>
+  <a class="p" href="/storyboard" target="_blank" title="Nhập kịch bản → AI lập assets + scene nối tiếp (nhân vật nhất quán) → vẽ ảnh Flow → video hook → JSON / bản nháp CapCut" style="padding:6px 12px;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:var(--ink)">🎬 Storyboard Flow</a>
 </header>
 <main>
   <section class="card" id="ck" style="display:none">
@@ -256,7 +256,6 @@ async function veFlow(){let d;try{d=await api('/api/flow')}catch(e){$('#flowds')
       '<button data-fl="xoa|'+escH(h.ten)+'" style="padding:2px 8px">Xoá</button>'+kq+'</div>'}).join(''):'<div class="sub" style="margin:0">(chưa có hồ sơ — đang dùng Gemini cookie, tốn điểm)</div>';
   clearTimeout(flowHen);if(dang&&$('#flowk').style.display!=='none')flowHen=setTimeout(veFlow,3000)}
 $('#nutflow').onclick=()=>{const c=$('#flowk');const hien=c.style.display==='none';c.style.display=hien?'':'none';if(hien){veFlow();kiemTraFlowHangLoat()}};
-$('#nutflow_hl').onclick=()=>{const c=$('#flowk');c.style.display='';veFlow();kiemTraFlowHangLoat();setTimeout(()=>$('#flow_hang_loat_sec').scrollIntoView({behavior:'smooth'}),100)};
 $('#flowtao').onclick=async()=>{const ten=$('#flowten').value.trim();if(!ten)return tb('Đặt tên hồ sơ');
   try{await post('/api/flow/tao',{ten});$('#flowten').value='';tb('Đã mở Chrome — đăng nhập Flow rồi đóng cửa sổ');veFlow()}catch(e){tb('Lỗi: '+e.message)}};
 $('#flowds').onclick=async e=>{const b=e.target.closest('[data-fl]');if(!b)return;const [vc,ten]=b.dataset.fl.split('|');

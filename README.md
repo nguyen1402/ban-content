@@ -70,11 +70,29 @@ python chay.py kich_ban\ten_du_an.txt --du-an ten_du_an --ten "Tên bản nháp"
 
 ---
 
+## 🎬 Storyboard Flow (nhân vật nhất quán, 0 điểm cho ảnh)
+
+Nút **🎬 Storyboard Flow** trên thanh trên cùng (trang `/storyboard`, code `storyboard.py`):
+
+1. Nhập / nạp kịch bản, chọn **số ảnh mỗi scene** (mặc định 4, mỗi scene chỉnh riêng được), số scene (0 = AI tự chia),
+   tỉ lệ, phong cách.
+2. **① Phân tích assets**: AI lập nhân vật / bối cảnh / đạo cụ với mô tả ngoại hình CỐ ĐỊNH (tiếng Anh, sửa tay được)
+   → **🎨 Vẽ ảnh assets** (tờ nhân vật toàn thân + cận mặt).
+3. **② Tạo scene**: AI chia scene nối tiếp và viết câu lệnh từng ảnh: mỗi ảnh là khoảnh khắc đang chuyển động (chống
+   đơ), đổi góc máy, hành động tiến dần. Khi vẽ, ảnh asset của nhân vật có trong khung được **gắn làm ảnh tham chiếu
+   (ingredients) của Flow**, kèm ảnh trước của cùng scene ("Nối tiếp ảnh trước") → nhân vật giữ nguyên dù đổi bối cảnh.
+   Mỗi lượt Flow cho 2 phương án, bấm 1 / 2 để chọn; ↻ vẽ lại từng ảnh; ↻ Làm lại scene với số ảnh mới.
+4. **🎬 Tạo video** cho từng scene làm hook (khung đầu = ảnh đánh dấu; **tốn điểm Flow**, hỏi lại trước khi tạo).
+5. **Xuất**: ⬇ file JSON (assets, scene, câu lệnh, đường dẫn ảnh / video) hoặc 📦 bản nháp CapCut (video hook + ảnh
+   của từng scene, mỗi ảnh N giây, phóng/thu nhẹ). Dữ liệu ở `ra/storyboard/<id>/`.
+
+⚡ **Chạy tất cả** làm liền các bước 2–3. Cần ít nhất một hồ sơ ở `🎨 Hồ sơ Flow`; nhiều hồ sơ thì vẽ song song.
+
 ## 🎨 Tạo hàng loạt ảnh bằng Google Flow (Nano Banana, 0 điểm)
 
 Hỗ trợ nhập nhiều câu lệnh tạo ảnh và chạy script tự động vẽ hàng loạt ảnh, xoay vòng các hồ sơ Chrome Flow (0 credit).
 
-- **Trên giao diện Web**: Bấm nút **🖼️ Tạo hàng loạt ảnh Flow** ở thanh điều hướng trên cùng (hoặc mở thẻ `🎨 Hồ sơ Flow`):
+- **Trên giao diện Web**: mở thẻ `🎨 Hồ sơ Flow`, phần tạo hàng loạt nằm dưới danh sách hồ sơ:
   - Dán danh sách câu prompt (mỗi dòng một câu, hoặc cú pháp `tên_file: câu lệnh`).
   - Hoặc bấm **📄 Nạp từ file (.txt)**, hoặc **💡 Lấy từ kịch bản dự án** để tự động lấy toàn bộ mô tả cảnh của kịch bản đang chọn.
   - Chọn tỉ lệ ảnh (`16:9`, `9:16`, `1:1`, `4:3`, `3:4`), phong cách gợi ý (Điện ảnh, Hoạt hình, Tách nền trắng...), thư mục lưu ảnh.

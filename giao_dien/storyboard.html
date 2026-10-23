@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Storyboard Flow — Bản Content</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1c2230;--mut:#667085;--line:#e3e6ec;--ac:#2f6df6;--ac-ink:#fff;--ok:#1a9d5c;--wa:#c27803;--er:#d33a3a}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1218;--card:#171b24;--ink:#e8ecf3;--mut:#93a0b4;--line:#262c39;--ac:#5b8cff;--ac-ink:#0b0f18;--ok:#43c783;--wa:#e0a43a;--er:#ff7070}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Segoe UI",system-ui,sans-serif}
+header{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:10px 20px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+header a{color:var(--ac);text-decoration:none}
+main{max-width:1400px;margin:16px auto;padding:0 16px;display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+h2{margin:0 0 6px;font-size:17px}
+h3{margin:0;font-size:15px}
+.sub{color:var(--mut);font-size:13px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+label{font-size:13px;color:var(--mut);display:inline-flex;gap:6px;align-items:center}
+input,textarea,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 9px}
+textarea{width:100%;resize:vertical}
+input[type=number]{width:72px}
+button{font:inherit;border:0;border-radius:8px;padding:7px 14px;background:var(--ac);color:var(--ac-ink);cursor:pointer;white-space:nowrap}
+button.p{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button.ok{background:var(--ok);color:#fff}
+button.er{background:var(--er);color:#fff}
+button.nho{padding:3px 9px;font-size:12.5px}
+button:disabled{opacity:.5;cursor:default}
+.buoc{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.tt{margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--bg);border:1px solid var(--line);display:none}
+.tt pre{margin:6px 0 0;max-height:170px;overflow:auto;font-size:12.5px;white-space:pre-wrap}
+.luoi{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-top:10px}
+.o{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column}
+.khung{position:relative;background:#0002;display:flex;align-items:center;justify-content:center;color:var(--mut);font-size:13px}
+.khung img,.khung video{width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in}
+.nhan{position:absolute;top:6px;left:6px;background:#000a;color:#fff;font-size:11.5px;padding:1px 7px;border-radius:6px}
+.bt{position:absolute;bottom:6px;right:6px;display:flex;gap:4px}
+.bt button{padding:1px 8px;font-size:12px;background:#000a;color:#fff;border:1px solid #fff5}
+.bt button.chon{background:var(--ac);color:var(--ac-ink)}
+.than{padding:8px 10px;display:grid;gap:6px;font-size:13px}
+.than textarea{font-size:12.5px;min-height:70px}
+.chip{display:inline-block;font-size:12px;padding:1px 8px;border-radius:20px;border:1px solid var(--line);margin:0 4px 4px 0}
+.chip.nv{border-color:var(--ac);color:var(--ac)}
+.chip.bc{border-color:var(--ok);color:var(--ok)}
+.chip.dc{border-color:var(--wa);color:var(--wa)}
+.canh{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:12px;background:var(--card)}
+.canh-dau{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.dai{display:flex;gap:12px;overflow-x:auto;padding:10px 2px 6px;scroll-snap-type:x proximity}
+.dai .o{flex:0 0 260px;scroll-snap-align:start}
+.loi{color:var(--er);font-size:12.5px}
+.quay{display:inline-block;width:14px;height:14px;border:2px solid var(--mut);border-top-color:transparent;border-radius:50%;animation:q 1s linear infinite;vertical-align:-2px}
+@keyframes q{to{transform:rotate(360deg)}}
+details>summary{cursor:pointer;color:var(--mut);font-size:12.5px}
+.video{margin-top:10px;display:grid;grid-template-columns:minmax(220px,360px) 1fr;gap:12px;align-items:start;border-top:1px dashed var(--line);padding-top:10px}
+@media (max-width:760px){.video{grid-template-columns:1fr}.dai .o{flex-basis:220px}}
+#tb{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:10px;transition:.25s;z-index:20;max-width:90vw}
+#tb.hien{transform:translateX(-50%) translateY(0)}
+.an{display:none}
+</style>
+</head>
+<body>
+<header>
+  <b>🎬 Storyboard Flow</b><a href="/">← Bản Content</a>
+  <label>Storyboard <select id="chon_sb"><option value="">＋ Storyboard mới</option></select></label>
+  <span class="sub">Kịch bản → assets → scene nối tiếp (nhân vật nhất quán, gắn ảnh tham chiếu) → ảnh Flow 0 điểm → video hook → JSON / CapCut</span>
+</header>
+<main>
+<section class="card">
+  <h2>1. Kịch bản & cài đặt</h2>
+  <div class="row">
+    <label>Tên <input id="ten" placeholder="vd: Chú bé và con rồng" style="width:260px"></label>
+    <button class="p nho" id="nap_tep">📄 Nạp file .txt</button><input type="file" id="tep" accept=".txt" hidden>
+  </div>
+  <textarea id="kich_ban" style="min-height:170px;margin-top:8px" placeholder="Dán kịch bản vào đây (tiếng Việt hay tiếng Anh đều được)…"></textarea>
+  <div class="row" style="margin-top:8px">
+    <label title="Số ảnh mỗi scene (mặc định 4; mỗi scene còn chỉnh riêng được)">Số ảnh mỗi scene <input type="number" id="so_anh" min="1" max="10" value="4"></label>
+    <label title="0 = để AI tự chia theo nhịp truyện">Số scene <input type="number" id="so_canh" min="0" max="40" value="0"></label>
+    <label>Tỉ lệ <select id="ti_le"><option>16:9</option><option>9:16</option><option>1:1</option><option>4:3</option><option>3:4</option></select></label>
+    <label>Phong cách <select id="phong_cach">
+      <option value="dien_anh">Điện ảnh (ảnh thật)</option><option value="tai_lieu">Tài liệu</option>
+      <option value="hoat_hinh_3d">Hoạt hình 3D</option><option value="anime">Anime</option><option value="minh_hoa">Minh hoạ</option></select></label>
+    <label style="flex:1;min-width:220px">Thêm <input id="phong_cach_them" placeholder="vd: Việt Nam thập niên 1990, tông ấm" style="flex:1"></label>
+    <label title="Bật: ảnh trước của cùng scene gắn làm tham chiếu cho ảnh sau (liền mạch hơn nhưng CHẬM — vẽ lần lượt trong scene). Tắt: mọi ảnh vẽ song song, nhân vật vẫn giữ nhờ ảnh asset."><input type="checkbox" id="noi_tiep"> Nối tiếp ảnh trước (chậm)</label>
+  </div>
+  <div class="buoc">
+    <button id="b_assets">① Phân tích assets</button>
+    <button id="b_ve_assets" class="p">🎨 Vẽ ảnh assets</button>
+    <button id="b_canh">② Tạo scene</button>
+    <button id="b_ve_canh" class="p">🎨 Vẽ ảnh mọi scene</button>
+    <button id="b_tat_ca" class="ok" title="Assets → vẽ assets → scene → vẽ ảnh scene (bỏ qua phần đã có)">⚡ Chạy tất cả</button>
+    <button id="b_dung" class="er an">■ Dừng</button>
+  </div>
+  <div class="tt" id="tt"><b id="tt_chu"></b><pre id="tt_log"></pre></div>
+</section>
+
+<section class="card an" id="the_assets">
+  <div class="row" style="justify-content:space-between"><h2>2. Assets — nhân vật, bối cảnh, đạo cụ</h2>
+    <span class="sub">Mô tả tiếng Anh là "chuẩn ngoại hình" chép vào MỌI ảnh; ảnh asset gắn làm ảnh tham chiếu. Sửa mô tả → bấm ↻ vẽ lại.</span></div>
+  <div class="row sub" id="pc_dong" style="margin-top:4px"></div>
+  <div class="luoi" id="ds_assets"></div>
+</section>
+
+<section class="card an" id="the_canh">
+  <div class="row" style="justify-content:space-between"><h2>3. Scenes</h2>
+    <span class="sub">Bấm ảnh để xem cỡ thật · mỗi lượt Flow cho 2 phương án (1 / 2) · 🎬 video tốn điểm Flow</span></div>
+  <div id="ds_canh"></div>
+</section>
+
+<section class="card an" id="the_xuat">
+  <h2>4. Xuất</h2>
+  <div class="row" style="margin-bottom:10px">
+    <label>Giọng đọc <select id="x_giong"></select></label>
+    <label>Tốc độ <input type="number" id="x_toc" min="0.7" max="1.5" step="0.05" value="1"></label>
+    <button id="x_doc_xuat" class="ok" title="Đọc lời kịch bản của từng scene (OmniVoice) rồi tạo bản nháp CapCut: ảnh mỗi scene trải theo đúng độ dài lời đọc">🔊 Đọc lời + ghép bản nháp CapCut</button>
+    <span class="sub" id="x_giong_tt"></span>
+  </div>
+  <div class="row">
+    <button id="x_json">⬇ Tải file JSON</button>
+    <label>Tên bản nháp <input id="x_ten" placeholder="SB_…" style="width:200px"></label>
+    <label>Giây mỗi ảnh <input type="number" id="x_giay" min="0.5" max="20" step="0.5" value="3"></label>
+    <label><input type="checkbox" id="x_video" checked> Kèm video hook</label>
+    <label title="Dùng giọng đã đọc (nếu có) và khớp ảnh theo lời"><input type="checkbox" id="x_co_giong" checked> Kèm giọng đọc</label>
+    <button id="x_capcut" class="ok">📦 Xuất bản nháp CapCut</button>
+    <button id="x_thu" class="p">📁 Mở thư mục</button>
+    <button id="x_xoa" class="p" style="margin-left:auto">🗑 Xoá storyboard</button>
+  </div>
+  <p class="sub" id="x_kq"></p>
+</section>
+</main>
+<div id="tb"></div>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function tb(m){const e=$('#tb');e.textContent=m;e.classList.add('hien');clearTimeout(tb.h);tb.h=setTimeout(()=>e.classList.remove('hien'),3200)}
+async function api(p,o){const r=await fetch(p,o);if(!r.ok){let t='';try{t=await r.text()}catch(e){}const m=t.match(/<pre>([\s\S]*?)<\/pre>/i);const div=document.createElement('div');div.innerHTML=m?m[1]:'';const msg=(m?div.textContent:t.replace(/<[^>]*>/g,' ')).replace(/\s+/g,' ').trim().slice(0,220);throw new Error(msg||('mã '+r.status))}return r.json()}
+const post=(p,d)=>api(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
+
+let SID=new URLSearchParams(location.search).get('id')||'';
+let D=null, hen=null, models=[];
+const anhVideo={};                                   // scene id -> id ảnh làm khung đầu video
+function mDaChon(){try{return localStorage.getItem('sb_model')||''}catch(e){return ''}}
+
+function caiDat(){return{so_anh:+$('#so_anh').value||4,so_canh:+$('#so_canh').value||0,ti_le:$('#ti_le').value,
+  phong_cach:$('#phong_cach').value,phong_cach_them:$('#phong_cach_them').value,noi_tiep:$('#noi_tiep').checked,giay_anh:+$('#x_giay').value||3}}
+
+async function veDs(){let d;try{d=await api('/api/sb/ds')}catch(e){return}
+  $('#chon_sb').innerHTML='<option value="">＋ Storyboard mới</option>'+d.ds.map(x=>`<option value="${esc(x.id)}">${esc(x.ten)} · ${x.so_canh} scene</option>`).join('');
+  $('#chon_sb').value=SID}
+$('#chon_sb').onchange=e=>{SID=e.target.value;history.replaceState(null,'',SID?'?id='+encodeURIComponent(SID):'/storyboard');if(SID)tai();else moi()};
+function moi(){D=null;$('#ten').value='';$('#kich_ban').value='';['#the_assets','#the_canh','#the_xuat'].forEach(s=>$(s).classList.add('an'));$('#tt').style.display='none'}
+
+$('#nap_tep').onclick=()=>$('#tep').click();
+$('#tep').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=v=>{$('#kich_ban').value=v.target.result;if(!$('#ten').value)$('#ten').value=f.name.replace(/\.txt$/i,'');luuDau()};r.readAsText(f,'utf-8');e.target.value=''};
+
+// lưu kịch bản + cài đặt (tạo storyboard nếu chưa có)
+async function damBao(){
+  const kb=$('#kich_ban').value.trim();if(!kb)throw new Error('Chưa nhập kịch bản');
+  if(!SID){const r=await post('/api/sb/tao',{ten:$('#ten').value.trim()||'storyboard',kich_ban:kb,cai_dat:caiDat()});SID=r.id;history.replaceState(null,'','?id='+encodeURIComponent(SID));veDs()}
+  else await post('/api/sb/sua',{id:SID,ten:$('#ten').value.trim(),kich_ban:kb,cai_dat:caiDat()});
+}
+let hLuu=null;function luuDau(){if(!SID)return;clearTimeout(hLuu);hLuu=setTimeout(()=>post('/api/sb/sua',{id:SID,ten:$('#ten').value.trim(),kich_ban:$('#kich_ban').value,cai_dat:caiDat()}).catch(()=>{}),600)}
+['#ten','#kich_ban','#so_anh','#so_canh','#ti_le','#phong_cach','#phong_cach_them','#noi_tiep','#x_giay'].forEach(s=>$(s).addEventListener('change',luuDau));
+
+async function viec(v,them={}){try{await damBao();await post('/api/sb/viec',Object.assign({id:SID,viec:v},them));tb('Đã bắt đầu…');tai()}catch(e){tb('Lỗi: '+e.message)}}
+$('#b_assets').onclick=()=>{if(D&&D.sb.assets.length&&!confirm('Phân tích lại assets? (asset có mô tả không đổi giữ nguyên ảnh)'))return;viec('assets')};
+$('#b_ve_assets').onclick=()=>viec('ve_assets');
+$('#b_canh').onclick=()=>{if(D&&D.sb.canh.length&&!confirm('Tạo lại toàn bộ scene? Ảnh scene cũ sẽ bỏ khỏi storyboard.'))return;viec('canh')};
+$('#b_ve_canh').onclick=()=>viec('ve_canh');
+$('#b_tat_ca').onclick=()=>viec('tat_ca');
+$('#b_dung').onclick=()=>post('/api/sb/dung',{id:SID}).then(()=>tb('Đã yêu cầu dừng'));
+
+async function tai(){
+  clearTimeout(hen);if(!SID)return;
+  let d;try{d=await api('/api/sb?id='+encodeURIComponent(SID))}catch(e){tb('Lỗi: '+e.message);return}
+  const dau=!D||D.sb.id!==d.sb.id;D=d;models=d.model||[];
+  if(dau){const s=d.sb,c=s.cai_dat;$('#ten').value=s.ten;$('#kich_ban').value=s.kich_ban;$('#so_anh').value=c.so_anh;$('#so_canh').value=c.so_canh;
+    $('#ti_le').value=c.ti_le;$('#phong_cach').value=c.phong_cach;$('#phong_cach_them').value=c.phong_cach_them||'';$('#noi_tiep').checked=c.noi_tiep===true;
+    $('#x_giay').value=c.giay_anh||3;$('#x_ten').placeholder='SB_'+s.id}
+  veTT();
+  const dangGo=document.activeElement&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)&&document.activeElement.closest('#the_assets,#the_canh');
+  if(!dangGo){veAssets();veCanh()}
+  $('#the_xuat').classList.toggle('an',!d.sb.canh.length);
+  const chay=d.tt.dang||d.sb.canh.some(c=>(c.video||{}).tt==='dang');
+  hen=setTimeout(tai,chay?2500:15000);
+}
+
+function veTT(){const t=D.tt||{};const box=$('#tt');
+  if(!t.viec&&!(t.dong||[]).length){box.style.display='none'}else{box.style.display='block'}
+  $('#tt_chu').innerHTML=t.dang?`<span class="quay"></span> Đang: ${esc(t.viec)}…`:(t.loi?`<span class="loi">✖ ${esc(t.loi)}</span>`:(t.viec?`✔ ${esc(t.viec)} — xong`:''));
+  const pre=$('#tt_log');const cuoi=pre.scrollTop+pre.clientHeight>=pre.scrollHeight-8;pre.textContent=(t.dong||[]).join('\n');if(cuoi)pre.scrollTop=pre.scrollHeight;
+  $('#b_dung').classList.toggle('an',!t.dang);
+  ['#b_assets','#b_ve_assets','#b_canh','#b_ve_canh','#b_tat_ca','#x_doc_xuat'].forEach(s=>$(s).disabled=!!t.dang);
+  const g=(D.sb.giong||{}).cau||[];const co=g.filter(x=>x.file);
+  $('#x_giong_tt').textContent=g.length?`Đã đọc ${co.length}/${g.length} câu (~${Math.round(co.reduce((s,x)=>s+(x.dai||0)+0.25,0))} giây)`:'Chưa đọc lời';
+  if(t.kq_capcut&&!t.dang)$('#x_kq').textContent=`✔ Bản nháp «${t.kq_capcut.ten}»: ${t.kq_capcut.so_doan} đoạn hình + ${t.kq_capcut.so_cau} câu đọc, ${t.kq_capcut.giay} giây. Mở CapCut để kiểm tra.`}
+
+function khung(m,ti,nhan,thuoc){
+  const ar=ti.replace(':','/');const u=(m.url||[]).filter(Boolean);const chon=Math.min(m.chon||0,Math.max(0,u.length-1));
+  let ben;
+  if(m.tt==='dang')ben=`<span><span class="quay"></span> đang vẽ…</span>`;
+  else if(u.length)ben=`<img src="${u[chon]}" loading="lazy" onclick="window.open(this.src)">`;
+  else ben=`<span>${m.tt==='loi'?'✖ lỗi':'chưa vẽ'}</span>`;
+  const bt=u.length>1?`<div class="bt">${u.map((x,i)=>`<button class="${i===chon?'chon':''}" data-chon="${thuoc}|${i}">${i+1}</button>`).join('')}</div>`:'';
+  return `<div class="khung" style="aspect-ratio:${ar}">${ben}<span class="nhan">${esc(nhan)}</span>${bt}</div>`}
+
+const LOAI={nhan_vat:['nv','Nhân vật'],boi_canh:['bc','Bối cảnh'],dao_cu:['dc','Đạo cụ']};
+function veAssets(){const s=D.sb;$('#the_assets').classList.toggle('an',!s.assets.length);
+  $('#pc_dong').innerHTML=s.phong_cach_chung?`<b>Phong cách chung:</b>&nbsp;<input id="pc_chung" value="${esc(s.phong_cach_chung)}" style="flex:1;min-width:280px">`:'';
+  const pcc=$('#pc_chung');if(pcc)pcc.onchange=()=>post('/api/sb/sua',{id:SID,phong_cach_chung:pcc.value}).then(()=>tb('Đã lưu'));
+  const tiAsset=s.cai_dat.ti_le;
+  $('#ds_assets').innerHTML=s.assets.map(a=>{const l=LOAI[a.loai]||['nv',''];return `<div class="o">
+    ${khung(a,tiAsset,a.id+' · '+l[1],'a|'+a.id)}
+    <div class="than"><div class="row" style="justify-content:space-between"><input data-a="${esc(a.id)}" data-k="ten" value="${esc(a.ten)}" style="flex:1;font-weight:600">
+      <button class="p nho" data-ve-asset="${esc(a.id)}" title="Vẽ lại ảnh asset này">↻</button></div>
+      <span class="sub">${esc(a.mo_ta_vi)}</span>
+      <details><summary>Mô tả ngoại hình cố định (EN)</summary><textarea data-a="${esc(a.id)}" data-k="mo_ta_en">${esc(a.mo_ta_en)}</textarea></details>
+      ${a.loi?`<span class="loi">${esc(a.loi)}</span>`:''}</div></div>`}).join('')}
+
+function tenAsset(id){const a=D.sb.assets.find(x=>x.id===id);return a?a.ten:id}
+function chipAsset(id){const a=D.sb.assets.find(x=>x.id===id);const l=LOAI[(a||{}).loai]||['nv'];return `<span class="chip ${l[0]}">${esc(id)} ${esc(tenAsset(id))}</span>`}
+
+function veCanh(){const s=D.sb;$('#the_canh').classList.toggle('an',!s.canh.length);const ti=s.cai_dat.ti_le;
+  $('#ds_canh').innerHTML=s.canh.map(c=>{const v=c.video||{};const vAnh=anhVideo[c.id]||((c.anh.find(a=>(a.url||[]).some(Boolean))||{}).id);
+    return `<div class="canh" id="canh_${c.id}">
+    <div class="canh-dau"><div style="flex:1;min-width:260px"><h3>Scene ${c.id} — ${esc(c.tieu_de)}</h3>
+      <div class="sub">${esc(c.tom_tat_vi)}</div>
+      <div style="margin-top:4px">${c.boi_canh?chipAsset(c.boi_canh):''}${(c.nhan_vat||[]).map(chipAsset).join('')}</div>
+      ${c.loi?`<details><summary>Lời kịch bản của scene</summary><div class="sub" style="white-space:pre-wrap">${esc(c.loi)}</div></details>`:''}</div>
+      <div class="row"><label>Số ảnh <input type="number" min="1" max="10" value="${c.so_anh||c.anh.length}" id="sa_${c.id}"></label>
+        <button class="p nho" data-lam-lai="${c.id}" title="AI viết lại câu lệnh với số ảnh mới rồi vẽ lại cả scene">↻ Làm lại scene</button>
+        <button class="p nho" data-ve-canh="${c.id}" title="Vẽ các ảnh còn thiếu của scene này">🎨 Vẽ scene</button></div></div>
+    <div class="dai">${c.anh.map(a=>`<div class="o">${khung(a,ti,'Ảnh '+a.id,'c|'+c.id+'|'+a.id)}
+      <div class="than"><span>${esc(a.mo_ta_vi)}</span>
+        <div>${(a.nhan_vat||[]).map(chipAsset).join('')}</div>
+        <details><summary>Câu lệnh (EN)</summary><textarea data-c="${c.id}" data-anh="${a.id}">${esc(a.prompt_en)}</textarea></details>
+        <div class="row"><button class="p nho" data-ve-anh="${c.id}|${a.id}">↻ Vẽ lại</button>
+          <label title="Ảnh làm khung đầu cho video của scene"><input type="radio" name="va_${c.id}" value="${a.id}" ${a.id===vAnh?'checked':''} data-va="${c.id}"> khung đầu video</label></div>
+        ${a.loi?`<span class="loi">${esc(a.loi)}</span>`:''}</div></div>`).join('')||'<span class="sub">Chưa có câu lệnh ảnh — bấm ↻ Làm lại scene</span>'}</div>
+    <div class="video"><div>${v.url?`<video src="${v.url}" controls preload="metadata" style="width:100%;border-radius:8px;aspect-ratio:${/9:16|3:4/.test(ti)?'9/16':'16/9'}"></video>`
+        :`<div class="khung" style="aspect-ratio:${/9:16|3:4/.test(ti)?'9/16':'16/9'};border-radius:8px">${v.tt==='dang'?'<span><span class="quay"></span> đang tạo video…</span>':'chưa có video'}</div>`}</div>
+      <div class="than" style="padding:0"><b>🎬 Video hook của scene</b>
+        <textarea data-vp="${c.id}" style="min-height:90px">${esc(c.video_prompt_en)}</textarea>
+        <div class="row"><select data-model="${c.id}">${models.map(m=>`<option ${m===mDaChon()?'selected':''}>${esc(m)}</option>`).join('')}</select>
+          <button class="nho" data-video="${c.id}" ${v.tt==='dang'?'disabled':''}>🎬 ${v.url?'Tạo lại video':'Tạo video'} (tốn điểm)</button></div>
+        <span class="sub">${v.tt==='dang'?esc(v.dong||'Đang tạo…'):v.tt==='loi'?`<span class="loi">✖ ${esc(v.loi)}</span>`:v.tt==='xong'?`✔ ${esc(v.cai_dat||'')} ${v.diem?'· '+esc(v.diem)+' điểm':''}`:'Khung đầu = ảnh đánh dấu ở trên. Flow trừ điểm cho video (ảnh thì 0 điểm).'}</span></div></div>
+  </div>`}).join('')}
+
+// sự kiện trong danh sách (gắn một lần)
+document.addEventListener('click',async e=>{
+  const b=e.target.closest('button');if(!b||!SID)return;
+  if(b.dataset.chon){const p=b.dataset.chon.split('|');const i=+p.pop();
+    const d=p[0]==='a'?{assets:[{id:p[1],chon:i}]}:{canh:[{id:+p[1],anh:[{id:+p[2],chon:i}]}]};
+    await post('/api/sb/sua',Object.assign({id:SID},d));tai();return}
+  if(b.dataset.veAsset)return viec('ve_lai_asset',{asset:b.dataset.veAsset});
+  if(b.dataset.veCanh)return viec('ve_canh',{canh:+b.dataset.veCanh});
+  if(b.dataset.veAnh){const [c,a]=b.dataset.veAnh.split('|');return viec('ve_lai_anh',{canh:+c,anh:+a})}
+  if(b.dataset.lamLai){const c=+b.dataset.lamLai;const n=+$('#sa_'+c).value||4;if(!confirm(`Viết lại scene ${c} thành ${n} ảnh và vẽ lại?`))return;return viec('lam_lai_canh',{canh:c,so_anh:n})}
+  if(b.dataset.video){const c=+b.dataset.video;const model=document.querySelector(`[data-model="${c}"]`).value;
+    if(!confirm(`Tạo video cho scene ${c} bằng ${model}? Flow sẽ TRỪ ĐIỂM.`))return;
+    try{await post('/api/sb/video',{id:SID,canh:c,anh:anhVideo[c]||null,model,video_prompt_en:document.querySelector(`[data-vp="${c}"]`).value});tb('Đang tạo video scene '+c);tai()}catch(er){tb('Lỗi: '+er.message)}}
+});
+document.addEventListener('change',async e=>{
+  const t=e.target;if(!SID)return;
+  if(t.dataset.va){anhVideo[+t.dataset.va]=+t.value;return}
+  if(t.dataset.model){try{localStorage.setItem('sb_model',t.value)}catch(er){}return}
+  let d=null;
+  if(t.dataset.a)d={assets:[{id:t.dataset.a,[t.dataset.k]:t.value}]};
+  else if(t.dataset.anh)d={canh:[{id:+t.dataset.c,anh:[{id:+t.dataset.anh,prompt_en:t.value}]}]};
+  else if(t.dataset.vp)d={canh:[{id:+t.dataset.vp,video_prompt_en:t.value}]};
+  if(d){try{await post('/api/sb/sua',Object.assign({id:SID},d));tb('Đã lưu')}catch(er){tb('Lỗi: '+er.message)}}
+});
+
+$('#x_json').onclick=()=>{if(SID)location.href='/api/sb/json?id='+encodeURIComponent(SID)};
+async function veGiong(){try{const d=await api('/api/giong');let cu='';try{cu=localStorage.getItem('sb_giong')||''}catch(e){}
+  $('#x_giong').innerHTML=d.giong.map(g=>`<option value="${esc(g.tep)}" ${(cu?g.tep===cu:g.ten==='Tự tin')?'selected':''}>${esc(g.ten)}</option>`).join('')}catch(e){}}
+$('#x_giong').onchange=e=>{try{localStorage.setItem('sb_giong',e.target.value)}catch(er){}};
+$('#x_doc_xuat').onclick=()=>viec('doc_xuat',{giong:$('#x_giong').value,toc_do:+$('#x_toc').value||1,ten:$('#x_ten').value.trim(),
+  giay_anh:+$('#x_giay').value||3,co_video:$('#x_video').checked});
+veGiong();
+$('#x_capcut').onclick=async()=>{try{const r=await post('/api/sb/capcut',{id:SID,ten:$('#x_ten').value.trim(),giay_anh:+$('#x_giay').value||3,co_video:$('#x_video').checked,co_giong:$('#x_co_giong').checked});
+  $('#x_kq').textContent=`✔ Đã tạo bản nháp «${r.ten}»: ${r.so_doan} đoạn hình${r.so_cau?' + '+r.so_cau+' câu đọc':''}, ${r.giay} giây. Mở CapCut để kiểm tra (nếu CapCut đang mở, quay ra trang chủ CapCut rồi vào lại).`;tb('Đã xuất bản nháp CapCut')}catch(e){tb('Lỗi: '+e.message)}};
+$('#x_thu').onclick=()=>post('/api/sb/mo_thu_muc',{id:SID});
+$('#x_xoa').onclick=async()=>{if(!confirm('Xoá storyboard này cùng toàn bộ ảnh / video của nó?'))return;await post('/api/sb/xoa',{id:SID});SID='';history.replaceState(null,'','/storyboard');moi();veDs()};
+
+veDs().then(()=>{if(SID)tai()});
+</script>
+</body>
+</html>

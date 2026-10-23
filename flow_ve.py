@@ -212,6 +212,11 @@ _MOC = r"""(() => {
     } catch (e) {} });
     return sd.apply(this, arguments);
   };
+  // 23/10 đo (bản boq 20261021): lệnh tạo ảnh ogiZ0b đi qua fetch, không còn XHR -> móc cả fetch
+  const f0 = window.fetch;
+  window.fetch = function() { return f0.apply(this, arguments).then(r => { try { const u = String(r.url);
+      if (u.includes('rpcids=')) r.clone().text().then(t => { if (t.includes('flow-content.google/image')) window.__bc_kq.push(t); }).catch(() => {});
+    } catch (e) {} return r; }); };
   return 'moc';
 })()"""
 
@@ -229,7 +234,7 @@ def _vao_du_an(ph):
         url += ("&" if "?" in url else "?") + "hl=en"
     ph.ws.goi("Page.navigate", url=url)
     time.sleep(2)
-    o = ph.cho("(() => { const u = location.href; if (u.includes('accounts.google.com')) return 'dang_nhap';"
+    o = ph.cho("(() => { const u = location.href; if (u.includes('accounts.google.com') || u.includes('flow.google.com/about')) return 'dang_nhap';"
                " if (document.querySelector('[role=textbox][aria-label]')) return 'du_an';"
                " if ([...document.querySelectorAll('*')].some(e => e.children.length < 3 && /New project/.test(e.innerText||'')))"
                " return 'trang_chu'; return ''; })()", 45)
@@ -294,13 +299,138 @@ def _bam(ph, chon):
         ph.ws.goi("Input.dispatchMouseEvent", type=t, x=r[0], y=r[1], button="left", clickCount=1)
 
 
-def _tao(ph, prompt, ti_le):
-    """Gõ câu lệnh, bấm tạo, chờ -> [link ảnh] (rỗng nếu lỗi; lỗi chữ trên trang trong ph.loi)."""
+def _bam_js(ph, js_phan_tu):
+    """Bấm chuột THẬT vào giữa phần tử (biểu thức JS trả phần tử) -> True nếu thấy phần tử."""
+    xy = ph.js("(() => { const x = " + js_phan_tu + "; if (!x) return null; x.scrollIntoView({block: 'nearest'});"
+               " const r = x.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2] })()")
+    if xy:
+        for t in ("mouseMoved", "mousePressed", "mouseReleased"):
+            ph.ws.goi("Input.dispatchMouseEvent", type=t, x=xy[0], y=xy[1], button="left", clickCount=1)
+    return bool(xy)
+
+
+_SO_CHIP = "document.querySelectorAll('button.chip-container').length"
+
+
+class ChuaDongY(PermissionError):
+    """Tài khoản Flow chưa bấm 'I agree' cho việc tải ảnh lên — hồ sơ nghỉ tới khi người dùng mở lại."""
+THAM_CHIEU_TOI_DA = 3            # 23/10 đo: gắn 4 ảnh thì nút tạo của Flow không bật
+
+
+def _bo_tham_chieu(ph):
+    """Gỡ mọi ảnh tham chiếu (chip 'Ingredient') còn trong ô câu lệnh."""
+    for _ in range(8):
+        if not ph.js(_SO_CHIP):
+            return
+        if not _bam_js(ph, "document.querySelector('button[aria-label=\"Clear prompt\"]')"):
+            _bam_js(ph, "document.querySelector('button.chip-container')")
+        time.sleep(0.6)
+
+
+def _ten_tham_chieu(f):
+    """Tên tải lên Flow theo NỘI DUNG ảnh (sb_<md5>.png) — cùng ảnh thì cùng tên, tìm lại được trong kho của dự án Flow."""
+    import hashlib
+    h = hashlib.md5(open(f, "rb").read()).hexdigest()[:14]
+    thu = os.path.join(GOC, "_tham_chieu")
+    os.makedirs(thu, exist_ok=True)
+    dich = os.path.join(thu, f"sb_{h}.png")
+    if not os.path.isfile(dich):
+        from PIL import Image
+        Image.open(f).convert("RGB").save(dich)
+    return dich
+
+
+def _gan_tham_chieu(ph, files):
+    """23/10 user (storyboard nhân vật nhất quán): gắn ảnh tham chiếu vào ô câu lệnh — nút 'Add ingredients to the prompt
+    box' -> bảng kho ảnh (tải lên nếu chưa có, chặn input.click() như flow_video) -> bấm ảnh -> 'Add to prompt' -> chip.
+    Đo 23/10: Flow giữ đúng nhân vật / đồ vật của ảnh tham chiếu; chip tự gỡ sau mỗi lượt tạo."""
+    t0 = time.time()
+    _bo_tham_chieu(ph)
+    anh_ds = [_ten_tham_chieu(f) for f in files[:THAM_CHIEU_TOI_DA]]
+
+    def mo_bang():
+        if ph.js("document.body.innerText.includes('Upload media')"):
+            return
+        if not _bam_js(ph, "document.querySelector('button[aria-label=\"Add ingredients to the prompt box\"]')"):
+            raise RuntimeError("không thấy nút thêm ảnh tham chiếu của Flow")
+        if not ph.cho("document.body.innerText.includes('Upload media')", 10):
+            raise RuntimeError("không mở được bảng ảnh tham chiếu")
+
+    def item(ten):
+        return ("[...document.querySelectorAll('button.asset-item')].find(e => (e.innerText||'').trim()"
+                ".split(String.fromCharCode(10))[0].trim() === " + json.dumps(ten) + ")")
+
+    def san_sang(ten):
+        return ph.js(f"(() => {{ const e = {item(ten)}; if (!e || e.querySelector('mat-spinner')) return false;"
+                     " const i = e.querySelector('img'); return !!(i && i.complete && i.naturalWidth) })()")
+
+    # 23/10 user "quá chậm": ảnh tham chiếu đã có trong kho của dự án Flow (tên theo nội dung) thì dùng lại; ảnh chưa có
+    # thì tải lên CÙNG MỘT LẦN (trước đây mỗi ảnh mở bảng + tải + chờ riêng)
+    mo_bang()
+    time.sleep(0.8)
+    thieu = [a for a in anh_ds if not ph.js(f"!!({item(os.path.basename(a))})")]
+    if thieu:
+        ph.js(r"""(() => { window.__bc_in = null; if (!window.__bc_click) { const c = HTMLInputElement.prototype.click;
+          window.__bc_click = c; HTMLInputElement.prototype.click = function() { if (this.type === 'file') { window.__bc_in = this; return; }
+          return c.apply(this, arguments); }; } return true })()""")
+        ph.js(_BAM_CHU + "('Upload media')")
+        time.sleep(1.0)
+        r = ph.ws.goi("Runtime.evaluate", expression="window.__bc_in || document.querySelector('input[type=file]')")
+        oid = (r.get("result") or {}).get("objectId")
+        if not oid:
+            raise RuntimeError("không thấy ô chọn file của Flow")
+        ph.ws.goi("DOM.enable")
+        nhieu = ph.ws.goi("Runtime.callFunctionOn", objectId=oid, functionDeclaration="function() { return this.multiple }",
+                          returnByValue=True).get("result", {}).get("value")
+        cum = [thieu] if nhieu else [[a] for a in thieu]
+        for c in cum:
+            ph.ws.goi("DOM.setFileInputFiles", files=[os.path.abspath(a) for a in c], objectId=oid)
+            if not nhieu and c is not cum[-1]:
+                ph.cho(f"!!({item(os.path.basename(c[0]))})", 30, 1)
+                mo_bang()
+                ph.js(_BAM_CHU + "('Upload media')")
+                time.sleep(1.0)
+                r = ph.ws.goi("Runtime.evaluate", expression="window.__bc_in || document.querySelector('input[type=file]')")
+                oid = (r.get("result") or {}).get("objectId") or oid
+    han = time.time() + 120
+    while time.time() < han and not all(san_sang(os.path.basename(a)) for a in anh_ds):
+        if ph.js("document.body.innerText.includes('Rights to use this image')"):
+            # 23/10 đo (acc5-acc8): lần ĐẦU tải ảnh lên, Flow hỏi xác nhận quyền dùng ảnh ("I agree") — người dùng tự bấm
+            # một lần cho tài khoản (Mở hồ sơ -> tải một ảnh bất kỳ -> I agree); không tự đồng ý thay
+            ph.js(_BAM_CHU + "('Cancel')")
+            raise ChuaDongY("tài khoản chưa xác nhận 'Rights to use this image' khi tải ảnh lên Flow — bấm 'Mở' hồ sơ, "
+                            "tải một ảnh bất kỳ lên và bấm I agree một lần")
+        time.sleep(1)
+    for k, anh in enumerate(anh_ds):
+        ten = os.path.basename(anh)
+        mo_bang()
+        if not ph.cho(f"!!({item(ten)})", 5) or not san_sang(ten):
+            raise RuntimeError("tải ảnh tham chiếu lên Flow quá lâu")
+        nut = "[...document.querySelectorAll('button')].find(e => e.offsetParent && (e.innerText||'').trim() === 'Add to prompt')"
+        for _ in range(5):
+            mo_bang()
+            _bam_js(ph, item(ten))
+            ph.cho(f"!!({nut})", 3, 0.2)
+            _bam_js(ph, nut)
+            if ph.cho(f"{_SO_CHIP} >= {k + 1}", 4, 0.2):
+                break
+        else:
+            raise RuntimeError("không gắn được ảnh tham chiếu vào ô câu lệnh")
+    log(f"    Flow '{ph.ten}': gắn {len(anh_ds)} ảnh tham chiếu ({time.time() - t0:.0f}s"
+        + (f", tải lên {len(thieu)}" if thieu else "") + ")")
+
+
+def _tao(ph, prompt, ti_le, tham_chieu=None):
+    """Gõ câu lệnh (kèm ảnh tham chiếu nếu có), bấm tạo, chờ -> [link ảnh] (rỗng nếu lỗi; lỗi chữ trên trang trong ph.loi)."""
     _chon_cai_dat(ph, ti_le)
     truoc = ph.js("window.__bc_kq ? window.__bc_kq.length : -1")
     if truoc == -1:
         ph.js(_MOC)
         truoc = 0
+    if tham_chieu:
+        _gan_tham_chieu(ph, tham_chieu)
+    else:
+        _bo_tham_chieu(ph)
     ph.js("(() => { const e = document.querySelector('[role=textbox][aria-label]'); e.focus();"
           " document.execCommand('selectAll'); document.execCommand('delete'); return true })()")
     ph.ws.goi("Input.insertText", text=prompt)
@@ -310,7 +440,8 @@ def _tao(ph, prompt, ti_le):
     da_co = {i for i, _ in _link(ph.js("(window.__bc_kq || [])") or [], None)}   # ảnh CŨ của dự án (trả về kèm)
     _bam(ph, 'button[aria-label="Start generation"]')       # bấm chuột THẬT (sự kiện tin cậy) — .click() JS có lúc bị bỏ qua
     dong1 = prompt.split("\n", 1)[0]                          # đoạn ĐẶC TRƯNG của câu lệnh (câu nào cũng mở bằng "Create…")
-    dau = max(re.findall(r"[A-Za-z0-9 ,.:;()'-]{8,}", dong1[-160:]) or [dong1[-40:]], key=len)[-50:]
+    # 23/10: chỉ chữ / số / cách — dấu ' " ( … Flow trả về dạng thoát (\u0027…) nên đoạn có dấu không khớp -> "hết giờ chờ"
+    dau = max(re.findall(r"[A-Za-z0-9 ]{8,}", dong1[-160:]) or [dong1[-40:]], key=len).strip()[-40:]
     han = time.time() + CHO_ANH
     link = []
     while time.time() < han:
@@ -319,7 +450,7 @@ def _tao(ph, prompt, ti_le):
             kq = ph.js(f"(window.__bc_kq || []).slice({int(truoc)})") or []
         except Exception:                                        # noqa: BLE001
             kq = []
-        link = [x for x in _link(kq, dau) if x[0] not in da_co]
+        link = [x for x in _link(kq, dau, len(prompt) + 3000) if x[0] not in da_co]
         if len(link) >= 2:
             return [u for _, u in link]
         loi = ph.js("(() => { const t = document.body.innerText; const m = t.match(/(unusual traffic|verify|captcha|"
@@ -336,12 +467,13 @@ def _tao(ph, prompt, ti_le):
 _URL = re.compile(r'https://flow-content\.google/image/([0-9a-f-]+)\?(?:[^"\\]|\\+u00[0-9a-fA-F]{2})*')
 
 
-def _link(kq, dau):
+def _link(kq, dau, tam=2500):
     """[(id, url)] ảnh trong các phản hồi; dau: đoạn câu lệnh phải đứng trước link (None = mọi ảnh)."""
     ra, thay = [], set()
     for t in kq:
         for m in _URL.finditer(t):
-            if dau is not None and dau not in t[max(0, m.start() - 2500):m.start()]:
+            # 23/10: câu lệnh storyboard dài ~3000 ký tự -> cửa sổ dò phải dài hơn câu lệnh (trước cố định 2500 -> "hết giờ chờ")
+            if dau is not None and dau not in t[max(0, m.start() - tam):m.start()]:
                 continue
             if m.group(1) in thay:
                 continue
@@ -376,9 +508,11 @@ def so_ho_so_dung_duoc():
     return sum(1 for h in ds_ho_so() if not h["dang_nghi"])
 
 
-def ve(prompt, thu, ten_file, ti_le="16:9"):
-    """Vẽ một ảnh qua Flow -> đường dẫn file đã tải | None (chưa có hồ sơ / mọi hồ sơ lỗi — bên gọi lùi về Gemini)."""
+def ve(prompt, thu, ten_file, ti_le="16:9", tham_chieu=None):
+    """Vẽ một ảnh qua Flow -> đường dẫn file đã tải | None (chưa có hồ sơ / mọi hồ sơ lỗi — bên gọi lùi về Gemini).
+    tham_chieu: [đường dẫn ảnh] gắn làm 'ingredients' (giữ nhân vật / bối cảnh nhất quán)."""
     goc = re.sub(r"\s*(Remember: NO writing at all\.|Absolutely NO writing anywhere\.)\s*$", "", prompt).strip()
+    goc += "|" + "|".join(tham_chieu or [])
     du = _DU.get(goc)
     while du:                                                  # ảnh thứ hai của lần tạo trước (lượt vẽ lại)
         f = du.pop(0)
@@ -386,6 +520,21 @@ def ve(prompt, thu, ten_file, ti_le="16:9"):
             dich = os.path.join(thu, ten_file)
             os.replace(f, dich)
             return dich
+    tep = _ve_flow(prompt, thu, [ten_file, f"_du_{os.getpid()}_{time.time_ns()}.png"], ti_le, tham_chieu)
+    if not tep:
+        return None
+    if len(tep) > 1:
+        _DU.setdefault(goc, []).extend(tep[1:])
+    return tep[0]
+
+
+def ve_nhieu(prompt, thu, ten_goc, ti_le="16:9", tham_chieu=None):
+    """Như ve() nhưng GIỮ CẢ HAI ảnh của một lượt tạo (2 phương án) -> [<ten_goc>_1.png, <ten_goc>_2.png] | []."""
+    return _ve_flow(prompt, thu, [f"{ten_goc}_1.png", f"{ten_goc}_2.png"], ti_le, tham_chieu)
+
+
+def _ve_flow(prompt, thu, ten_files, ti_le, tham_chieu):
+    """Một lượt tạo trên hồ sơ rảnh (xoay vòng khi lỗi) -> [file đã tải theo ten_files] | []."""
     ds = [h for h in ds_ho_so() if not h["dang_nghi"]]
     # 22/10 user ("nhiều luồng"): mỗi luồng GIỮ CHỖ một hồ sơ RẢNH (dưới khoá chung) — trước đây các luồng cùng xếp
     # theo .locked() một lúc nên cùng chọn hồ sơ đầu rồi chờ nhau. Hết hồ sơ rảnh thì xếp hồ sơ ít người chờ nhất.
@@ -395,6 +544,9 @@ def ve(prompt, thu, ten_file, ti_le="16:9"):
         if ten is None:
             break
         da_thu.add(ten)
+        if float(_doc_so().get(ten, {}).get("nghi_den") or 0) > time.time():   # luồng khác vừa cho nghỉ (đăng xuất…)
+            _tha_ho_so(ten)
+            continue
         try:
             khoa = _KHOA_PHIEN.setdefault(ten, threading.Lock())
             with khoa:
@@ -405,10 +557,12 @@ def ve(prompt, thu, ten_file, ti_le="16:9"):
                         _PHIEN[ten] = ph
                         _vao_du_an(ph)
                     ph.loi = ""
-                    link = _tao(ph, prompt, ti_le)
+                    link = _tao(ph, prompt, ti_le, tham_chieu)
                 except PermissionError as e:
                     log(f"    ! Flow '{ten}': {e}")
-                    _cap_nhat(ten, nghi_den=time.time() + NGHI_LOI, loi=str(e)[:160])
+                    # 23/10: hồ sơ bị ĐĂNG XUẤT (acc3/acc4 về trang /about) -> nghỉ 6 giờ (bấm 'Mở' đăng nhập lại sẽ xoá nghỉ),
+                    # trước đây nghỉ 10 phút rồi lại thử -> mỗi lượt mất thêm thời gian
+                    _cap_nhat(ten, nghi_den=time.time() + 6 * 3600, loi=str(e)[:160])
                     dong(ten)
                     continue
                 except Exception as e:                               # noqa: BLE001
@@ -427,8 +581,8 @@ def ve(prompt, thu, ten_file, ti_le="16:9"):
                     continue
             os.makedirs(thu, exist_ok=True)
             tep = []
-            for i, u in enumerate(link[:2]):
-                dich = os.path.join(thu, ten_file if i == 0 else f"_du_{os.getpid()}_{time.time_ns()}.png")
+            for i, u in enumerate(link[:len(ten_files)]):
+                dich = os.path.join(thu, ten_files[i])
                 try:
                     with urllib.request.urlopen(urllib.request.Request(u, headers={"User-Agent": "Mozilla/5.0"}), timeout=60) as r:
                         data = r.read()
@@ -439,12 +593,11 @@ def ve(prompt, thu, ten_file, ti_le="16:9"):
                 except Exception as e:                               # noqa: BLE001
                     log(f"    ! Flow tải ảnh lỗi: {str(e)[:100]}")
             if tep:
-                if len(tep) > 1:
-                    _DU.setdefault(goc, []).extend(tep[1:])
                 _cap_nhat(ten, dung_luc=time.time(), so_anh=int(_doc_so().get(ten, {}).get("so_anh") or 0) + len(tep), loi="")
-                if tep[0] != os.path.join(thu, ten_file):
-                    os.replace(tep[0], os.path.join(thu, ten_file))
-                return os.path.join(thu, ten_file)
+                if tep[0] != os.path.join(thu, ten_files[0]):          # ảnh 1 tải hỏng, ảnh 2 được -> đứng tên ảnh 1
+                    os.replace(tep[0], os.path.join(thu, ten_files[0]))
+                    tep[0] = os.path.join(thu, ten_files[0])
+                return tep
         finally:
             _tha_ho_so(ten)
-    return None
+    return []

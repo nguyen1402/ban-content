@@ -892,6 +892,180 @@ def flow_hang_loat_goi_y():
     })
 
 
+# --------------------------------------------------------------------------- 🎬 storyboard Flow (23/10 user)
+TRANG_SB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "storyboard.html")
+
+
+@app.get("/storyboard")
+def trang_storyboard():
+    response.content_type = "text/html; charset=utf-8"
+    return doc_text(TRANG_SB)
+
+
+def _sb_xem(sid):
+    """Storyboard + link ảnh/video cho giao diện + trạng thái việc nền."""
+    import copy
+    import storyboard
+    sb = copy.deepcopy(storyboard.doc(sid))
+    v = f"&v={int(sb.get('cap_nhat') or 0)}"
+    for m in sb.get("assets", []) + [a for c in sb.get("canh", []) for a in c.get("anh", [])]:
+        m["url"] = [url_tep(f) + v if f and os.path.isfile(f) else "" for f in m.get("bien_the") or []]
+    for c in sb.get("canh", []):
+        f = (c.get("video") or {}).get("tep")
+        if f and os.path.isfile(f):
+            c["video"]["url"] = url_tep(f) + v
+    tt = dict(storyboard.TT.get(sid) or {})
+    tt["dong"] = (tt.get("dong") or [])[-40:]
+    import flow_video
+    return {"sb": sb, "tt": tt, "phong_cach": list(storyboard.PHONG_CACH), "model": flow_video.MODEL}
+
+
+@app.get("/api/sb/ds")
+def sb_ds():
+    import storyboard
+    return json_ok({"ds": storyboard.ds()})
+
+
+@app.get("/api/sb")
+def sb_xem():
+    try:
+        return json_ok(_sb_xem(tham_so_q("id")))
+    except ValueError as e:
+        raise HTTPError(404, str(e))
+
+
+@app.post("/api/sb/tao")
+def sb_tao():
+    import storyboard
+    d = request.json or {}
+    if not str(d.get("kich_ban") or "").strip():
+        raise HTTPError(400, "chưa nhập kịch bản")
+    sb = storyboard.tao(d.get("ten") or "storyboard", d["kich_ban"], d.get("cai_dat"))
+    return json_ok({"id": sb["id"]})
+
+
+@app.post("/api/sb/sua")
+def sb_sua():
+    import storyboard
+    d = request.json or {}
+    storyboard.sua(str(d.get("id") or ""), d)
+    return json_ok({"ok": True})
+
+
+@app.post("/api/sb/viec")
+def sb_viec():
+    """Việc nền: assets | canh | ve_assets | ve_canh | tat_ca | ve_lai_asset | ve_lai_anh | lam_lai_canh."""
+    import storyboard as S
+    d = request.json or {}
+    sid, viec = str(d.get("id") or ""), str(d.get("viec") or "")
+    if "sua" in d:                                           # lưu chỉnh tay trước khi chạy
+        S.sua(sid, d["sua"])
+    cid = d.get("canh")
+    viec_ham = {
+        "assets": ("Phân tích assets", lambda b: S.lap_assets(sid, b)),
+        "ve_assets": ("Vẽ ảnh assets", lambda b: S.ve_assets(sid, b)),
+        "canh": ("Tạo scene", lambda b: S.lap_canh(sid, b)),
+        "ve_canh": ("Vẽ ảnh scene", lambda b: S.ve_canh(sid, b, ids=[int(cid)] if cid else None)),
+        "tat_ca": ("Chạy tất cả", lambda b: S.lam_tat_ca(sid, b)),
+        "ve_lai_asset": ("Vẽ lại asset", lambda b: S.ve_assets(sid, b, ids=[d.get("asset")], ve_lai=True)),
+        "ve_lai_anh": ("Vẽ lại ảnh", lambda b: S.ve_canh(sid, b, ids=[int(cid or 0)], anh_ids=[int(d.get("anh") or 0)], ve_lai=True)),
+        "lam_lai_canh": ("Làm lại scene", lambda b: S.lam_lai_canh(sid, int(cid or 0), d.get("so_anh"), b)),
+        "doc_loi": ("Đọc lời", lambda b: S.doc_loi(sid, b, ref=_giong_hop_le(d.get("giong")), toc_do=d.get("toc_do") or 1.0)),
+        "doc_xuat": ("Đọc lời + xuất CapCut", lambda b: _sb_doc_xuat(S, sid, d, b)),
+    }
+    if viec not in viec_ham:
+        raise HTTPError(400, "việc không hợp lệ")
+    try:
+        S.chay(sid, *viec_ham[viec])
+    except (RuntimeError, ValueError) as e:
+        raise HTTPError(409, str(e))
+    return json_ok({"ok": True})
+
+
+def _giong_hop_le(f):
+    f = str(f or "")
+    return f if f and os.path.isfile(f) and os.path.realpath(f).lower().startswith(os.path.realpath(VOICES).lower()) else None
+
+
+def _sb_doc_xuat(S, sid, d, bao):
+    """23/10 user: vẽ xong thì đọc lời rồi ghép cả ảnh + giọng đọc vào bản nháp CapCut."""
+    S.doc_loi(sid, bao, ref=_giong_hop_le(d.get("giong")), toc_do=d.get("toc_do") or 1.0)
+    kq = S.xuat_capcut(sid, d.get("ten"), d.get("giay_anh"), d.get("co_video", True), True)
+    S.TT[sid]["kq_capcut"] = kq
+    bao(f"📦 Đã tạo bản nháp CapCut «{kq['ten']}»: {kq['so_doan']} đoạn hình + {kq['so_cau']} câu đọc, {kq['giay']} giây")
+
+
+@app.post("/api/sb/dung")
+def sb_dung():
+    import storyboard
+    storyboard.dung(str((request.json or {}).get("id") or ""))
+    return json_ok({"ok": True})
+
+
+@app.post("/api/sb/video")
+def sb_video():
+    """Tạo video Flow cho một scene (làm hook) — TỐN ĐIỂM Flow; chạy nền, trạng thái trong canh.video."""
+    import storyboard
+    d = request.json or {}
+    sid, cid = str(d.get("id") or ""), int(d.get("canh") or 0)
+    c = storyboard._canh(storyboard.doc(sid), cid)               # noqa: SLF001
+    if not c:
+        raise HTTPError(404, "không thấy scene")
+    if (c.get("video") or {}).get("tt") == "dang":
+        raise HTTPError(409, "scene này đang tạo video")
+    if d.get("video_prompt_en") is not None:
+        storyboard.sua(sid, {"canh": [{"id": cid, "video_prompt_en": d["video_prompt_en"]}]})
+
+    def chay_nen():
+        try:
+            storyboard.tao_video(sid, cid, anh_id=d.get("anh"), model=str(d.get("model") or ""),
+                                 bao=lambda m: storyboard._bao(sid, f"[video scene {cid}] {m}"))   # noqa: SLF001
+        except Exception as e:                               # noqa: BLE001
+            storyboard._bao(sid, f"✖ video scene {cid}: {str(e)[:200]}")   # noqa: SLF001
+    threading.Thread(target=chay_nen, daemon=True).start()
+    return json_ok({"ok": True})
+
+
+@app.get("/api/sb/json")
+def sb_json():
+    import storyboard
+    sid = tham_so_q("id")
+    try:
+        d = storyboard.xuat_json(sid)
+    except ValueError as e:
+        raise HTTPError(404, str(e))
+    response.set_header("Content-Disposition", f'attachment; filename="{sid}.json"')
+    return json_ok(d)
+
+
+@app.post("/api/sb/capcut")
+def sb_capcut():
+    import storyboard
+    d = request.json or {}
+    try:
+        kq = storyboard.xuat_capcut(str(d.get("id") or ""), d.get("ten"), d.get("giay_anh"), d.get("co_video", True),
+                                    d.get("co_giong", True))
+    except (RuntimeError, ValueError) as e:
+        raise HTTPError(400, str(e))
+    return json_ok(kq)
+
+
+@app.post("/api/sb/mo_thu_muc")
+def sb_mo_thu_muc():
+    import storyboard
+    p = storyboard.thu_muc(str((request.json or {}).get("id") or ""))
+    os.makedirs(p, exist_ok=True)
+    os.startfile(p)
+    return json_ok({"ok": True})
+
+
+@app.post("/api/sb/xoa")
+def sb_xoa():
+    import storyboard
+    storyboard.xoa(str((request.json or {}).get("id") or ""))
+    return json_ok({"ok": True})
+
+
 @app.get("/api/don_du_an")
 def xem_don_du_an():
     t = slug(tham_so_q("du_an"))
