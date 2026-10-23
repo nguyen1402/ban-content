@@ -480,7 +480,9 @@ def _sach_logo(files):
         sys.path.insert(0, os.path.join(ROOT, "chinh_sua"))
         import anh_ve
         for f in files:
-            anh_ve.xoa_logo(f)
+            # gwt chỉ nhận dấu ✦ của Gemini; ảnh Flow (dấu nhỏ hơn, gần mép hơn) -> tô lấp đúng chỗ bằng xoa_dau_gemini
+            if not anh_ve.xoa_logo(f):
+                anh_ve.xoa_dau_gemini(f, anh_ve.DAU_FLOW_CACH_MEP, anh_ve.DAU_FLOW_BAN_KINH)
     except Exception as e:                                   # noqa: BLE001
         log(f"    ! storyboard: xoá logo lỗi {str(e)[:80]}")
 

@@ -97,11 +97,32 @@ def tao_ho_so(ten):
     mo_dang_nhap(ten)
 
 
+def _giet_chrome_ho_so(ten):
+    """Đóng MỌI Chrome đang giữ thư mục hồ sơ (kể cả do tiến trình khác mở, cửa sổ ẩn ngoài màn hình). 23/10 user: bấm
+    'Mở' mà không thấy gì — Chrome của hồ sơ đang chạy ẩn ở -32000 (một lượt vẽ khác) nên lệnh mở chỉ thêm cửa sổ vào
+    phiên ẩn đó."""
+    if os.name != "nt":
+        return
+    thu = os.path.join(GOC, _slug(ten)).replace("'", "''")
+    lenh = ("Get-CimInstance Win32_Process -Filter \"Name='chrome.exe'\" | Where-Object { $_.CommandLine -and "
+            f"$_.CommandLine -match ([regex]::Escape('--user-data-dir={thu}') + '(\\s|\"|$)') }} | "   # acc1 ≠ acc10
+            "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }")
+    try:
+        subprocess.run(["powershell", "-NoProfile", "-Command", lenh], capture_output=True, timeout=30,
+                       creationflags=0x08000000)
+    except (OSError, subprocess.SubprocessError):
+        pass
+    time.sleep(1.0)
+
+
 def mo_dang_nhap(ten):
     """Mở Chrome HIỆN của hồ sơ (không cổng DevTools) ở trang Flow — để đăng nhập / giải xác minh."""
     dong(ten)
+    _giet_chrome_ho_so(ten)
     subprocess.Popen([_chrome(), f"--user-data-dir={os.path.join(GOC, _slug(ten))}", "--no-first-run",
-                      "--no-default-browser-check", "--window-size=1280,900", TRANG])
+                      # 23/10 user: không ép vị trí thì Chrome mở lại ở chỗ NHỚ từ lần chạy ẩn (-1250 / -32000) -> người dùng
+                      # không thấy cửa sổ để đăng nhập
+                      "--no-default-browser-check", "--window-position=80,60", "--window-size=1280,900", TRANG])
     _cap_nhat(ten, nghi_den=0, loi="")
 
 

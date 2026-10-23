@@ -125,6 +125,8 @@ def _tai_khoan():
 
 DAU_CACH_MEP = 120          # 14/10 đo: dấu ✦ Gemini tâm cách mép phải và mép dưới ~120 px (ảnh 1408x768 lẫn 1024x1024)
 DAU_BAN_KINH = 34           # dấu rộng ~50 px -> xoá vòng bán kính 34 px quanh tâm
+DAU_FLOW_CACH_MEP = 97      # 23/10 đo: ảnh Google Flow 1376x768: dấu ✦ 48x48, tâm cách mép phải / dưới ~97 px (gwt không dò ra)
+DAU_FLOW_BAN_KINH = 30
 XOA_DAU = False             # 19/10 user: KHÔNG làm mờ dấu ✦ nữa (vệt mờ lộ trên ảnh) — bản nháp phóng to ảnh AI 120% giấu dấu
 GWT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools", "gwt", "gwt-mini.exe")
 XOA_LOGO = True             # 19/10 user: xoá logo ✦ Gemini bằng GeminiWatermarkTool (allenk, MIT): TÍNH NGƯỢC lớp trong suốt
@@ -306,9 +308,10 @@ def phong_cach(thoi_dai=""):
             f"palette must match real photographs of that period (white balance stays neutral). ") + PHONG_CACH
 
 
-def xoa_dau_gemini(f):
+def xoa_dau_gemini(f, cach_mep=DAU_CACH_MEP, ban_kinh=DAU_BAN_KINH):
     """14/10 user "logo gemini kia bỏ đi": tô lấp (inpaint) đúng chỗ dấu ✦ ở góc phải dưới ngay khi ảnh về — trên nền
-    trắng thành trắng, đè lên nội dung thì lấp theo vùng quanh (vết rất nhỏ). Lỗi đọc/ghi: để nguyên ảnh."""
+    trắng thành trắng, đè lên nội dung thì lấp theo vùng quanh (vết rất nhỏ). Lỗi đọc/ghi: để nguyên ảnh.
+    Ảnh Google Flow: cach_mep=DAU_FLOW_CACH_MEP, ban_kinh=DAU_FLOW_BAN_KINH."""
     try:
         import cv2
         import numpy as np
@@ -318,12 +321,30 @@ def xoa_dau_gemini(f):
         h, w = a.shape[:2]
         # 15/10 đo: ảnh 2752x1536 / 2816x1536 (độ phân giải gấp đôi) có dấu ở ~240 px, rộng ~100 px -> co giãn theo cỡ ảnh
         k = max(1, round(max(w, h) / 1400))
-        cach, bk = DAU_CACH_MEP * k, DAU_BAN_KINH * k
+        cach, bk = cach_mep * k, ban_kinh * k
         if w < 4 * cach or h < 4 * cach:
             return
         m = np.zeros((h, w), np.uint8)
         cv2.circle(m, (w - cach, h - cach), bk, 255, -1)
-        a = cv2.inpaint(a, m, 7, cv2.INPAINT_TELEA)
+        # 23/10 user (ảnh Flow lộ vệt tròn mịn trên nền có hạt): trong vòng đó chỉ tô ĐÚNG HÌNH dấu ✦ (chỗ sáng hơn nền
+        # quanh nó) nới 2 px; không thấy hình rõ thì tô cả vòng như cũ
+        x0, y0 = max(0, w - cach - bk), max(0, h - cach - bk)
+        xam = cv2.cvtColor(a[y0:h - cach + bk, x0:w - cach + bk], cv2.COLOR_BGR2GRAY).astype(np.int16)
+        nang = xam - cv2.medianBlur(xam.astype(np.uint8), 2 * bk + 1).astype(np.int16)
+        hinh = ((nang > 10) & (m[y0:h - cach + bk, x0:w - cach + bk] > 0)).astype(np.uint8) * 255
+        r = 7
+        if 0.08 < hinh.mean() / 255 / (np.pi / 4) < 0.8:     # tỉ lệ diện tích hình / diện tích vòng
+            hinh = cv2.dilate(hinh, np.ones((5, 5), np.uint8))
+            m[:] = 0
+            m[y0:h - cach + bk, x0:w - cach + bk] = hinh
+            r = 3
+        a = cv2.inpaint(a, m, r, cv2.INPAINT_TELEA)
+        if r == 3:                                           # chỗ tô mịn hơn nền có hạt -> rắc hạt bằng độ nhám vùng quanh
+            o = a[y0:h - cach + bk, x0:w - cach + bk].astype(np.float32)
+            mo = m[y0:h - cach + bk, x0:w - cach + bk] > 0
+            nham = (o - cv2.GaussianBlur(o, (0, 0), 1.5))[~mo].std()
+            o[mo] += np.random.default_rng(0).normal(0, nham, (int(mo.sum()), 1)).astype(np.float32)
+            a[y0:h - cach + bk, x0:w - cach + bk] = np.clip(o, 0, 255).astype(np.uint8)
         ok, buf = cv2.imencode(os.path.splitext(f)[1] or ".png", a)
         if ok:
             buf.tofile(f)
