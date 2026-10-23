@@ -7,7 +7,7 @@ sinh bằng JavaScript cho MỖI lần tạo -> không gọi thẳng từ Python
 hồ sơ hằng ngày qua DevTools -> dùng HỒ SƠ RIÊNG do người dùng tạo bằng nút "＋ Hồ sơ Chrome Flow" trên giao diện, đăng
 nhập một lần.
 
-  * Hồ sơ: %LOCALAPPDATA%\\BanContent\\flow_chrome\\<tên>\\ ; sổ: flow_chrome\\ho_so.json (dự án Flow, hết lượt…).
+  * Hồ sơ: %USERPROFILE%\\BanContent\\flow_chrome\\<tên>\\ ; sổ: flow_chrome\\ho_so.json (dự án Flow, hết lượt…).
   * Mỗi lần cần ảnh: mở Chrome hồ sơ đó với cổng DevTools, cửa sổ ĐẨY RA NGOÀI MÀN HÌNH (không headless — reCAPTCHA
     chấm điểm thấp), vào dự án Flow, chọn Image + tỉ lệ + x2, gõ câu lệnh, bấm tạo, đọc kết quả (link ảnh có chữ ký,
     tải không cần cookie), tải về. Chrome đóng khi tiến trình kết thúc (atexit) hoặc dong_tat_ca().
@@ -25,8 +25,9 @@ import urllib.request
 
 from common import log
 
-GOC = os.path.join(os.environ.get("BAN_CONTENT_DATA") or os.path.join(
-    os.environ.get("LOCALAPPDATA") or os.path.expanduser("~"), "BanContent"), "flow_chrome")
+# 23/10 user: dữ liệu riêng ra NGOÀI AppData (C:\Users\<tên>\BanContent). Mở app từ trong ứng dụng Claude (gói Store) thì
+# Windows chuyển hướng mọi thứ ghi vào AppData\Local sang thư mục riêng của Claude -> mở bằng bấm đúp .bat không thấy hồ sơ.
+GOC = os.path.join(os.environ.get("BAN_CONTENT_DATA") or os.path.join(os.path.expanduser("~"), "BanContent"), "flow_chrome")
 SO = os.path.join(GOC, "ho_so.json")
 CONG_DAU = 9350
 TRANG = "https://flow.google.com/?hl=en"     # 15/10: ép giao diện TIẾNG ANH (tài khoản tiếng Việt hiện "Dự án mới")
