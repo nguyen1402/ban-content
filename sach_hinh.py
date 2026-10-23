@@ -417,6 +417,68 @@ def chuyen_dong(path, bd, dai, w=64, h=36):
     return float(np.abs(np.diff(F, axis=0)).mean())
 
 
+
+# --------------------------------------------------------------------------- khung hẹp (video dọc / 4:3 trong khung ngang)
+HEP_TI_LE = 1.6            # phần hình thật hẹp hơn tỉ lệ rộng/cao này -> loại (16:9 = 1,78; 4:3 = 1,33; dọc = 0,56)
+HEP_VIEN_TOI = 28          # cột tối ở MỌI khung (độ sáng < ngưỡng) = viền đen
+HEP_DUONG_NOI = 0.7        # đường nối thẳng đứng cắt >= 70% số hàng ở CẢ hai bên đối xứng = video dọc đặt giữa nền mờ
+_HEP = {}
+_KHOA_HEP = threading.Lock()
+
+
+def hep_khung(F):
+    """F: các khung xám (n, H, W) float32 CÙNG MỘT CẢNH (W ~256) -> True nếu khung hẹp (xem khung_hep)."""
+    H, W = F.shape[1], F.shape[2]
+    toi = F.max(axis=(0, 1)) < HEP_VIEN_TOI
+    if not toi.all():
+        aL, aR = int(np.argmin(toi)), int(np.argmin(toi[::-1]))
+        if aL >= 0.06 * W and aR >= 0.06 * W and abs(aL - aR) <= 10 * W / 256 and (W - aL - aR) / H < HEP_TI_LE:
+            return True
+    dx = np.abs(np.diff(F, axis=2))
+    frac = (dx > 7).mean(axis=1).mean(axis=0)
+    e = dx.mean(axis=(0, 1))
+    sc, c = 0.0, 0
+    for c_ in range(int(W * .05), int(W * .42)):
+        c2 = W - 2 - c_
+        s_ = min(float(frac[c_]), float(frac[max(c2 - 3, 0):c2 + 4].max()))
+        if s_ > sc:
+            sc, c = s_, c_
+    if sc >= HEP_DUONG_NOI and (W - 2 * c) / H < HEP_TI_LE and W - 5 - c > c + 3:
+        trong = float(e[c + 3:W - 5 - c].mean())
+        ngoai = float(np.r_[e[:max(c - 2, 1)], e[W - c:]].mean())
+        return ngoai < 0.7 * trong
+    return False
+
+
+def khung_hep(path, bd, dai, W=256, H=144):
+    """23/10 user: True nếu đoạn thực chất KHÔNG phải hình ngang đầy khung — (A) viền đen hai bên đối xứng (4:3, dọc)
+    hoặc (B) video dọc đặt giữa nền mờ / nền trang trí (hai đường nối thẳng đứng đối xứng, ngoài ít chi tiết hơn trong).
+    Đo 23/10 trên 600 mảnh America_DUMPED: A bắt 17/17 đúng, B (ngưỡng 0,7) 10/10 đúng; cảnh tối / hoàng hôn không nhầm."""
+    from common import CACHE_CHUNG
+    k = f"{os.path.basename(path)}|{os.path.getsize(path) if os.path.isfile(path) else 0}|{bd:.1f}|{dai:.1f}"
+    cache = os.path.join(CACHE_CHUNG, "khung_hep.json")
+    with _KHOA_HEP:
+        if not _HEP:
+            _HEP.update(doc_json(cache, {}) or {})
+            _HEP.setdefault("", 0)
+        if k in _HEP:
+            return bool(_HEP[k])
+    buf = _ffmpeg_khung(path, f"fps={6 / max(dai, 1):.3f},scale={W}:{H},format=gray", bd, dai, fmt="gray")
+    n = len(buf) // (W * H)
+    kq = n >= 2 and hep_khung(np.frombuffer(buf, np.uint8, n * W * H).reshape(n, H, W).astype(np.float32))
+    with _KHOA_HEP:
+        _HEP[k] = int(kq)
+        if len(_HEP) % 50 == 0:
+            ghi_json(cache, dict(_HEP))
+    return kq
+
+
+def luu_khung_hep():
+    from common import CACHE_CHUNG
+    with _KHOA_HEP:
+        if _HEP:
+            ghi_json(os.path.join(CACHE_CHUNG, "khung_hep.json"), dict(_HEP))
+
 def song_song(ham, ds, luong=8):
     """Chạy ham(x) cho mọi x trong ds CÙNG LÚC (việc nặng là ffmpeg/IO nên luồng đủ dùng); trả list theo thứ tự."""
     from concurrent.futures import ThreadPoolExecutor

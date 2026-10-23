@@ -175,6 +175,36 @@ def tu_khoa_nhom(can):
     return ra
 
 
+KENH_SOAT_BO = 2            # 23/10: kênh có bấy nhiêu video bị soát-sạch loại -> ghi vào kênh bỏ (lần sau khỏi chấm)
+_DEM_KENH = {}
+
+
+def _bo_truoc_tai(v):
+    """23/10 user ("lọc ngay trước khi tải, tránh dư thừa"): soát trên khung storyboard (xep_hang.soat_sach, có cache) —
+    khung hẹp / chữ CHÈN to / người nói trước camera -> True (bỏ). Kênh bị loại KENH_SOAT_BO lần -> kenh_bo.json."""
+    import dung_tay
+    import xep_hang
+    from common import ghi_json
+    try:
+        bo = xep_hang.soat_sach(v["id"]).get("bo")
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! soát sạch {v['id']}: {str(e)[:80]}")
+        return False
+    if not bo:
+        return False
+    k = v.get("kenh") or ""
+    log(f"    bỏ trước khi tải {v['id']} ({bo}){' — kênh ' + k if k else ''}")
+    if k:
+        with _KHOA:
+            _DEM_KENH[k] = _DEM_KENH.get(k, 0) + 1
+            if _DEM_KENH[k] == KENH_SOAT_BO:
+                da = doc_json(dung_tay.KENH_BO, {}) or {}
+                da[k] = bo
+                ghi_json(dung_tay.KENH_BO, da)
+                log(f"    kênh '{k}' bị loại {KENH_SOAT_BO} video ({bo}) -> lần sau không tìm kênh này nữa")
+    return True
+
+
 AN_TOAN_BAN_QUYEN = False   # 22/10 user: TẮT (thử America_an_toan: toa tàu chỉ 50/172 mảnh) -> quay về MỌI NGUỒN.
 #                             Bật True = chế độ chủ thể chỉ lấy nguồn ĐƯỢC PHÉP DÙNG — stock miễn phí
 #                             (Pexels / Pixabay / Mixkit / Coverr / Wikimedia PD-CC0-CC BY) + YouTube Creative Commons (kiểm
@@ -366,7 +396,7 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
         nguồn rủi ro cao (tin tức, truyền hình, stock bán bản quyền, hãng phim). Giấy phép kiểm lại trước khi tải."""
         r = []
         try:
-            r += dung_tay.tim_youtube(q, n, chi_cc=True)
+            r += dung_tay.tim_youtube(q, n)
         except Exception as e:                               # noqa: BLE001
             log(f"    ! tìm CC '{q[:40]}': {str(e)[:80]}")
         try:
@@ -404,6 +434,8 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
                 return v, None
             if len(e) and loc_minh_hoa.la_game(np.asarray(e)):   # 18/10: cảnh trò chơi điện tử -> bỏ cả video
                 return v, None
+            if _bo_truoc_tai(v):                             # 23/10: chữ to / khung hẹp / người nói -> không tải
+                return v, None
             if not len(e):
                 return v, None
             S_all = np.asarray(e) @ QV.T                     # (khung, vế)
@@ -431,7 +463,7 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
                 if hang < len(r):
                     v = r[hang]
                     if (v["id"] not in da_xet and v["id"] not in co_san and VIDEO_MIN <= (v.get("dai") or 0) <= VIDEO_MAX
-                            and (v.get("kenh") or "") not in kenh_bo):
+                            and (v.get("kenh") or "") not in kenh_bo and not dung_tay.la_kenh_loai(v)):
                         da_xet.add(v["id"])
                         kq.setdefault(v["id"], v)
                         ung.append(v)
@@ -540,7 +572,7 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
         for r in kq_ve:
             for v in r or []:
                 if (v["id"] not in da_xet and v["id"] not in co_san and VIDEO_MIN <= (v.get("dai") or 0) <= VIDEO_MAX
-                        and (v.get("kenh") or "") not in kenh_bo):
+                        and (v.get("kenh") or "") not in kenh_bo and not dung_tay.la_kenh_loai(v)):
                     da_xet.add(v["id"])
                     kq.setdefault(v["id"], v)
                     ung_ve.append(v)
@@ -854,7 +886,7 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False, du
     co_san = {k[2:] for k, m in kho.items() if m.get("loai") == "video" and m.get("trang_thai") == "xong"}
     kenh_bo = doc_json(dung_tay.KENH_BO, {}) or {}            # 16/10: kênh từng bị bỏ vì logo / phụ đề to
     ung = [v for v in kq.values() if VIDEO_MIN <= (v.get("dai") or 0) <= VIDEO_MAX and v["id"] not in co_san
-           and (v.get("kenh") or "") not in kenh_bo]
+           and (v.get("kenh") or "") not in kenh_bo and not dung_tay.la_kenh_loai(v)]
     log(f"  tự động: {len(tu)} từ khoá → {len(kq)} video, {len(ung)} ứng viên")
 
     # 2. storyboard + chấm với mọi cảnh
@@ -866,6 +898,8 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False, du
             t, e, tong = xep_hang.storyboard(v["id"])
             import loc_minh_hoa                              # 12/10: kênh thuyết trình/hoạt hình -> không tải
             if len(t) and (loc_minh_hoa.diem_hoat_hinh(e) > loc_minh_hoa.NGUONG_HOAT_HINH).mean() > loc_minh_hoa.TI_LE_BO_VIDEO:
+                d = None
+            elif _bo_truoc_tai(v):                           # 23/10: chữ to / khung hẹp / người nói -> không tải
                 d = None
             else:
                 d = _diem_canh(e, t, Q)

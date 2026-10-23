@@ -82,6 +82,10 @@ def storyboard(vid):
         d = np.load(npz)
         return d["t"], d["e"], float(d["tong"])
     t, ims, tong = _khung_storyboard(vid)
+    try:                                                     # 23/10: soát sạch luôn trên khung vừa tải (khỏi tải lại)
+        soat_sach(vid, ims)
+    except Exception as ex:                                  # noqa: BLE001
+        log(f"    ! soát sạch {vid}: {str(ex)[:80]}")
     e = nhung_siglip.nhung_anh(ims) if ims else np.zeros((0, 1), np.float32)
     t = np.asarray(t, np.float32)
     if len(t) or tong:
@@ -205,3 +209,94 @@ def vec_canh(canh=None, q=""):
     if canh:
         return nhung_siglip.vec_mo_ta(canh.get("noi_dung") or canh.get("text", ""), (canh.get("video") or [])[:2])
     return nhung_siglip.nhung_chu([q])[0]
+
+
+# --------------------------------------------------------------------------- soát SẠCH trước khi tải (23/10 user)
+# "lọc ngay trước khi tải về, tối ưu tránh dư thừa; logo và chữ bé chấp nhận được": soát trên chính các khung storyboard
+# (không tải video), kết quả cache theo id video dùng chung mọi dự án.
+SOAT_KHUNG = 24             # số khung storyboard đem soát chữ / mặt (rải đều)
+CHU_TO_CAO = 0.11           # hộp chữ OCR cao >= 11% chiều cao khung (đo trên storyboard phóng 640x360) = chữ TO; đo 23/10:
+#                             "Courtesy of MTA", phụ đề nhỏ ~0,07-0,09 -> chữ bé, kệ (user: "logo và chữ bé chấp nhận được")
+CHU_TO_TI_LE = 0.25         # chữ to nằm CÙNG MỘT DẢI NGANG ở >= 25% khung -> chữ CHÈN (phụ đề to, chữ chìm to, tiêu đề)
+#                             -> bỏ; chữ to trong cảnh (container, biển số) đổi chỗ liên tục nên không gom được một dải
+MAT_TO_RONG = 0.15          # mặt người rộng >= 15% bề ngang khung = người nói trước camera
+MAT_TO_TI_LE = 0.40         # >= 40% khung có mặt to -> bỏ (vlog, podcast, phỏng vấn, người dẫn)
+HEP_TI_LE_BO = 0.50         # >= 50% nhóm khung là khung hẹp (dọc / 4:3 viền đen / nền mờ) -> bỏ
+_SOAT = {}
+_KHOA_SOAT = __import__("threading").Lock()
+_YN = __import__("threading").local()
+
+
+def _mat(im):
+    import cv2
+    if not hasattr(_YN, "d"):
+        buf = np.fromfile(os.path.join(CACHE_CHUNG, "model_mat", "face_detection_yunet_2023mar.onnx"), np.uint8)
+        _YN.d = cv2.FaceDetectorYN.create("onnx", buf, np.zeros(0, np.uint8), (320, 180), 0.8)   # đường dẫn có dấu: nạp bộ nhớ
+    a = cv2.cvtColor(np.asarray(im.convert("RGB").resize((320, 180))), cv2.COLOR_RGB2BGR)
+    _YN.d.setInputSize((320, 180))
+    _, f = _YN.d.detect(a)
+    return 0.0 if f is None else float(max(x[2] for x in f)) / 320
+
+
+def _dai_chu_to(im):
+    """Các dải ngang (0..9 theo chiều cao) có chữ TO trong khung."""
+    import sach_hinh
+    r = sach_hinh._ocr()(np.asarray(im.convert("RGB").resize((640, 360))))   # noqa: SLF001
+    ra = set()
+    for b, t, sc in zip(r.boxes if r.boxes is not None else [], r.txts or [], r.scores or []):
+        if float(sc) >= 0.8 and len("".join(ch for ch in t if ch.isalnum())) >= 3:
+            b = np.asarray(b)
+            if float(np.ptp(b[:, 1])) / 360 >= CHU_TO_CAO:
+                ra.add(min(9, int(float(b[:, 1].mean()) / 36)))
+    return ra
+
+
+def _soat_anh(ims):
+    """Các khung PIL storyboard -> {hep, chu, mat, bo}."""
+    import sach_hinh
+    ra = {"hep": 0.0, "chu": 0.0, "mat": 0.0}
+    if not ims:
+        return ra
+    F = np.stack([np.asarray(im.convert("L").resize((256, 144)), np.float32) for im in ims])
+    nhom = [F[i:i + 8] for i in range(0, len(F) - 1, 8) if len(F[i:i + 8]) >= 2]
+    ra["hep"] = round(float(np.mean([sach_hinh.hep_khung(g) for g in nhom])) if nhom else 0.0, 3)
+    chon = [ims[int(i)] for i in np.linspace(0, len(ims) - 1, min(SOAT_KHUNG, len(ims)))]
+    ra["mat"] = round(float(np.mean([_mat(im) >= MAT_TO_RONG for im in chon])), 3)
+    if not sach_hinh.tat_ocr():
+        from collections import Counter
+        dem = Counter(y for im in chon for y in _dai_chu_to(im))
+        ra["chu"] = round(max(dem.values()) / len(chon), 3) if dem else 0.0
+    return ra
+
+
+def _ly_do(kq):
+    """Lý do bỏ theo NGƯỠNG HIỆN TẠI (cache chỉ giữ tỉ lệ đo được -> đổi ngưỡng không phải đo lại)."""
+    if kq.get("hep", 0) >= HEP_TI_LE_BO:
+        return "khung hẹp (dọc / viền đen)"
+    if kq.get("chu", 0) >= CHU_TO_TI_LE:
+        return "chữ to / phụ đề to"
+    if kq.get("mat", 0) >= MAT_TO_TI_LE:
+        return "người nói trước camera"
+    return ""
+
+
+def soat_sach(vid, ims=None):
+    """{hep, chu, mat, bo} của video YouTube — bo != '' là nên BỎ trước khi tải. Cache cache/soat_sb.json."""
+    p = os.path.join(CACHE_CHUNG, "soat_sb.json")
+    with _KHOA_SOAT:
+        if not _SOAT:
+            try:
+                _SOAT.update(json.load(open(p, encoding="utf-8")))
+            except (OSError, ValueError):
+                _SOAT[""] = {}
+        if vid in _SOAT:
+            return dict(_SOAT[vid], bo=_ly_do(_SOAT[vid]))
+    if ims is None:
+        _, ims, _ = _khung_storyboard(vid)
+    kq = _soat_anh(ims)
+    with _KHOA_SOAT:
+        _SOAT[vid] = kq
+        tam = p + ".tmp"
+        json.dump(_SOAT, open(tam, "w", encoding="utf-8"), ensure_ascii=False)
+        os.replace(tam, p)
+    return dict(kq, bo=_ly_do(kq))

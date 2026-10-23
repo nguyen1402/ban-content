@@ -57,8 +57,17 @@ def _chi_muc(kho, mo_hinh=None):
     import chon_doan
     import sach_hinh
     ra = []
+
+    def _doan(m):                                            # khúc lõi của mảnh (bỏ phần cắt dư hai đầu)
+        bd = float(m.get("loi_bd") or 0)
+        return m["file"], bd, max(float(m.get("loi_kt") or m.get("dai") or 0) - bd, 1.0)
+    co = [m for m in kho.values() if m.get("loai") == "video" and m.get("trang_thai") == "xong" and os.path.isfile(m.get("file", ""))]
+    hep = dict(zip([id(m) for m in co], sach_hinh.song_song(lambda m: sach_hinh.khung_hep(*_doan(m)), co)))
+    sach_hinh.luu_khung_hep()
     for kid, m in kho.items():
         if m.get("loai") != "video" or m.get("trang_thai") != "xong" or not os.path.isfile(m.get("file", "")):
+            continue
+        if hep.get(id(m)):                                   # 23/10 user: video dọc / 4:3 viền đen trong khung ngang -> bỏ
             continue
         if BO_YOUTUBE_TU_DONG and not m.get("sach") and not m.get("tay"):
             continue
@@ -624,7 +633,8 @@ def goi_y(du_an, ids=None, chi_canh_trong=True, mo_hinh=None, luu=True):
     kho = {k: m for k, m in dung_tay.doc_kho(du_an).items()
            if _ngang(m) and (m.get("tay") or not m.get("sai_chu_de"))         # người dùng tự chọn hoặc không sai chủ đề
            and (m.get("tay") or not m.get("phong_xanh"))                      # người dùng tự chọn hoặc không phông xanh
-           and not m.get("cot_loi")}                         # ảnh cốt lõi chỉ đặt đúng mốc của nó (ep), không làm ảnh lấp chỗ
+           and not m.get("cot_loi")                          # ảnh cốt lõi chỉ đặt đúng mốc của nó (ep), không làm ảnh lấp chỗ
+           and not (m.get("loai") == "video" and dung_tay.la_kenh_loai(m))}   # 23/10 user: tin tức / trẻ em / hoạt hình / 3D / nhạc
     mo_hinh = mo_hinh or MO_HINH_MAC_DINH
     vids, anhs = _chi_muc(kho, mo_hinh), _anh(kho, mo_hinh)
     if not vids and not anhs:

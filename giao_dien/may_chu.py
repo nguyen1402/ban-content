@@ -1422,7 +1422,7 @@ def _in(dong):
             pass
 
 
-def _chay_hoan_thien(t, ten, co_nhac=False, co_sfx=False):
+def _chay_hoan_thien(t, ten, co_nhac=False, co_sfx=False, co_hook=False):
     """Khởi chạy skill hoàn thiện ở nền -> tên bản nháp; ném RuntimeError nếu đang chạy."""
     p = procs_ht.get(t)
     if p and p.poll() is None:
@@ -1435,6 +1435,8 @@ def _chay_hoan_thien(t, ten, co_nhac=False, co_sfx=False):
         cmd.append("--co-nhac")
     if co_sfx:
         cmd.append("--co-sfx")
+    if co_hook:                                              # 23/10 user: ô tick 🎬 Video hook Flow
+        cmd.append("--co-hook-veo")
     procs_ht[t] = subprocess.Popen(cmd,
                                    cwd=os.path.join(ROOT, "chinh_sua"), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                    env=env, creationflags=0x08000000 if os.name == "nt" else 0)
@@ -1606,7 +1608,8 @@ def luu_anh_ai_ke_hoach():
             den = max(i, int(y.get("den_cau") or i))
         except (TypeError, ValueError):
             continue
-        z = {k: v for k, v in y.items() if k in ("ve_1", "ve_2", "ve_3", "moc_1", "moc_2", "moc_3", "thoi_dai", "tieu_de", "moc", "bo", "tay")}
+        z = {k: v for k, v in y.items() if k in ("thoi_dai", "tieu_de", "moc", "bo", "tay")
+             or re.match(r"(ve|moc|huong)_\d+$", str(k))}   # 23/10: chuỗi ảnh nối tiếp không giới hạn số ảnh
         z.update(cau=i, den_cau=den)
         ds.append(z)
     common.ghi_json(p, dict(da, ds=sorted(ds, key=lambda z: z["cau"]), duyet=True))
@@ -2009,7 +2012,8 @@ def dung_hoan_thien():
     if not t:
         raise HTTPError(400, "thiếu dự án")
     try:
-        return json_ok({"ok": True, "ten": _chay_hoan_thien(t, ten, co_nhac=co_nhac, co_sfx=co_sfx)})
+        return json_ok({"ok": True, "ten": _chay_hoan_thien(t, ten, co_nhac=co_nhac, co_sfx=co_sfx,
+                                                            co_hook=bool(d.get("co_hook")))})
     except RuntimeError as e:
         raise HTTPError(409, str(e))
 
@@ -2049,7 +2053,7 @@ def dung_tu_dong():
         ten_ht = (d.get("ten_ht") or f"{t}_hoan_chinh").strip()
         tu_dong_tim.chay_nen(t, float(d.get("ngan_sach") or tu_dong_tim.NGAN_SACH_PHUT),
                              (d.get("ten_nhap") or "").strip() or None,
-                             sau=(lambda: _chay_hoan_thien(t, ten_ht)) if d.get("hoan_thien") else None,
+                             sau=(lambda: _chay_hoan_thien(t, ten_ht, co_hook=bool(d.get("co_hook")))) if d.get("hoan_thien") else None,
                              dung_stock=bool(d.get("dung_stock", True)),
                              che_do=che_do)
     except ValueError as e:

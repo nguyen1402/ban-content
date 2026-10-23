@@ -11,6 +11,7 @@
 Câu trả lời lưu ở ra/<dự án>/dieu_phoi_hoi.json (khoá = md5 câu lệnh + đoạn lời): chạy lại giữ nguyên lựa chọn."""
 import hashlib
 import os
+import re
 
 from common import doc_json, ghi_json, hoi_nhieu, log, rut_json
 
@@ -76,7 +77,11 @@ Read the narration (each line: index. [spoken seconds] sentence) and split it in
   idea a viewer understands in one second; do not cram details. It must include what the action is aimed at or about,
   with the narration's numbers. Sensible camera: a person acting on something -> from behind them toward it; a moving
   vehicle -> from outside; an object or detail -> close-up of the object itself.
-- A scene spoken for more than 8 seconds may get "ve_2" (and "ve_3") for its next moments, each with its own "moc_n".
+- NO image may stay on screen longer than 5 seconds. When a scene is spoken longer, CONTINUE it with "ve_2", "ve_3", …
+  (as many as the scene needs): the SAME place and subjects at the NEXT moments of the action, each from a different
+  camera framing (wide -> closer -> detail -> another side), so the images play like ONE continuous filmed scene. YOU
+  decide where each next image starts ("moc_n": words copied verbatim where the narration reaches that new beat) and its
+  "huong_n". Cut where the narration moves on, not on a fixed rhythm — an image may last 2 s or 5 s, never more than 5 s.
 - Describe the SPECIFIC action of that moment in your own words; take only the subject's short look and the place from
   the story bible — never paste the bible description, and never give two images the same description.
 Return ONLY a JSON array, one object per image, exactly in this form ("cau" / "den_cau" are sentence NUMBERS):
@@ -327,9 +332,9 @@ def _ap_ke_hoach_ai(ra, cau, out, toan_bo, co_ho_so=True):
     if lam_lai:
         log("    danh sách 📝 trước lập lúc thiếu hồ sơ câu chuyện (chưa duyệt) -> lập lại theo hồ sơ")
     if da.get("_k") != k or not isinstance(da.get("ds"), list) or lam_lai:
-        ds = [{f: x[f] for f in ("cau", "den_cau", "ve_1", "ve_2", "ve_3", "moc_1", "moc_2", "moc_3", "huong_1", "huong_2",
-                                 "huong_3", "thoi_dai", "tieu_de", "moc")
-               if x.get(f) not in (None, "")} for x in ai]
+        ds = [{f: v for f, v in x.items()                    # 23/10: ve_n / moc_n / huong_n không giới hạn số ảnh
+               if (f in ("cau", "den_cau", "thoi_dai", "tieu_de", "moc") or re.match(r"(ve|moc|huong)_\d+$", f))
+               and v not in (None, "")} for x in ai]
         ghi_json(p, {"_k": k, "ds": ds, "duyet": False, "co_ho_so": bool(co_ho_so)})
         log(f"    danh sách chỗ vẽ ảnh AI: {len(ds)} chỗ (sửa ở 📝 Chỗ vẽ ảnh AI)")
         return ra

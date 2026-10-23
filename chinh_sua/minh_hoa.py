@@ -45,6 +45,52 @@ def lenh_ve(ve, thoi_dai="", co_mau=False):
 
 CHU_PHU = False             # 21/10 user: bản hoàn thiện TẮT thêm chữ lên màn hình (lớp phủ đen + chữ trắng số liệu / mốc năm)
 SOAT_VE_LAI = 0             # 19/10: soát ảnh bằng Gemini chấm sai cả hai chiều (đo 4 ảnh cho_digo) -> TẮT
+ANH_DUNG_TOI_DA = 5.0      # 23/10 user: một ảnh AI đứng tối đa 5 s — dài hơn thì vẽ ẢNH NỐI TIẾP (cùng cảnh, khoảnh khắc sau)
+ANH_NGAN_NHAT = 1.5        #   chỗ đổi ảnh AI chọn mà làm ảnh ngắn hơn bấy nhiêu giây thì bỏ chỗ đổi đó
+_KHUNG_NOI = ("a closer shot", "a wide shot", "a detail close-up", "a shot from another side")
+
+
+def _loi_trong(ds_c, t0, t1):
+    """Các chữ giọng đọc nói trong [t0, t1)."""
+    return " ".join(str(w[0]) for c in ds_c for w in (c.get("tu") or []) if t0 <= float(w[1]) < t1).strip()
+
+
+def _lich_anh(x, bd, dai, ds_c):
+    """23/10 user: lịch ảnh của một chuỗi ảnh AI -> [(giây bắt đầu, câu lệnh, hướng)]. Chỗ đổi ảnh do AI chốt (moc_n);
+    đoạn nào vẫn dài quá ANH_DUNG_TOI_DA thì chia đều và vẽ thêm ẢNH NỐI TIẾP (cùng cảnh, khoảnh khắc sau, khung máy khác)."""
+    ve, i = [], 1
+    while str(x.get(f"ve_{i}") or "").strip():
+        ve.append((str(x[f"ve_{i}"]).strip(), x.get(f"moc_{i}"), x.get(f"huong_{i}") or None))
+        i += 1
+    if not ve and str(x.get("ve") or "").strip():
+        ve = [(str(x["ve"]).strip(), None, None)]
+    if not ve:
+        return []
+    kt = bd + dai
+    ts = [bd] + [(_tim(ds_c, m) if m else None) for _, m, _ in ve[1:]]
+    for k in range(1, len(ts)):                              # AI có ảnh mà không tìm thấy mốc: chia đều giữa hai mốc biết
+        if ts[k] is None:
+            j = next((q for q in range(k + 1, len(ts)) if ts[q] is not None), None)
+            sau = ts[j] if j is not None else kt
+            ts[k] = ts[k - 1] + (sau - ts[k - 1]) / ((j if j is not None else len(ts)) - k + 1)
+    lich = []
+    for (p_, _, h_), t in zip(ve, ts):
+        if not lich or (t >= lich[-1][0] + ANH_NGAN_NHAT and t <= kt - ANH_NGAN_NHAT):
+            lich.append((round(t, 2), p_, h_, False))
+    ra = []
+    for k, (t, p_, h_, _) in enumerate(lich):
+        t_kt = lich[k + 1][0] if k + 1 < len(lich) else kt
+        n = max(1, int(-(-(t_kt - t - 0.05) // ANH_DUNG_TOI_DA)))
+        d = (t_kt - t) / n
+        ra.append((round(t, 2), p_, h_))
+        for q in range(1, n):
+            t0 = t + q * d
+            loi = _loi_trong(ds_c, t0, t0 + d)
+            ra.append((round(t0, 2), f"{p_.rstrip('.')} — the NEXT moment of this same scene, {_KHUNG_NOI[(q - 1) % 4]}"
+                       + (f", showing what the narration now says: \"{loi}\"" if loi else ""), h_))
+    return ra
+
+
 KHOANG_GIUA = 0.5          # 17/10: khoảng đệm 0.5s đạt chuẩn 19-20 cảnh AI Storytelling (25-30% thời lượng)
 
 
@@ -654,6 +700,7 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
 
     for u in nhan_ai:
         u[3]["_dai"] = u[1]
+        u[3]["_lich"] = _lich_anh(u[3], u[0], u[1], u[4])   # 23/10: lịch ảnh nối tiếp (mỗi ảnh <= 5 s)
         u[3]["_text"] = " ".join(str(c.get("text") or "") for c in u[4])   # cho bước soát ảnh
     for u in nhan_hud:
         u[3]["_dai"] = u[1]
@@ -662,35 +709,15 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
     th = [u[3] for u in nhan_ai]
 
     def _ve_tai_hien(x):
-        prompts = []
-        if x.get("ve_1"):
-            prompts.append(str(x["ve_1"]).strip())
-            if x.get("ve_2"):
-                prompts.append(str(x["ve_2"]).strip())
-            if x.get("ve_3"):
-                prompts.append(str(x["ve_3"]).strip())
-        elif x.get("ve"):
-            prompts = [str(x["ve"]).strip()]
+        lich = x.get("_lich") or []
+        prompts = [l[1] for l in lich]
         if not prompts:
             return []
-
-        # 18/10 user: Luật thời lượng mới cho ảnh:
-        # - Đoạn <= 5.25s: đúng 1 ảnh
-        # - Đoạn 5.25s - 8.5s: 2 ảnh
-        # - Đoạn >= 8.5s: 3 ảnh Story
-        # - Độ dài tối thiểu 1 ảnh: 3.5s -> 5.25s
-        dai_cau = float(x.get("_dai") or 6.0)
-        if dai_cau <= 5.25:
-            prompts = prompts[:1]
-        elif dai_cau < 8.5:
-            prompts = prompts[:2]
-        else:
-            prompts = prompts[:3]
 
         import hashlib, anh_ve
         PUB = os.path.join(ROOT, "remotion", "public")
         os.makedirs(PUB, exist_ok=True)
-        ds_ten, ve_ds, huong_ds = [], [], []
+        ds_ten, ve_ds, huong_ds, t_ds = [], [], [], []
         mau = None                                           # 19/10 user: ảnh 1 là NGUYÊN LIỆU cho ảnh 2-3 (cùng vật chính)
         for i, p in enumerate(prompts):
             kid = hashlib.md5(((mau or "") + "|" + p).encode("utf-8")).hexdigest()[:14]
@@ -720,10 +747,12 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
             if f_anh and os.path.isfile(f_anh):
                 ds_ten.append(f_anh)
                 ve_ds.append(p)
-                huong_ds.append(x.get(f"huong_{i + 1}") or None)   # 22/10: hướng chuyển động theo hành động của ảnh
+                huong_ds.append(lich[i][2])                  # 22/10: hướng chuyển động theo hành động của ảnh
+                t_ds.append(lich[i][0])                      # 23/10: giờ ảnh này bắt đầu (ảnh vẽ hỏng -> ảnh trước đứng thay)
                 mau = mau or f_anh                           # mọi ảnh sau lấy ẢNH ĐẦU làm mẫu (không trôi dần)
         x["_ve_ds"] = ve_ds                                  # 19/10 user: lưu câu mô tả từng ảnh (sửa tay trên giao diện)
         x["_huong_ds"] = huong_ds
+        x["_t_ds"] = t_ds
         return ds_ten
 
     log(f"    vẽ {len(bdv)} bản đồ, kiểm tra/vẽ {len(th)} chuỗi ảnh AI…")
@@ -750,35 +779,14 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
             return _hd[k_] if k_ < len(_hd) else None
         sfx_th = [{"t": round(bd + 0.2, 2), "kieu": "whoosh", "ly_do": "tái hiện AI"}]
 
-        if n_anh == 1 or dai <= 5.25:
-            phan_doan.append({"bd": bd, "dai": dai, "file": ds_anh[0], "huong": _hg(0)})
-        elif n_anh == 2 or dai < 8.5:
-            m2 = x.get("moc_2")
-            t_split = _tim(ds_c, m2) if m2 else None
-            if t_split is None or t_split < bd + 2.5 or t_split > bd + dai - 2.5:
-                t_split = round(bd + dai / 2, 2)
-            d1 = round(t_split - bd, 2)
-            d2 = round(dai - d1, 2)
-            phan_doan.append({"bd": bd, "dai": d1, "file": ds_anh[0], "huong": _hg(0)})
-            phan_doan.append({"bd": t_split, "dai": d2, "file": ds_anh[min(1, len(ds_anh)-1)], "huong": _hg(1)})
-            sfx_th.append({"t": round(t_split, 2), "kieu": "whoosh", "ly_do": "chuyển cảnh AI 2"})
-        else:
-            m2 = x.get("moc_2")
-            m3 = x.get("moc_3")
-            t1 = _tim(ds_c, m2) if m2 else None
-            t2 = _tim(ds_c, m3) if m3 else None
-            if t1 is None or t1 < bd + 2.8 or t1 > bd + dai - 5.6:
-                t1 = round(bd + dai / 3, 2)
-            if t2 is None or t2 < t1 + 2.8 or t2 > bd + dai - 2.8:
-                t2 = round(t1 + (bd + dai - t1) / 2, 2)
-            d1 = round(t1 - bd, 2)
-            d2 = round(t2 - t1, 2)
-            d3 = round(dai - d1 - d2, 2)
-            phan_doan.append({"bd": bd, "dai": d1, "file": ds_anh[0], "huong": _hg(0)})
-            phan_doan.append({"bd": t1, "dai": d2, "file": ds_anh[min(1, len(ds_anh)-1)], "huong": _hg(1)})
-            phan_doan.append({"bd": t2, "dai": d3, "file": ds_anh[min(2, len(ds_anh)-1)], "huong": _hg(2)})
-            sfx_th.append({"t": round(t1, 2), "kieu": "whoosh", "ly_do": "chuyển cảnh AI 2"})
-            sfx_th.append({"t": round(t2, 2), "kieu": "whoosh", "ly_do": "chuyển cảnh AI 3"})
+        t_ds = list(x.get("_t_ds") or [bd])                 # 23/10: chỗ đổi ảnh theo lịch (AI chốt + ảnh nối tiếp)
+        t_ds[0] = bd
+        for k_ in range(n_anh):
+            t0 = t_ds[k_] if k_ < len(t_ds) else bd
+            t1 = t_ds[k_ + 1] if k_ + 1 < len(t_ds) else bd + dai
+            phan_doan.append({"bd": round(t0, 2), "dai": round(t1 - t0, 2), "file": ds_anh[k_], "huong": _hg(k_)})
+            if k_:
+                sfx_th.append({"t": round(t0, 2), "kieu": "whoosh", "ly_do": f"chuyển cảnh AI {k_ + 1}"})
 
         ra_anh_ai.append({
             "cau": x["cau"],

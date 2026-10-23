@@ -8,6 +8,7 @@ Xoay tài khoản khi một tài khoản lỗi / hết lượt."""
 import asyncio
 import json
 import os
+import re
 import subprocess
 
 from common import log
@@ -47,7 +48,7 @@ def _xep_tai_khoan(do_credit=True):
     ds = _tai_khoan()
     if not do_credit:
         with _KHOA_CON:
-            ds = [a for a in ds if _CON.get(a["label"]) is None or _CON[a["label"]] >= 2 * CREDIT_MOI_ANH]
+            ds = [a for a in ds if _dung_duoc(a["label"])]
         return sorted(ds, key=lambda a: -(_CON.get(a["label"]) if _CON.get(a["label"]) is not None else 10 ** 9))
     with _KHOA_CON:
         for a in ds:
@@ -59,8 +60,20 @@ def _xep_tai_khoan(do_credit=True):
         if not getattr(_xep_tai_khoan, "da_bao", False):
             log("    credit Gemini: " + ", ".join(f"{a['label']} {_CON.get(a['label'])}" for a in ds))
             _xep_tai_khoan.da_bao = True
-        ds = [a for a in ds if _CON.get(a["label"]) is None or _CON[a["label"]] >= 2 * CREDIT_MOI_ANH]
-        return sorted(ds, key=lambda a: -(_CON.get(a["label"]) if _CON.get(a["label"]) is not None else -1))
+        ds = [a for a in ds if _dung_duoc(a["label"])]
+        return sorted(ds, key=lambda a: -_CON[a["label"]])
+
+
+def _dung_duoc(nhan):
+    """23/10 user: đã đo credit mà tài khoản báo None (không đọc được hạn mức) hoặc còn < 2 ảnh -> KHÔNG vẽ — vẽ cũng chỉ
+    nhận câu "can't create any for you / signed out". Chưa đo (vẽ lẻ trước lần đo đầu) thì vẫn cho dùng."""
+    if nhan not in _CON:
+        return True
+    c = _CON[nhan]
+    return c is not None and c >= 2 * CREDIT_MOI_ANH
+
+
+_KHONG_VE_DUOC = re.compile(r"can.?t (create|seem to create|make|generate)|signed (out|in)|image creation", re.I)
 
 
 LUONG_VE_TOI_DA = 8         # 22/10 user ("nhiều cookie được nghỉ ngơi"): số luồng vẽ = số tài khoản dùng được, tối đa bấy nhiêu
@@ -70,7 +83,7 @@ _KHOA_DANG = __import__("threading").Lock()
 
 def so_luong_ve():
     """Số luồng vẽ song song nên dùng = số tài khoản Gemini còn dùng được (3..LUONG_VE_TOI_DA)."""
-    n = sum(1 for a in _tai_khoan() if a.get("label") not in _HONG)
+    n = sum(1 for a in _tai_khoan() if a.get("label") not in _HONG and _dung_duoc(a.get("label")))
     return max(3, min(LUONG_VE_TOI_DA, n))
 
 
@@ -483,6 +496,8 @@ def ve_prompt(prompt, thu, ten, tep=None, timeout=150, do_credit=True):
             except OSError:
                 pass
         log(f"    ! vẽ ảnh (tài khoản {nhan}): không trả ảnh hợp lệ ({ly})")
+        if _KHONG_VE_DUOC.search(str(ly or "")):              # tài khoản không được vẽ -> bỏ hẳn trong lượt này
+            _HONG.add(nhan)
     # 15/10 user: Gemini (cookie) TRƯỚC; chỉ khi mọi tài khoản Gemini hết điểm / lỗi mới chuyển sang Flow
     return _qua_flow(prompt, thu, ten)
 
@@ -512,5 +527,7 @@ def ve(mo_ta, thu, ten, timeout=120):
         if f and os.path.isfile(f):
             return f
         log(f"    ! vẽ ảnh (tài khoản {nhan}): không trả ảnh ({ly})")
+        if _KHONG_VE_DUOC.search(str(ly or "")):
+            _HONG.add(nhan)
     # 15/10 user: Gemini (cookie) TRƯỚC; chỉ khi mọi tài khoản Gemini hết điểm / lỗi mới chuyển sang Flow
     return _qua_flow(prompt, thu, ten)

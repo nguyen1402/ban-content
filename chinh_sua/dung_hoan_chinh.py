@@ -34,6 +34,8 @@ NHAC_BAT = True
 NHAC_NGUON = "kho_chuan"  # "kho_chuan" (kho_am_thanh sạch) | "mixkit" | "kho"
 CHU_BAT = False
 #: 12/10 user: lớp ẢNH PHỦ minh hoạ khi cần (chinh_sua/lop_phu.py). Tắt bằng --khong-lop-phu.
+HOOK_VEO_BAT = False        # 23/10 user: ✨ tự tạo video hook bằng Flow (hook_video.tao_video) đè lên ~30 s đầu —
+#                             CHỈ khi tick ô «🎬 Video hook Flow» (--co-hook-veo)
 NHAN_VAT_BAT = False       # 22/10 user: TẮT ảnh Google người thật (dễ nhầm người) -> người thật chỉ được vẽ ảnh AI DIỄN BIẾN
 #                            việc họ làm, không lộ mặt (luật trong dieu_phoi._P_AI). Bật True = thẻ ảnh thật lop_phu.lap_nhan_vat
 LOP_PHU_BAT = False        # 13/10 user: ẨN thẻ highlight ("hiện tại chưa cần dùng tới") — bật lại: True / bỏ --khong-lop-phu
@@ -648,6 +650,9 @@ def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
         script.add_track(draft.TrackType.text, track_name="lop_phu_chu", relative_index=1)   # thẻ: chữ (sửa tay được)
     if kh.get("nhan_vat"):                                   # 22/10 user: ảnh THẬT nhân vật có thật phủ lên video
         script.add_track(draft.TrackType.video, track_name="nhan_vat", relative_index=7)
+    hook = [z for z in kh.get("hook") or [] if os.path.isfile(z.get("file") or "")]
+    if hook:                                                 # 23/10 user: video hook Flow đè lên mọi lớp (dưới màn đen)
+        script.add_track(draft.TrackType.video, track_name="hook", relative_index=8)
     KP0 = draft.KeyframeProperty
     kieu_anh = 0
     vat_lieu = {}
@@ -772,6 +777,17 @@ def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
             script.add_segment(seg, track_name="anh_ai")
             cuoi_ai = st + d
             k_anh_ai += 1
+    for z in hook:
+        mat = draft.VideoMaterial(z["file"])
+        d = min(int(round((z["het"] - z["bd"]) * SEC)), int(mat.duration) - 1000)
+        if d < int(0.8 * SEC):
+            continue
+        import hook_video
+        vol = hook_video.AM_TIENG_DONG if z.get("am") == "tieng_dong" else 0.0   # người nói chuyện -> tắt tiếng
+        script.add_segment(draft.VideoSegment(mat, trange(int(round(z["bd"] * SEC)), d), source_timerange=trange(0, d),
+                                              volume=vol), track_name="hook")
+    if hook:
+        log(f"    video hook: {len(hook)} clip ở {hook[0]['bd']:.0f}-{hook[-1]['het']:.0f} s")
     if kh.get("hieu_ung"):
         import hieu_ung
         hieu_ung.dat(script, [y for y in kh["hieu_ung"] if y.get("kieu") != "chu_phu"], SEC)
@@ -901,12 +917,14 @@ def main():
     ap.add_argument("--bang-giay-den", type=float, default=None, help="bảng giấy chỉ làm tới giây này (bản thử)")
     ap.add_argument("--khong-tieng-dong", action="store_true", help="không thêm tiếng động diễn cảnh / SFX minh hoạ")
     ap.add_argument("--co-tieng-dong", action="store_true", help="bật tiếng động diễn cảnh")
+    ap.add_argument("--co-hook-veo", action="store_true", help="tạo video hook bằng Flow cho ~30 s đầu (tốn điểm Flow)")
     ap.add_argument("--sua-nhanh", action="store_true",
                     help="giữ kế hoạch: bỏ SFX, làm lại chữ (chỉ số liệu/dữ kiện) và chọn lại nhạc từ kho sạch")
     ap.add_argument("--tinh-lai-chuyen-canh", action="store_true",
                     help="giữ kế hoạch cũ, chỉ dựng lại chuyển cảnh theo các ô hình hiện tại")
     a = ap.parse_args()
-    global NHAC_BAT, SFX_BAT, CHU_BAT, LOP_PHU_BAT, HIEU_UNG_BAT, BANG_GIAY_BAT, DIEU_PHOI_BAT, TIENG_DONG_BAT
+    global NHAC_BAT, SFX_BAT, CHU_BAT, LOP_PHU_BAT, HIEU_UNG_BAT, BANG_GIAY_BAT, DIEU_PHOI_BAT, TIENG_DONG_BAT, HOOK_VEO_BAT
+    HOOK_VEO_BAT = HOOK_VEO_BAT or a.co_hook_veo
     TIENG_DONG_BAT = (TIENG_DONG_BAT or a.co_tieng_dong) and not a.khong_tieng_dong
     DIEU_PHOI_BAT = DIEU_PHOI_BAT and not a.khong_dieu_phoi
     BANG_GIAY_BAT = (BANG_GIAY_BAT or a.co_bang_giay) and not a.khong_bang_giay
@@ -1039,6 +1057,17 @@ def main():
             f"{len(kh.get('hieu_ung') or [])} hiệu ứng, {len(kh.get('anh_ai') or [])} cảnh AI ({sum(len(y.get('phan_doan') or []) for y in kh.get('anh_ai') or [])} ảnh), "
             f"{len(kh.get('bang_giay') or [])} khối bảng giấy, {len(kh['chuyen_canh'])} chuyển cảnh, {len(kh['nhac'])} đoạn nhạc, "
             f"{len(kh['sfx'])} SFX, {len(kh.get('tieng_dong') or [])} tiếng động diễn cảnh -> ra/ke_hoach.json")
+    if HOOK_VEO_BAT and giong_chung:                         # 23/10 user: video hook Flow cho đoạn mở đầu (tick ô 🎬)
+        try:
+            import hook_video
+            from common import DU_AN as _da
+            kh["hook"] = hook_video.tao_video(_da)           # clip đã tạo (cùng câu lệnh) dùng lại, không tốn điểm
+        except Exception as e:                               # noqa: BLE001
+            log(f"    ! video hook: {type(e).__name__}: {str(e)[:150]}")
+            kh["hook"] = []
+    else:
+        kh["hook"] = []
+    ghi_json(KE_HOACH, kh)
     if a.chi_lap_ke_hoach:
         return
     if not SFX_BAT:

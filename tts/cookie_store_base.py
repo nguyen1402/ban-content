@@ -36,8 +36,7 @@ def store_dir():
     if os.environ.get("BAN_CONTENT_DATA"):
         d = os.environ["BAN_CONTENT_DATA"]
     else:
-        base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-        d = os.path.join(base, "BanContent")
+        d = os.path.join(os.path.expanduser("~"), "BanContent")   # 23/10: ngoài AppData (xem flow_ve.GOC)
     os.makedirs(d, exist_ok=True)
     return d
 

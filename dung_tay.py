@@ -55,12 +55,12 @@ def _sach_ten(s, n=60):
 
 
 # --------------------------------------------------------------------------- tìm
-def tim_youtube(q, n=12, lam_moi=False, chi_cc=False):
+def tim_youtube(q, n=12, lam_moi=False):
     """Kết quả tìm YouTube (không tải): [{id, tieu_de, dai, kenh, luot_xem, xac_minh}] — dùng yt-dlp --flat-playlist.
-    chi_cc (22/10 user "an toàn nhất"): chỉ video giấy phép CREATIVE COMMONS (bộ lọc của trang kết quả YouTube)."""
+    23/10 user: BỎ chế độ chỉ lấy Creative Commons; xếp theo mức độ phổ biến, bỏ kênh tin tức / trẻ em / hoạt hình / 3D / nhạc."""
     cache = os.path.join(CACHE_CHUNG, "tim_tay.json")
     da = doc_json(cache, {}) or {}
-    dau = "ytcc" if chi_cc else "yt"
+    dau = "ytpb"                                          # 23/10: khoá cache mới (xếp theo phổ biến + lọc kênh)
     k = f"{dau}|{n}|{q.strip().lower()}"
     if not lam_moi:
         if k in da and time.time() - da[k].get("luc", 0) < 7 * 86400:
@@ -69,8 +69,10 @@ def tim_youtube(q, n=12, lam_moi=False, chi_cc=False):
             k2 = f"{dau}|{n2}|{q.strip().lower()}"
             if n2 > n and k2 in da and time.time() - da[k2].get("luc", 0) < 7 * 86400:
                 return da[k2]["ds"][:n]
-    nguon = (["--playlist-end", str(n), "https://www.youtube.com/results?search_query=" + urllib.parse.quote(q)
-              + "&sp=EgIwAQ%3D%3D"] if chi_cc else [f"ytsearch{n}:{q}"])
+    # 23/10 user: lọc theo MỨC ĐỘ PHỔ BIẾN (bộ lọc YouTube "Ưu tiên: Mức độ phổ biến" = sp CAM). Lấy dư một nửa vì
+    # bước lọc kênh (tin tức / trẻ em / hoạt hình / 3D / âm nhạc) bỏ bớt.
+    nguon = ["--playlist-end", str(n + n // 2), "https://www.youtube.com/results?search_query=" + urllib.parse.quote(q)
+             + "&sp=CAM%3D"]
     p = subprocess.run([YTDLP, *YT_JS, "--flat-playlist", "-J", "--no-warnings", *nguon],
                        capture_output=True, timeout=120, creationflags=0x08000000 if os.name == "nt" else 0)
     try:
@@ -84,6 +86,7 @@ def tim_youtube(q, n=12, lam_moi=False, chi_cc=False):
         ds.append({"id": e["id"], "tieu_de": e.get("title") or "", "dai": e.get("duration") or 0,
                    "kenh": e.get("channel") or e.get("uploader") or "", "luot_xem": e.get("view_count") or 0,
                    "xac_minh": bool(e.get("channel_is_verified"))})
+    ds = [v for v in ds if not la_kenh_loai(v)][:n]
     with _KHOA:
         da = doc_json(cache, {}) or {}
         da[k] = {"luc": time.time(), "ds": ds}
@@ -107,6 +110,38 @@ CHAN_NGUON = re.compile(r"\b(CNN|BBC|NBC|ABC|CBS|Fox|PIX ?11|WPIX|Sky News|Al Ja
                         r"Shutterstock|Pond5|Storyblocks|Videoblocks|Alamy|Adobe Stock|iStock|Dissolve|Framepool|"
                         r"Artgrid|Envato|Motion Array|MyFootage|Film Supply|Filmsupply|Footage Farm|Huntley Film|"
                         r"British Movietone|Movietone|Archive Films)\b", re.I)
+
+
+# 23/10 user: kênh THỜI SỰ / TIN TỨC loại ở MỌI chế độ (đa phần là ảnh tĩnh + người dẫn nói, có logo đài, dải chữ chạy).
+TIN_TUC = re.compile(r"\b(news\w*|thời sự|tin tức|breaking|headlines?|newscast|CNN|BBC|NBC|ABC|CBS|Fox ?\d*|"
+                     r"PIX ?11|WPIX|Sky News|Al Jazeera|Reuters|AP Archive|Associated Press|Bloomberg|CNBC|MSNBC|"
+                     r"Yahoo Finance|Euronews|DW|France 24|Channel 4|ITV|NHK|CGTN|CBC|WION|Global News|Newsy|NowThis|"
+                     r"Inside Edition|60 Minutes|Good Morning America|Today Show|Washington Post|New York Times|NYT|"
+                     r"Guardian|USA Today|Los Angeles Times|LA Times|Insider|Business Insider|Vox|Vice|C-SPAN|"
+                     r"Telemundo|Univision|KTLA|WABC|WCVB|WFAA|KHOU|WSB-TV|NY1|Spectrum News|Scripps|Nexstar|"
+                     r"Gray TV|Sinclair|VTV|VTC|VnExpress|Tuổi Trẻ|Thanh Niên|ANTV|THVL|HTV)\b", re.I)
+
+
+def la_tin_tuc(v):
+    """Video thuộc kênh / tiêu đề thời sự, tin tức."""
+    return bool(TIN_TUC.search(f"{v.get('kenh') or ''} | {v.get('tieu_de') or ''}"))
+
+
+# 23/10 user: tìm YouTube bỏ hẳn kênh TRẺ EM, HOẠT HÌNH, 3D / CGI, ÂM NHẠC (cùng kênh tin tức ở trên). Xét tên kênh +
+# tiêu đề; khung hình hoạt hình / game còn lọt thì bước băm (loc_minh_hoa.diem_hoat_hinh) loại tiếp.
+LOAI_KENH = re.compile(
+    r"\b(kids?|children'?s?|for kids|nursery|rhymes?|toddlers?|baby|babies|preschool|kindergarten|cocomelon|"
+    r"pinkfong|baby ?shark|little ?baby ?bum|super ?simple|blippi|peppa|paw ?patrol|chuchu|mother ?goose|"
+    r"cartoons?|animations?|animated|anime|animatic|stop[- ]?motion|claymation|toons?|"
+    r"3d|cgi|blender|unreal ?engine|ue5|render(ed|ing)?|minecraft|roblox|gta|gameplay|simulator|"
+    r"music|songs?|lyrics?|lyric video|official (audio|video|mv)|mv|vevo|karaoke|remix|playlist|"
+    r"lo-?fi|soundtrack|ost|acoustic|cover song|"
+    r"thiếu nhi|trẻ em|em bé|bé học|hoạt hình|phim hoạt hình|ca nhạc|âm nhạc|bài hát|nhạc|karaoke)\b", re.I)
+
+
+def la_kenh_loai(v):
+    """Kênh / video phải bỏ khi tìm nguồn: tin tức, trẻ em, hoạt hình, 3D-CGI, âm nhạc."""
+    return la_tin_tuc(v) or bool(LOAI_KENH.search(f"{v.get('kenh') or ''} | {v.get('tieu_de') or ''}"))
 
 
 def la_kenh_cong(kenh):
@@ -512,7 +547,9 @@ def bam_theo_canh(du_an, vid, file_goc, Q, chu_de=None, meta=None):
             sc = float(np.sort(s)[-max(1, len(s) // 2):].mean())
             if sc >= NGUONG_KHUNG_THAT:
                 ung.append((sc, t0, t1))
-    ung = sorted(sorted(ung, key=lambda x: -x[0])[:BAM_TOI_DA], key=lambda x: x[1])
+    ung = sorted(ung, key=lambda x: -x[0])[:BAM_TOI_DA * 2]
+    hep = sach_hinh.song_song(lambda x: sach_hinh.khung_hep(file_goc, x[1], x[2] - x[1]), ung)   # 23/10: dọc / 4:3 -> bỏ
+    ung = sorted([x for x, h in zip(ung, hep) if not h][:BAM_TOI_DA], key=lambda x: x[1])
     thu = os.path.dirname(file_goc)
     giu, so_giu = 0.0, 0
     for i, (sc, t0, t1) in enumerate(ung):
