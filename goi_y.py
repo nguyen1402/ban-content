@@ -337,6 +337,33 @@ def cho_nghi_giong_doc(du_an, c, lang=None):
     return gon
 
 
+def _kho_tay_theo_chu_the(du_an, kho, chu_de_ds):
+    """26/10 user ("đoạn không nhắc đại bàng mà vẫn lẫn cảnh đại bàng"): mảnh NGƯỜI DÙNG tự chọn ở 🎯 (tay + chu_de) chỉ vào
+    kho của ĐÚNG chủ thể đã tích + các chủ thể CÙNG TÊN ở lô khác (gấu xám lô 1..4) — không xếp lại theo nội dung hình
+    (pool_noi_dung từng đưa 19 mảnh chim ưng biển quắp cá vào kho các chủ thể cá). -> {kho_id: {id đoạn}}."""
+    import re
+    from common import doc_json, thu_muc_du_an
+    ten_ngan = doc_json(os.path.join(thu_muc_du_an(du_an)[1], "chon_tay_loi.json"), {}) or {}
+    ke = [cd for cd in chu_de_ds if cd.get("loai", "ke") == "ke"]
+
+    def ten(k):                                             # tên ngắn (🎯 đặt) hoặc tên chủ thể bỏ đuôi " · lô N"
+        t = ((ten_ngan.get(str(k)) or {}).get("ten") or [None])[0]
+        if t:
+            return str(t).lower()
+        goc = next((cd for cd in chu_de_ds if cd.get("id") == k), {})
+        return re.sub(r"\s*·\s*lô\s*\d+\s*$", "", str(goc.get("doi_tuong") or goc.get("ten") or k)).strip().lower()
+    nhom = {}
+    for cd in ke:
+        nhom.setdefault(ten(cd.get("kho_cd") or cd["id"]), set()).add(cd["id"])
+    ra = {}
+    for kid, m in kho.items():
+        if m.get("tay") and m.get("chu_de") is not None and m.get("loai") == "video":
+            ds = nhom.get(ten(m["chu_de"])) or {cd["id"] for cd in ke if (cd.get("kho_cd") or cd["id"]) == m["chu_de"]}
+            if ds:
+                ra[kid] = set(ds)
+    return ra
+
+
 def pool_noi_dung(vids, anhs, vec_cd, loi=None):
     """19/10 user (đoạn nói dê mà nhảy sang cảnh dưới biển): kho của mỗi đoạn tính theo NỘI DUNG HÌNH — điểm trung bình
     nửa khung tốt nhất của clip so với đối tượng đoạn (mo_ta_en). Không độc quyền: clip dê vào kho mọi đoạn về dê.
@@ -380,7 +407,7 @@ def _chia(dai):
 
 
 def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=None, nghi=(), lan=None, t0=0.0,
-               thieu=None, rieng=None, cd_id=None, kid_to_cd=None, ep=(), ve_vec=(), nhom=None, nhac=(), cd_phu=(),
+               thieu=None, rieng=None, cd_id=None, kid_to_cd=None, ep=(), ve_vec=(), nhom=None, nhac=(), cd_phu=(), ghim=frozenset(),
                loi=None):
     """Giai đoạn 5: Danh sách đoạn gợi ý cho một cảnh.
     - Nguồn được dùng: ưu tiên video thuộc chủ đề của cảnh đó (cd_id).
@@ -441,8 +468,13 @@ def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=N
     cs_n = max(1, int(round(DOAN_MUC_TIEU / BG)))
     E_ = {kid: e for kid, t, e, f, bien, tong, xau in vids}
 
+    duoc = ({cd_id} if cd_id is not None else set()) | set(cd_phu or ())
+
     def cham(v_):                                            # điểm từng khung với vector truy vấn v_ + chia nhóm chủ đề
-        S_ = [(kid, t, e @ v_, f, bien, tong, xau) for kid, t, e, f, bien, tong, xau in vids]
+        # 26/10 user (gaubaccuc: chim ưng quắp cá lọt vào cảnh nói về cá): mảnh tự chọn ở 🎯 (ghim) — kể cả ở các bước
+        # tìm CẢ KHO (vế nhắc đối tượng khác, nhắc lại) — chỉ dùng khi chủ thể đã tích là chủ thể cảnh / đi cùng cảnh
+        S_ = [(kid, t, e @ v_, f, bien, tong, xau) for kid, t, e, f, bien, tong, xau in vids
+              if kid not in ghim or not duoc or (kid_to_cd or {}).get(kid, set()) & duoc]
         if cd_id is not None:
             return S_, [it for it in S_ if cd_id in kid_to_cd.get(it[0], ())]
         return S_, S_
@@ -689,6 +721,9 @@ def goi_y(du_an, ids=None, chi_canh_trong=True, mo_hinh=None, luu=True):
                                                for i, mt in mo_ta_cd.items() if mt}, loi=loi_map)
     if not kid_to_cd:
         kid_to_cd = {k: {m.get("chu_de")} for k, m in kho.items()}
+    tay_cd = _kho_tay_theo_chu_the(du_an, kho, chu_de_ds)
+    if tay_cd:                                               # 26/10 user (gaubaccuc: chim ưng quắp cá lọt vào cảnh nói về cá)
+        kid_to_cd.update(tay_cd)
     nhom_goc = {k: m.get("video_goc") or m.get("manh_cua") or k for k, m in kho.items() if m.get("loai") == "video"}
 
     chon = [c for c in canh if ids is None or c["id"] in ids]
@@ -763,7 +798,7 @@ def goi_y(du_an, ids=None, chi_canh_trong=True, mo_hinh=None, luu=True):
         doan = goi_y_canh(c_cham, vids, anhs, da_dung, mo_hinh, gan, sach, truoc,
                           moc, lan=lan, t0=float(c.get("bat_dau") or 0),
                           thieu=th, rieng=rieng, cd_id=canh_sang_cd.get(c["id"]),
-                          kid_to_cd=kid_to_cd, nhom=nhom_goc, cd_phu=phu_canh.get(c["id"], ()), loi=loi_map,
+                          kid_to_cd=kid_to_cd, nhom=nhom_goc, cd_phu=phu_canh.get(c["id"], ()), loi=loi_map, ghim=set(tay_cd),
                           ve_vec=mo_ta_ve.vec_ve(du_an, str(c["id"]), ve_c) if ve_c else (),
                           nhac=mo_ta_ve.nhac_lai(ve_c) if ve_c else (),
                           ep=[(max(a_, c0_) - c0_, min(b_, c0_ + float(c["dai"])) - c0_, k_)
@@ -774,6 +809,13 @@ def goi_y(du_an, ids=None, chi_canh_trong=True, mo_hinh=None, luu=True):
         gan_truoc.append({d["kho_id"] for d in doan if d["loai"] == "video"})
         gan = set().union(*gan_truoc[-2:])
         if not doan:
+            # 26/10 user (gaubaccuc: chim ưng biển vẫn ở cảnh 53 sau khi sửa): cảnh GỢI Ý CŨ khớp lại mà không còn đoạn hợp
+            # lệ -> XOÁ kế hoạch cũ (trước đây giữ nguyên = giữ cả mảnh sai), để trống cho ảnh AI bù (DE_TRONG_KHI_HET)
+            if luu and kh.get("goi_y") and kh.get("doan"):
+                dung_tay.luu_canh(du_an, c["id"], [])
+                if not th:
+                    thieu_ct[str(c["id"])] = [{"bd": round(float(c.get("bat_dau") or 0), 2), "dai": round(float(c["dai"]), 2)}]
+                    thieu_ds[str(c["id"])] = 1
             continue
         if not luu:                                          # chỉ trả kế hoạch (vd so sánh mô hình), không ghi dung.json
             ke_hoach[str(c["id"])] = {"doan": doan, "goi_y": True}
