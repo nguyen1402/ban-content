@@ -564,6 +564,8 @@ def lap(cau, canh, de_xuat, SEC=1_000_000):
             if t_m is not None and bd + 0.8 < t_m - DI_TRUOC < kt - 2.0:
                 bd = round(t_m - DI_TRUOC, 2)
                 dai = round(kt - bd, 2)
+            from dieu_phoi import AI_CHUOI_TOI_DA             # 26/10 user: một chỗ ảnh AI không dài quá ~12 s
+            dai = round(min(dai, AI_CHUOI_TOI_DA + 1.5), 2)
             ung_ai.append((bd, dai, "tai_hien", x, ds_c))
             continue
 

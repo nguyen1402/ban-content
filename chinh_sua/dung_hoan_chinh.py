@@ -118,6 +118,25 @@ def _srt_gio(s):
     return f"{ms // 3600000:02d}:{ms // 60000 % 60:02d}:{ms // 1000 % 60:02d},{ms % 1000:03d}"
 
 
+def _doc_srt(path):
+    """[{i, t0, t1, text}] từ một file SRT (mỗi khối một câu)."""
+    import re
+    try:
+        s = open(path, encoding="utf-8").read()
+    except OSError:
+        return []
+
+    def giay(h, m, s_, ms):
+        return int(h) * 3600 + int(m) * 60 + int(s_) + int(ms) / 1000
+    ra = []
+    for k in re.finditer(r"(\d+)\s*\n(\d+):(\d+):(\d+)[,.](\d+) --> (\d+):(\d+):(\d+)[,.](\d+)\s*\n(.*?)(?=\n\s*\n|\Z)", s, re.S):
+        g = k.groups()
+        txt = g[9].replace("\n", " ").strip()
+        if txt:
+            ra.append({"i": len(ra) + 1, "t0": round(giay(*g[1:5]), 3), "t1": round(giay(*g[5:9]), 3), "text": txt})
+    return ra
+
+
 def ghi_srt(cau, path):
     with open(path, "w", encoding="utf-8") as f:
         for c in cau:
@@ -935,6 +954,20 @@ def main():
     LOP_PHU_BAT = (LOP_PHU_BAT or a.co_lop_phu) and not a.khong_lop_phu
 
     giong_chung = None
+    if a.chi_de_xuat_ai and not os.path.isfile(os.path.join(OUT, "ket_qua.json")) \
+            and not os.path.isfile(os.path.join(OUT, "dung.json")):
+        # 25/10 user ("📝 Chỗ vẽ ảnh AI không nhận"): dự án mới có giọng đọc, CHƯA dựng bản thô -> trước đây lỗi
+        # FileNotFoundError ket_qua.json (giao diện chỉ hiện lại "Chưa có danh sách"). Đề xuất chỗ vẽ chỉ cần câu lời +
+        # mốc giờ -> lấy từ kich_ban.srt của bước giọng đọc
+        cau = _doc_srt(os.path.join(OUT, "kich_ban.srt"))
+        if not cau:
+            raise SystemExit("chưa có giọng đọc (kich_ban.srt) — đọc giọng hoặc dựng bản thô trước")
+        ghi_srt(cau, os.path.join(OUT, "kich_ban_cau.srt"))
+        log(f"[1] chưa có bản thô: lấy {len(cau)} câu từ kich_ban.srt của giọng đọc")
+        import dieu_phoi
+        dieu_phoi.hoi(cau, OUT, co_the=LOP_PHU_BAT)
+        log("[ĐX] xong danh sách chỗ vẽ ảnh AI")
+        return
     if not os.path.isfile(os.path.join(OUT, "ket_qua.json")) and os.path.isfile(os.path.join(OUT, "dung.json")):
         import du_an_moi                                    # dự án kiểu mới (trình dựng tay / nút 🤖)
         from common import DU_AN
@@ -1064,6 +1097,17 @@ def main():
             kh["hook"] = hook_video.tao_video(_da)           # clip đã tạo (cùng câu lệnh) dùng lại, không tốn điểm
         except Exception as e:                               # noqa: BLE001
             log(f"    ! video hook: {type(e).__name__}: {str(e)[:150]}")
+            kh["hook"] = []
+    elif giong_chung:
+        # 25/10 user ("xem lại phần ghép video hook veo3 vào bản nháp"): không tick ô 🎬 trước đây XOÁ TRẮNG kh["hook"] —
+        # clip đã tạo / 💾 Lưu trên giao diện không bao giờ vào bản nháp. Ô tick chỉ quyết định TẠO MỚI bằng Flow (tốn
+        # điểm); clip đã có thì luôn ghép (xếp lại theo mốc giọng hiện tại, không gọi Flow)
+        try:
+            import hook_video
+            from common import DU_AN as _da
+            kh["hook"] = hook_video.ke_hoach_hook(_da)
+        except Exception as e:                               # noqa: BLE001
+            log(f"    ! video hook (clip có sẵn): {type(e).__name__}: {str(e)[:150]}")
             kh["hook"] = []
     else:
         kh["hook"] = []

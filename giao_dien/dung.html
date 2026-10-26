@@ -5,8 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dựng tay — Bản Content</title>
 <style>
-/* 18/10: display:flex gắn thẳng vào dialog đè luật ẩn khi đóng -> bấm ✕ không tắt được; chỉ flex khi đang mở */
-#hop_duyet_nguon[open]{display:flex}
 :root{--bg:#f6f7f9;--card:#fff;--ink:#1c2230;--mut:#667085;--line:#e3e6ec;--ac:#2f6df6;--ac-ink:#fff;--ok:#1a9d5c;--wa:#c27803;--er:#d33a3a}
 @media (prefers-color-scheme:dark){:root{--bg:#0f1218;--card:#171b24;--ink:#e8ecf3;--mut:#93a0b4;--line:#262c39;--ac:#5b8cff;--ac-ink:#0b0f18;--ok:#43c783;--wa:#e0a43a;--er:#ff7070}}
 *{box-sizing:border-box}
@@ -69,30 +67,33 @@ video,iframe{width:100%;border-radius:8px;background:#000;display:block}
 <header>
   <h1>🎬 Dựng tay</h1><span class="sub" id="tenduan"></span>
   <a href="/" class="sub">← về trang chính</a>
+  <a href="/doi_thu#spy" target="_blank" class="sub" style="color:#ab47bc;font-weight:600;margin-left:8px">🕵️ Tình báo đối thủ</a>
   <span style="flex:1"></span>
   <span class="sub" id="tongket"></span>
   <input type="text" id="tennhap" placeholder="Tên bản nháp CapCut" style="width:220px">
   <button class="p" id="goiytatca" title="Tự điền đoạn hình cho mọi cảnh CHƯA dựng, lấy từ video/ảnh trong Kho dự án. Bạn xem, sửa rồi mới cắt.">✨ Gợi ý cho mọi cảnh chưa dựng</button>
-  <button id="tudong" title="Cảnh chưa dựng: tự chọn đoạn từ Kho dự án; cảnh bạn đã dựng giữ nguyên. Rồi tạo bản nháp CapCut, mỗi đoạn trỏ vào VIDEO GỐC để bạn chọn lại đoạn khác ngay trong CapCut.">⚡ Tự động chọn đoạn + tạo bản nháp</button>
+  <button id="tudong" title="Cảnh chưa dựng: tự chọn đoạn từ Kho dự án; cảnh bạn đã dựng giữ nguyên. Rồi tạo bản nháp CapCut, mỗi đoạn trỏ vào VIDEO GỐC để bạn chọn lại đoạn khác ngay trong CapCut. Xong tự chạy luôn ✨ Hoàn thiện (ảnh AI, hook Veo3, nhạc, SFX theo các ô tick) -> bản nháp _hoan_chinh.">⚡ Tự chọn đoạn + bản nháp + hoàn thiện</button>
   <span class="sub">Tải tối đa</span><input type="number" id="ngansach" value="120" min="10" max="600" step="10" style="width:64px" title="Tổng phút video được tải cho dự án (lố tối đa 10%). Ảnh không giới hạn."><span class="sub">phút video</span>
   <select id="chedo_tim" style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 9px;font-weight:600" title="Chọn phương pháp tìm: theo Chủ đề (mới, nhanh & chính xác) hoặc theo Cảnh (cũ)">
     <option value="chu_de" selected>Tìm theo: Chủ đề</option>
     <option value="canh">Tìm theo: Cảnh</option>
+    <option value="tay">🎯 Tự chọn trên YouTube</option>
   </select>
+  <button class="p" id="mo_chon_tay" title="Danh sách video YouTube theo từ khoá của từng chủ thể (đúng thứ tự + bộ lọc như YouTube). Bấm vào video để xem trên YouTube, tích video muốn dùng -> tự tải trọn video và băm theo cảnh quay vào Kho của chủ thể đó. Không quét / chấm tự động.">🎯 Chọn nguồn YouTube</button>
   <button class="p" id="xemchuthe" title="Chủ thể chính của cả video (dingo, dê, trực thăng…) + tên gọi + từ khoá tìm. Sửa trước khi bấm 🤖 — máy chỉ tìm theo các từ khoá này và gán cảnh theo tên gọi xuất hiện trong lời.">👥 Chủ thể</button>
   <button class="p" id="xemchude" title="Xem danh sách chủ đề và sửa từ khoá trước khi tìm">📋 Sửa chủ đề</button>
   <button class="p" id="xemcotloi" style="display:none" title="Ý CỐT LÕI: những chỗ quá trình / hành động then chốt dùng ẢNH AI THAY HẲN video (toàn màn hình). Xem, sửa câu mô tả, xoá ý, rồi vẽ trước khi chạy 🤖">🎯 Ý cốt lõi</button>
+  <button class="p" id="nut_kt_het" title="Kiểm tra trước khi chạy: mọi tài khoản Gemini, ChatGPT (hỏi thử 1 câu), cookie YouTube (thử lấy 1 video), hồ sơ Flow (lỗi lần chạy trước) — cái nào hỏng thì báo để bạn gửi lại cookie">🩺 Kiểm tra tài khoản</button>
   <button class="p" id="nutck_yt" title="Cài đặt Cookie YouTube để tránh bị chặn Bot và tải video 1080p/720p ổn định">🍪 Cookie YouTube</button>
-  <button id="nut_duyet_nguon" style="background:#8e24aa;color:#fff;font-weight:600" title="Tìm siêu tốc (5-10s), xem thử và tự tick chọn video ưng ý theo từng chủ đề trước khi tải">🎬 Duyệt &amp; Tự chọn Video</button>
-  <button id="tutim" title="Tự tìm footage SẠCH (Pexels, Pixabay, Mixkit, Coverr, Wikimedia) theo mô tả mọi cảnh, chấm điểm, tải trong ngân sách phút, khớp đoạn; cảnh thiếu thì ảnh Google bù; rồi tạo bản nháp (đoạn trỏ video gốc). Cảnh bạn đã tự dựng giữ nguyên.">🤖 Tự tìm + tải + khớp + bản nháp</button><label class="sub" title="Xong bước 🤖 thì máy chủ TỰ chạy tiếp ✨ Hoàn thiện bản nháp (diễn cảnh, bản đồ, nhạc) — một mạch tới bản cuối, đóng trang cũng được."><input type="checkbox" id="lienht"> rồi hoàn thiện luôn</label><label class="sub" title="Bỏ tick: KHÔNG tìm/tải kho video free (Pexels, Pixabay, Mixkit, Coverr) — chỉ video YouTube (Google Videos + tìm YouTube). Clip stock đã tải từ trước vẫn dùng."><input type="checkbox" id="dungstock"> dùng kho video free</label>
-  <button id="hoanthien" title="Chạy bước HOÀN THIỆN (skill chỉnh sửa) trên kế hoạch hiện tại: căn giờ theo giọng đọc, bản đồ vệ tinh cho cảnh địa điểm, bản đồ đường đi, thẻ ảnh highlight 65% kèm chữ nhấn mạnh ở mọi chỗ dẫn chứng/so sánh/nhấn mạnh, phủ màu đổi chương, chuyển cảnh -> bản nháp CapCut mới tên <tên>_hoan_chinh.">✨ Hoàn thiện bản nháp</button><button class="p" id="mo_chen_anh" title="Chọn câu lời, viết mô tả, vẽ ảnh (Gemini), xem trước rồi giữ; bấm Chèn để thêm thẳng các ảnh đã giữ vào bản nháp CapCut đúng mốc giờ.">🎨 Tạo ảnh chèn bản nháp</button><button class="p" id="mo_ke_hoach_ai" title="Danh sách chỗ sẽ vẽ ảnh AI (AI đề xuất): bỏ chỗ không cần, sửa câu mô tả, thêm chỗ cần ảnh — ✨ chỉ vẽ đúng danh sách này.">📝 Chỗ vẽ ảnh AI</button><button class="p" id="mo_anh_ai" title="Xem từng ảnh AI của lần ✨ gần nhất cùng câu mô tả; sửa câu, vẽ lại, xem trước rồi Lưu (thay ảnh cũ) hoặc Bỏ qua.">🖼 Ảnh AI</button><label class="sub" title="Thêm nhạc nền sạch không bản quyền (tự ghép theo chương, -24dB êm nhẹ)"><input type="checkbox" id="co_nhac" checked> 🎵 Nhạc</label><label class="sub" title="Thêm SFX chuyển cảnh whoosh và điểm nhấn hit tinh gọn"><input type="checkbox" id="co_sfx" checked> 🔊 SFX</label><label class="sub" title="✨ tự tạo 3-6 video hook kịch tính bằng Google Flow (Omni 1.1 Flash 10 s 720p, ~15 điểm/clip) và đè lên ~30 giây đầu đúng khoảnh khắc giọng đọc nói tới. Clip đã tạo được dùng lại, không tốn điểm lần nữa. Bỏ tick: không tạo, không đặt hook."><input type="checkbox" id="co_hook"> 🎬 Video hook Flow</label>
+  <button id="tutim" title="Tự tìm footage SẠCH (Pexels, Pixabay, Mixkit, Coverr, Wikimedia) theo mô tả mọi cảnh, chấm điểm, tải trong ngân sách phút, khớp đoạn; cảnh thiếu thì ảnh Google bù; rồi tạo bản nháp (đoạn trỏ video gốc). Cảnh bạn đã tự dựng giữ nguyên.">🤖 Tự tìm + tải + khớp + bản nháp</button><label class="sub" title="Xong bước 🤖 thì máy chủ TỰ chạy tiếp ✨ Hoàn thiện bản nháp (diễn cảnh, ảnh AI, nhạc) — một mạch tới bản cuối, đóng trang cũng được."><input type="checkbox" id="lienht"> rồi hoàn thiện luôn</label><label class="sub" title="Bỏ tick: KHÔNG tìm/tải kho video free (Pexels, Pixabay, Mixkit, Coverr) — chỉ video YouTube (Google Videos + tìm YouTube). Clip stock đã tải từ trước vẫn dùng."><input type="checkbox" id="dungstock"> dùng kho video free</label>
+  <button id="hoanthien" title="Chạy bước HOÀN THIỆN (skill chỉnh sửa) trên kế hoạch hiện tại: căn giờ theo giọng đọc, thẻ ảnh highlight 65% kèm chữ nhấn mạnh ở mọi chỗ dẫn chứng/so sánh/nhấn mạnh, phủ màu đổi chương, chuyển cảnh -> bản nháp CapCut mới tên <tên>_hoan_chinh.">✨ Hoàn thiện bản nháp</button><button class="p" id="mo_chen_anh" title="Chọn câu lời, viết mô tả, vẽ ảnh (Gemini), xem trước rồi giữ; bấm Chèn để thêm thẳng các ảnh đã giữ vào bản nháp CapCut đúng mốc giờ.">🎨 Tạo ảnh chèn bản nháp</button><button class="p" id="mo_ke_hoach_ai" title="Danh sách chỗ sẽ vẽ ảnh AI (AI đề xuất): bỏ chỗ không cần, sửa câu mô tả, thêm chỗ cần ảnh — ✨ chỉ vẽ đúng danh sách này.">📝 Chỗ vẽ ảnh AI</button><button class="p" id="mo_anh_ai" title="Xem từng ảnh AI & video hook Veo 3 của lần ✨ gần nhất cùng câu mô tả; sửa câu, vẽ lại / tạo lại video, xem trước rồi Lưu (thay thế bản cũ) hoặc Bỏ qua.">🖼 Ảnh &amp; 🎬 Video AI</button><label class="sub" title="Thêm nhạc nền sạch không bản quyền (tự ghép theo chương, -24dB êm nhẹ)"><input type="checkbox" id="co_nhac" checked> 🎵 Nhạc</label><label class="sub" title="Thêm SFX chuyển cảnh whoosh và điểm nhấn hit tinh gọn"><input type="checkbox" id="co_sfx" checked> 🔊 SFX</label><label class="sub" title="✨ tự tạo 3-6 video hook kịch tính bằng Google Flow (Omni 1.1 Flash 10 s 720p, ~15 điểm/clip) và đè lên ~30 giây đầu đúng khoảnh khắc giọng đọc nói tới. Clip đã tạo được dùng lại, không tốn điểm lần nữa. Bỏ tick: không tạo, không đặt hook."><input type="checkbox" id="co_hook"> 🎬 Video hook Flow</label>
   <button class="p" id="taonhap" title="Tạo bản nháp từ kế hoạch hiện có của mọi cảnh (đoạn trỏ video gốc)">📦 Chỉ tạo bản nháp</button>
 </header>
 <div class="khung">
   <div class="cot" id="dscanh"></div>
   <div class="cot giua" id="giua"><p class="sub">Chọn một cảnh ở cột trái.</p></div>
   <div class="cot">
-    <div class="tabs"><button data-t="kho" class="on">Kho dự án</button><button data-t="video">Tìm video</button><button data-t="anh">Tìm ảnh</button></div>
+    <div class="tabs"><button data-t="kho" class="on">Kho dự án</button><button data-t="video">Tìm video</button><button data-t="anh">🌊 Vẽ ảnh Flow / Tìm ảnh</button></div>
     <div id="tab_kho"></div>
     <div id="tab_video" style="display:none">
       <div class="row" style="padding:10px 10px 0"><input type="text" id="qvideo" style="flex:1" placeholder="Từ khoá YouTube…"><button id="timvideo">Tìm</button></div>
@@ -108,13 +109,82 @@ video,iframe{width:100%;border-radius:8px;background:#000;display:block}
       <div class="luoi" id="kqvideo"></div>
     </div>
     <div id="tab_anh" style="display:none">
-      <div class="row" style="padding:10px 10px 0"><input type="text" id="qanh" style="flex:1" placeholder="Từ khoá ảnh…"><button id="timanh">Tìm</button></div>
+      <!-- 🌊 Khu vực Tạo ảnh bằng Google Flow -->
+      <div style="padding:10px 10px 10px;border-bottom:1px solid var(--line);background:var(--card)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <b style="font-size:12.5px;color:var(--ac)">🌊 Tạo ảnh AI qua Google Flow (0 điểm)</b>
+          <button class="p" id="btn_mo_thu_anh_tab" style="padding:2px 7px;font-size:11px" title="Mở thư mục lưu ảnh của dự án trong Explorer: ra/${DU}/kho/anh">📂 Thư mục ảnh</button>
+        </div>
+        <div style="margin-bottom:8px">
+          <button class="p" id="btn_mo_hop_dna" style="background:linear-gradient(90deg,#4a148c,#7b1fa2);color:#fff;font-weight:600;padding:5px 10px;font-size:12px;width:100%;border-radius:6px;border:0;cursor:pointer" title="Tạo mô tả ảnh riêng biệt cho từng câu thoại trong dự án, khóa chặt nhân vật và bối cảnh đồng nhất">🎭 Khóa nhân vật &amp; Tạo mô tả ảnh cho MỌI câu thoại</button>
+        </div>
+        <textarea id="prompt_ve_ai" rows="2" style="font-size:12.5px;margin-bottom:6px;width:100%" placeholder="Nhập câu mô tả để vẽ ảnh bằng Google Flow (hoặc bấm '💡 Gợi ý câu vẽ' để AI tự viết theo cảnh)..."></textarea>
+        <div class="row" style="gap:6px;margin-bottom:6px;align-items:center;flex-wrap:wrap">
+          <button id="btn_ve_ai_tab" style="background:#8e24aa;color:#fff;font-weight:600;padding:4px 12px;font-size:12px">🌊 Vẽ ảnh Flow</button>
+          <select id="sel_cong_cu_anh" style="font-size:11.5px;padding:3px 6px">
+            <option value="flow" selected>🌊 Google Flow (0 điểm - mặc định)</option>
+            <option value="gemini">✨ Gemini Cookie (~17 điểm)</option>
+          </select>
+          <select id="sel_ti_le_anh" style="font-size:11.5px;padding:3px 6px">
+            <option value="16:9" selected>16:9 ngang</option>
+            <option value="9:16">9:16 dọc</option>
+            <option value="1:1">1:1 vuông</option>
+          </select>
+          <button class="p" id="btn_goi_y_ve_tab" style="padding:4px 10px;font-size:12px" title="Hỏi AI tự viết câu lệnh tạo ảnh dựa trên lời thoại và nội dung cảnh đang chọn">💡 Gợi ý câu vẽ</button>
+          <span id="tt_ve_ai_tab" class="sub" style="font-size:11.5px"></span>
+        </div>
+        <div id="xem_anh_ai_tab" style="display:none;margin-top:8px;padding:8px;background:var(--bg);border-radius:8px;border:1px solid var(--line)">
+          <img id="img_ai_tab" style="max-width:100%;max-height:240px;border-radius:6px;display:block;margin-bottom:6px">
+          <div class="row" style="gap:6px">
+            <button id="btn_luu_kho_tab" style="background:var(--ok);color:#fff;font-size:12px;padding:4px 10px">💾 Lưu vào Kho dự án</button>
+            <button id="btn_dung_canh_tab" style="background:var(--ac);color:#fff;font-size:12px;padding:4px 10px">＋ Lưu &amp; Dùng cho cảnh</button>
+            <button class="p" id="btn_bo_ai_tab" style="font-size:12px;padding:4px 8px">✕ Bỏ</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 🔍 Tìm ảnh Google -->
+      <div class="row" style="padding:10px 10px 0"><input type="text" id="qanh" style="flex:1" placeholder="Từ khoá tìm Google Images…"><button id="timanh">🔍 Tìm</button></div>
       <div id="xemanh" style="padding:10px 10px 0"></div>
       <div class="luoi" id="kqanh"></div>
     </div>
   </div>
 </div>
 <audio id="am" preload="auto"></audio>
+<dialog id="hop_dong_nhat" style="border:0;border-radius:12px;padding:16px 20px;max-width:680px;width:92vw;background:var(--card);color:var(--ink);box-shadow:0 12px 36px #0006">
+  <div class="row" style="justify-content:space-between;margin-bottom:10px">
+    <h3 style="margin:0;font-size:16px;color:var(--ac)">🎭 Khóa nhân vật đồng nhất &amp; Tạo mô tả ảnh cho MỌI câu thoại</h3>
+    <button class="p" onclick="$('#hop_dong_nhat').close()" style="padding:2px 8px">✕</button>
+  </div>
+  <p class="sub" style="margin-bottom:12px;line-height:1.45">AI sẽ duyệt qua từng câu thoại trong dự án, viết <b>1 mô tả ảnh riêng biệt</b> (chuẩn Google Flow 16:9) bám sát nội dung câu nói nhưng <b>khóa chặt diện mạo nhân vật (Character DNA)</b> và bối cảnh để mọi ảnh tạo ra đều nhất quán 100%.</p>
+  
+  <div style="margin-bottom:10px">
+    <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px">👤 Mô tả nhân vật cố định (Character DNA):</label>
+    <textarea id="dna_nhan_vat" rows="3" style="width:100%;font-size:12.5px" placeholder="VD: Chàng trai 25 tuổi, tóc đen ngắn gọn gàng, mắt sắc nét, mặc áo hoodie xám phong cách hiện đại..."></textarea>
+  </div>
+
+  <div class="row" style="gap:10px;margin-bottom:12px">
+    <div style="flex:1">
+      <label style="display:block;font-size:12px;font-weight:600;margin-bottom:4px">🎨 Phong cách ảnh:</label>
+      <select id="dna_phong_cach" style="width:100%;font-size:12.5px;padding:4px 8px">
+        <option value="dien_anh" selected>🎬 Điện ảnh 16:9 chân thực (Cinematic film still)</option>
+        <option value="lanh_vcl_meme">🤡 2D Meme Caricature (Lạnh vcl)</option>
+        <option value="manhwa_clean">✨ Manhwa 2D hiện đại sắc nét</option>
+        <option value="dark_gritty">🦇 Dark Gritty Comic</option>
+        <option value="hoat_hinh_3d">🧸 Hoạt hình 3D Pixar / Dreamworks</option>
+        <option value="anime">⛩️ Anime điện ảnh Makoto Shinkai</option>
+        <option value="tai_lieu">📷 Ảnh tư liệu báo chí (Documentary)</option>
+        <option value="cyberpunk">🌆 Cyberpunk Neon</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="row" style="justify-content:flex-end;gap:8px;margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+    <button class="p" onclick="$('#hop_dong_nhat').close()">Đóng</button>
+    <button id="btn_bat_dau_tao_mo_ta" style="background:#7b1fa2;color:#fff;font-weight:600;padding:6px 14px">▶ Bắt đầu tạo mô tả riêng cho mọi câu</button>
+  </div>
+  <div id="tt_tao_mo_ta_all" class="sub" style="margin-top:8px;font-size:12px"></div>
+</dialog>
 <dialog id="hopchuthe" style="border:0;border-radius:12px;padding:16px 20px;max-width:980px;width:95vw;max-height:88vh;overflow:auto;background:var(--card);color:var(--ink);box-shadow:0 12px 36px #0006">
   <div class="row" style="justify-content:space-between;margin-bottom:8px">
     <h2 style="margin:0;font-size:16px">👥 Chủ thể của video <span class="sub" style="font-weight:400" id="ct_tom"></span></h2>
@@ -217,6 +287,46 @@ video,iframe{width:100%;border-radius:8px;background:#000;display:block}
     </div>
   </div>
 </dialog>
+<dialog id="hop_chon_tay" style="border:0;border-radius:12px;padding:14px 18px;max-width:1400px;width:97vw;height:92vh;overflow:hidden;background:var(--card);color:var(--ink);box-shadow:0 12px 36px #0006">
+  <div style="display:grid;grid-template-columns:260px minmax(0,1fr);gap:14px;height:100%">
+    <div style="overflow:auto;border-right:1px solid var(--line);padding-right:10px">
+      <h2 style="margin:0 0 6px;font-size:16px">🎯 Chọn nguồn</h2>
+      <p class="sub" style="margin:0 0 8px">Chọn chủ thể → xem kết quả YouTube → tích video muốn dùng → <b>⬇ Tải &amp; băm</b>. Video tải trọn, băm theo cảnh quay, giữ hết cảnh (chỉ bỏ hoạt hình / ảnh tĩnh / khung dọc).</p>
+      <div style="margin-bottom:10px;border:1px solid var(--ok);border-radius:8px;padding:6px 8px">
+        <div class="row" style="justify-content:space-between;align-items:center"><b style="font-size:13px">🛒 Đã tích (<span id="ct_gio_dem">0</span>)</b>
+          <button class="p" id="ct_gio_xoa" style="padding:1px 7px;font-size:11px" title="Bỏ tích tất cả">Bỏ hết</button></div>
+        <div id="ct_gio" style="display:grid;gap:3px;margin-top:4px;max-height:180px;overflow:auto"></div>
+      </div>
+      <div id="ct_ds" style="display:grid;gap:4px"></div>
+      <pre id="ct_log" class="sub" style="white-space:pre-wrap;font-size:11.5px;margin-top:10px;max-height:240px;overflow:auto"></pre>
+    </div>
+    <div style="display:flex;flex-direction:column;min-height:0">
+      <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
+        <b id="ct_ten" style="font-size:15px"></b><span class="sub" id="ct_tom"></span>
+        <button class="p" onclick="$('#hop_chon_tay').close()" style="margin-left:auto;padding:2px 8px">✕</button>
+      </div>
+      <div id="ct_tk" style="display:grid;gap:3px;margin:6px 0;max-height:170px;overflow:auto"></div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center">
+        <input id="ct_q" placeholder="Từ khoá tìm YouTube (Enter)" style="flex:1;min-width:240px">
+        <select id="ct_duoi" title="Đuôi chất lượng ghép vào MỌI từ khoá khi tìm: documentary = phim tài liệu dài đúng đề tài; 4k = cảnh quay đẹp; b-roll = clip ngắn toàn cảnh quay"><option value="documentary">+ documentary</option><option value="4k">+ 4k</option><option value="b-roll">+ b-roll</option><option value="">(không đuôi)</option></select>
+        <select id="ct_sap" title="Sắp xếp như YouTube"><option value="lien_quan">Mức độ liên quan</option><option value="luot_xem">Lượt xem</option><option value="moi">Ngày tải lên</option><option value="danh_gia">Xếp hạng</option></select>
+        <select id="ct_dai" title="Thời lượng"><option value="">Mọi thời lượng</option><option value="ngan">Dưới 4 phút</option><option value="vua">4 - 20 phút</option><option value="dai">Trên 20 phút</option></select>
+        <select id="ct_ngay" title="Ngày tải lên"><option value="">Mọi lúc</option><option value="tuan">Tuần này</option><option value="thang">Tháng này</option><option value="nam">Năm nay</option></select>
+        <label class="sub"><input type="checkbox" id="ct_hd"> HD</label>
+        <label class="sub" title="Chỉ video giấy phép Creative Commons"><input type="checkbox" id="ct_cc"> CC</label>
+        <label class="sub" title="Ẩn video kênh tin tức / hoạt hình / âm nhạc"><input type="checkbox" id="ct_an_loai"> Ẩn tin tức/hoạt hình</label>
+        <label class="sub" title="Thêm từ loại trừ vào lúc tìm: -cartoon -animation -minecraft -toy -lego -drawing -kids -reaction"><input type="checkbox" id="ct_loai_tru" checked> 🚫 Loại hoạt hình/game/đồ chơi</label>
+        <button id="ct_tim">🔍 Tìm</button>
+      </div>
+      <div id="ct_kq" style="flex:1;overflow:auto;margin-top:8px;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));grid-auto-rows:max-content;gap:12px;align-content:start"></div>
+      <div class="row" style="gap:8px;margin-top:8px;align-items:center">
+        <button class="p" id="ct_them">⬇ Xem thêm 20 kết quả</button>
+        <span class="sub" id="ct_dem" style="flex:1"></span>
+        <button id="ct_tai" style="background:var(--ok);color:#fff">⬇ Tải &amp; băm video đã tích</button>
+      </div>
+    </div>
+  </div>
+</dialog>
 <dialog id="hop_kh_ai" style="border:0;border-radius:12px;padding:16px 20px;max-width:1000px;width:96vw;max-height:88vh;overflow:auto;background:var(--card);color:var(--ink);box-shadow:0 12px 36px #0006">
   <div class="row" style="justify-content:space-between;margin-bottom:8px">
     <h2 style="margin:0;font-size:16px">📝 Chỗ vẽ ảnh AI <span class="sub" style="font-weight:400" id="kh_tom"></span></h2>
@@ -233,10 +343,19 @@ video,iframe{width:100%;border-radius:8px;background:#000;display:block}
 </dialog>
 <dialog id="hop_anh_ai" style="border:0;border-radius:12px;padding:16px 20px;max-width:1100px;width:96vw;max-height:88vh;overflow:auto;background:var(--card);color:var(--ink);box-shadow:0 12px 36px #0006">
   <div class="row" style="justify-content:space-between;margin-bottom:8px">
-    <h2 style="margin:0;font-size:16px">🖼 Ảnh AI của bước ✨ <span class="sub" style="font-weight:400" id="aai_tom"></span></h2>
+    <h2 style="margin:0;font-size:16px">🎬 Video Veo 3 &amp; 🖼 Ảnh AI của bước ✨ <span class="sub" style="font-weight:400" id="aai_tom"></span></h2>
     <button class="p" onclick="$('#hop_anh_ai').close()" style="padding:2px 8px">✕</button>
   </div>
-  <p class="sub" style="margin-bottom:10px">Không ưng ảnh nào thì sửa <b>câu mô tả</b> (tiếng Anh, ngắn: góc máy + nhân vật + hành động + nơi chốn) rồi bấm <b>🎨 Vẽ lại</b>. Ảnh mới hiện bên cạnh để xem trước: <b>✅ Lưu</b> thay ảnh cũ (bản nháp CapCut dùng luôn — mở lại bản nháp), <b>Bỏ qua</b> giữ ảnh cũ. Phong cách ảnh và thời đại tự thêm khi vẽ.</p>
+  <p class="sub" style="margin-bottom:10px">Không ưng ảnh/video nào thì sửa <b>câu mô tả</b> (tiếng Anh) rồi bấm <b>🎨 Vẽ lại</b> (đối với ảnh) hoặc <b>🎬 Tạo lại video</b> (đối với video Veo 3 / Flow). Xem trước hiện bên cạnh: <b>✅ Lưu</b> thay cũ (bản nháp CapCut dùng luôn — mở lại bản nháp), <b>Bỏ qua</b> giữ bản cũ.</p>
+  <div class="row" id="aai_tabs" style="gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+    <button class="p on" id="btn_loc_tat_ca" style="border-radius:16px;padding:3px 12px">Tất cả (<span id="dem_tat_ca">0</span>)</button>
+    <button class="p" id="btn_loc_video" style="border-radius:16px;padding:3px 12px">🎬 Video Veo 3 (<span id="dem_video">0</span>)</button>
+    <button class="p" id="btn_loc_anh" style="border-radius:16px;padding:3px 12px">🖼 Ảnh AI (<span id="dem_anh">0</span>)</button>
+    <button id="btn_tao_tat_ca_hook" style="background:linear-gradient(135deg,#1a73e8,#8e24aa);color:#fff;border-radius:16px;padding:3px 12px;font-size:12px;font-weight:600" title="Tạo tự động toàn bộ video hook bằng Google Flow (Omni 1.1 Flash 10s ~15đ/clip) và lưu vào thư mục hook/">⚡ Tạo toàn bộ video hook (~15đ/clip)</button>
+    <button class="p" id="btn_mo_thu_kho_ai" title="Mở thư mục kho video B-roll của dự án: ra/<dự_án>/kho/video" style="margin-left:auto;padding:3px 10px;font-size:12px;font-weight:600">📂 Mở Kho video B-roll</button>
+    <button class="p" id="btn_mo_thu_hook" title="Mở thư mục lưu các video hook: ra/<dự_án>/hook" style="padding:3px 10px;font-size:12px">📂 Mở thư mục Video Hook</button>
+    <button class="p" id="btn_mo_thu_duan" title="Mở toàn bộ thư mục dữ liệu dự án: ra/<dự_án>" style="padding:3px 10px;font-size:12px">📂 Mở thư mục Dự án</button>
+  </div>
   <div id="ds_anh_ai" style="display:grid;gap:12px"></div>
 </dialog>
 <dialog id="hopcotloi" style="border:0;border-radius:12px;padding:16px 20px;max-width:1000px;width:95vw;max-height:88vh;overflow:auto;background:var(--card);color:var(--ink);box-shadow:0 12px 36px #0006">
@@ -254,53 +373,15 @@ video,iframe{width:100%;border-radius:8px;background:#000;display:block}
     <button class="p" onclick="$('#hopcotloi').close()">Đóng</button>
   </div>
 </dialog>
-<dialog id="hop_duyet_nguon" style="border:0;border-radius:12px;padding:16px 20px;max-width:1100px;width:96vw;max-height:88vh;overflow:hidden;flex-direction:column;background:var(--card);color:var(--ink);box-shadow:0 12px 36px #0006">
-  <div class="row" style="justify-content:space-between;margin-bottom:6px">
-    <h2 style="margin:0;font-size:17px">🎬 Duyệt &amp; Tự chọn Video theo Chủ đề <span class="sub" style="font-weight:400">— tìm siêu tốc 5–10s, xem thử và tick chọn trước khi tải</span></h2>
-    <button class="p" onclick="$('#hop_duyet_nguon').close()" style="padding:2px 8px">✕</button>
-  </div>
-  <div class="row" style="gap:10px;border-bottom:1px solid var(--line);padding-bottom:8px;margin-bottom:8px;flex-wrap:wrap">
-    <button class="p on" id="tab_btn_duyet_vid" style="font-weight:600">🎥 Video theo Chủ đề (<span id="dem_vid_chon">0</span> đã chọn)</button>
-    <button class="p" id="tab_btn_duyet_ls" style="font-weight:600">📸 Ảnh tư liệu lịch sử (<span id="dem_ls_chon">0</span> cảnh)</button>
-    <span style="flex:1"></span>
-    <label class="sub" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer" title="Lọc các video cũ được tải lên trước năm này">
-      <span>📼 Video cổ:</span>
-      <select id="loc_nam_duyet" style="background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:11.5px;color:var(--ink)">
-        <option value="">Tất cả thời gian</option>
-        <option value="2020">Trước 2020</option>
-        <option value="2018">Trước 2018</option>
-        <option value="2015">Trước 2015</option>
-        <option value="2010">Trước 2010</option>
-      </select>
-    </label>
-    <label class="sub" style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer" title="Bỏ qua các kênh lớn có tích xác minh (Verified), ưu tiên kênh cá nhân / không bật kiếm tiền">
-      <input type="checkbox" id="loc_bo_kenh_xac_minh">
-      <span>🚫 Bỏ kênh lớn có tích</span>
-    </label>
-    <button class="p" id="btn_tai_lai_duyet" title="Tìm lại danh sách video">🔄 Tìm lại</button>
-  </div>
-  <div id="vung_xem_thu_yt" style="display:none;margin-bottom:8px;background:#000;border-radius:8px;overflow:hidden;position:relative">
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 8px;background:#111;color:#fff;font-size:12px">
-      <span id="xem_thu_tieu_de">Xem trước video</span>
-      <button class="p" onclick="$('#vung_xem_thu_yt').style.display='none';$('#iframe_xem_thu').src='';" style="color:#fff;padding:1px 6px">✕ Tắt xem</button>
-    </div>
-    <iframe id="iframe_xem_thu" style="width:100%;height:300px;border:0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
-  </div>
-  <div id="noi_dung_duyet_vid" style="flex:1;overflow:auto;padding-right:6px">
-    <div id="ds_duyet_cd" style="display:grid;gap:14px"></div>
-  </div>
-  <div id="noi_dung_duyet_ls" style="flex:1;overflow:auto;padding-right:6px;display:none">
-    <div id="ds_duyet_ls" style="display:grid;gap:14px"></div>
-  </div>
-  <div class="row" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--line);justify-content:space-between">
-    <span class="sub" id="thong_ke_duyet">Đang nạp danh sách...</span>
-    <div class="row" style="gap:8px">
-      <button class="p" onclick="$('#hop_duyet_nguon').close()">Đóng</button>
-      <button id="btn_bat_dau_tai_ghep" style="background:var(--ok);color:#fff;font-weight:600;padding:8px 16px">⬇ Tải video đã chọn &amp; Khớp bản nháp</button>
-    </div>
-  </div>
-</dialog>
 
+<dialog id="hop_kt_het" style="border:0;border-radius:12px;padding:16px 20px;max-width:760px;width:94vw;max-height:85vh;overflow:auto;background:var(--card);color:var(--ink);box-shadow:0 12px 36px #0006">
+  <div class="row" style="justify-content:space-between;margin-bottom:8px">
+    <h2 style="margin:0;font-size:16px">🩺 Kiểm tra tài khoản <span class="sub" id="kt_tom" style="font-weight:400"></span></h2>
+    <div class="row" style="gap:6px"><button class="p" id="kt_lai" style="padding:2px 9px">🔄 Kiểm tra lại</button>
+      <button class="p" onclick="$('#hop_kt_het').close()" style="padding:2px 8px">✕</button></div>
+  </div>
+  <div id="kt_ds" style="display:grid;gap:12px"></div>
+</dialog>
 <dialog id="hopck_yt" style="border:0;border-radius:12px;padding:16px 20px;max-width:680px;width:94vw;max-height:85vh;overflow:auto;background:var(--card);color:var(--ink);box-shadow:0 12px 36px #0006">
   <div class="row" style="justify-content:space-between;margin-bottom:8px">
     <h2 style="margin:0;font-size:16px">🍪 Cookie YouTube <span class="sub" style="font-weight:400">— Tránh bị YouTube chặn bot ("Sign in to confirm you're not a bot")</span></h2>
@@ -357,7 +438,7 @@ $('#ca_ve_btn').onclick=async()=>{const ve=$('#ca_ve').value.trim();if(!ve)retur
       <div class="row" style="gap:4px;margin-top:4px"><button data-g style="background:var(--ok);color:#fff">✅ Giữ</button>
       <button class="p" data-s title="Lấy ảnh này làm ảnh gốc, viết yêu cầu sửa rồi bấm Vẽ">✏️ Sửa tiếp</button><button class="p" data-b>Bỏ</button></div>`;
     the.querySelector('[data-g]').onclick=async()=>{try{await post('/api/chen_anh/giu',{du_an:DU,thu:k.thu,ve,bd,dai,cau});
-      if(caGoc===k.thu)datGoc('');the.remove();tb('Đã giữ ảnh '+nhan);napChenAnh()}catch(e){tb('Lỗi: '+e.message)}};
+      if(caGoc===k.thu)datGoc('');the.remove();tb('Đã giữ ảnh '+nhan);napChenAnh();napKho()}catch(e){tb('Lỗi: '+e.message)}};
     the.querySelector('[data-s]').onclick=()=>{datGoc(k.thu,k.url);$('#ca_ve').value='';$('#ca_ve').focus()};
     the.querySelector('[data-b]').onclick=()=>the.remove()}
   catch(e){the.innerHTML=`<div class="sub" style="color:var(--er)">${nhan} · Lỗi: ${esc(e.message)}</div><div class="sub" style="font-size:11px">${esc(ve.slice(0,90))}</div>
@@ -391,7 +472,7 @@ function fvTheKq(y){return `<div class="fv_the" style="background:#2a2b2f;border
   <button class="p" data-fv-bo>Bỏ</button><span style="font-size:12px;color:#9aa0a6">${y.giay.toFixed(1)} s${y.co_logo?' · đã xoá logo':''}</span></div></div>`}
 function fvGanNut(){$('#fv_kq').querySelectorAll('[data-fv-giu]').forEach(n=>n.onclick=async()=>{
     try{await post('/api/chen_anh/giu',{du_an:DU,thu:n.dataset.fvGiu,ve:'flow: '+$('#fv_prompt').value,bd:+$('#ca_bd').value||0,dai:+n.dataset.giay||8,cau:caCauChon});
-      n.closest('.fv_the').remove();tb('Đã giữ video vào kho');napChenAnh()}catch(e){tb('Lỗi: '+e.message)}});
+      n.closest('.fv_the').remove();tb('Đã giữ video vào kho');napChenAnh();napKho()}catch(e){tb('Lỗi: '+e.message)}});
   $('#fv_kq').querySelectorAll('[data-fv-bo]').forEach(n=>n.onclick=()=>n.closest('.fv_the').remove())}
 $('#fv_tao').onclick=async()=>{const prompt=$('#fv_prompt').value.trim();if(!prompt&&!fvKhung.dau)return tb('Viết câu lệnh (hoặc đưa ảnh khung đầu)');
   const model=$('#fv_model').value,so=+$('#fv_so').value.slice(1);
@@ -478,7 +559,7 @@ document.addEventListener('paste',e=>{if(!$('#hop_chen_anh').open)return;if(docu
 $('#ca_goc_bo').onclick=()=>datGoc('');
 $('#ca_sua_tiep').onclick=()=>{if(!caThu)return;datGoc(caThu,$('#ca_anh').src);$('#ca_ve').value='';$('#ca_ve').focus()};
 $('#ca_giu').onclick=async()=>{if(!caThu)return;try{await post('/api/chen_anh/giu',{du_an:DU,thu:caThu,ve:$('#ca_ve').value,bd:+$('#ca_bd').value||0,dai:+$('#ca_dai').value||4,cau:caCauChon});
-  if(caGoc===caThu)datGoc('');caThu='';$('#ca_xem').style.display='none';tb('Đã giữ ảnh');napChenAnh()}catch(e){tb('Lỗi: '+e.message)}};
+  if(caGoc===caThu)datGoc('');caThu='';$('#ca_xem').style.display='none';tb('Đã giữ ảnh');napChenAnh();napKho()}catch(e){tb('Lỗi: '+e.message)}};
 $('#ca_chen').onclick=async()=>{const nhap=$('#ca_nhap').value;if(!nhap)return tb('Chưa có bản nháp');
   if(!confirm(`Chèn các ảnh đã giữ (chưa chèn) vào bản nháp "${nhap}"?\nĐÓNG bản nháp này trong CapCut trước, nếu không CapCut sẽ ghi đè mất.`))return;
   try{const r=await post('/api/chen_anh/chen',{du_an:DU,nhap});tb(`Đã chèn ${r.so} ảnh vào "${nhap}" (track ${r.track}) — mở lại bản nháp trong CapCut`);napChenAnh()}catch(e){tb('Lỗi: '+e.message)}};
@@ -510,37 +591,392 @@ function docKH(){$('#ds_kh_ai').querySelectorAll('[data-kh]').forEach(o=>{const 
 async function napKH(){clearTimeout(henKH);let r;try{r=await api('/api/anh_ai_ke_hoach?du_an='+encodeURIComponent(DU))}catch(e){$('#kh_tt').textContent='Lỗi: '+e.message;return}
   khCau=r.cau||[];
   if(r.dang){$('#kh_tt').textContent='AI đang đề xuất (đọc bản thô + hỏi Gemini, vài phút)…';$('#ds_kh_ai').innerHTML='';henKH=setTimeout(napKH,4000);return}
-  if(!r.co){$('#kh_tt').textContent='Chưa có danh sách — bấm 🔄 AI đề xuất (cần bản thô từ 🤖).';$('#ds_kh_ai').innerHTML='';return}
+  if(!r.co){$('#kh_tt').textContent=r.loi?('✖ AI đề xuất lỗi: '+r.loi):'Chưa có danh sách — bấm 🔄 AI đề xuất (cần giọng đọc; có bản thô thì đánh dấu thêm chỗ footage yếu).';$('#ds_kh_ai').innerHTML='';return}
   $('#kh_tt').textContent='';khAI=r.ds||[];veKH()}
 $('#mo_ke_hoach_ai').onclick=()=>{$('#hop_kh_ai').showModal();napKH()};
 $('#kh_lap').onclick=async()=>{if(khAI.length&&!confirm('AI đề xuất lại từ đầu? Các chỗ bạn đã sửa / thêm sẽ mất.'))return;
   try{await post('/api/anh_ai_ke_hoach/lap',{du_an:DU,lam_lai:true});napKH()}catch(e){tb('Lỗi: '+e.message)}};
 $('#kh_luu').onclick=async()=>{docKH();try{const r=await post('/api/anh_ai_ke_hoach/luu',{du_an:DU,ds:khAI});tb(`Đã lưu ${r.so} chỗ — chạy ✨ để vẽ`)}catch(e){tb('Lỗi: '+e.message)}};
+// 25/10 user: 🎯 tự chọn nguồn trên YouTube — xem kết quả như YouTube, tích video -> tải trọn + băm theo cảnh quay
+let ctDs=[],ctCd=null,ctTrang=1,ctKq=[],ctHen=null;
+// 26/10 user ("tích xong bấm sang chỗ khác lại mất"): GIỎ tích giữ qua mọi chủ thể / lần tìm / trang kết quả, lưu theo
+// dự án trong trình duyệt; ⬇ Tải & băm gửi CẢ GIỎ (mỗi video vào đúng chủ thể lúc tích)
+let ctGio=new Map(),ctDangGui=false,ctHenTD=null;
+// 26/10 user ("tải và băm xong chưa mà chưa thấy thông báo"): theo dõi việc tải + băm 🎯 cả khi đã đóng bảng —
+// xong thì báo số video / mảnh và làm mới Kho media
+async function ctTheoDoi(){
+  clearTimeout(ctHenTD);let r;try{r=await api('/api/chon_tay/chu_the?du_an='+encodeURIComponent(DU))}catch(e){ctHenTD=setTimeout(ctTheoDoi,8000);return}
+  const tt=r.tt||{},v=tt.video||{};
+  if(tt.dang){
+    const dem=s=>Object.values(v).filter(x=>x===s).length,dang=dem('cho')+dem('tai')+dem('bam');
+    $('#mo_chon_tay').textContent=`🎯 Đang tải & băm (còn ${dang})`;
+    ctTheoDoi.dang=true;ctHenTD=setTimeout(ctTheoDoi,4000);return}
+  $('#mo_chon_tay').textContent='🎯 Chọn nguồn YouTube';
+  if(ctTheoDoi.dang){
+    ctTheoDoi.dang=false;
+    const xong=Object.values(v).filter(x=>x==='xong').length,loi=Object.values(v).filter(x=>x==='loi').length;
+    const manh=(r.chu_the||[]).reduce((a,c)=>a+(c.so_manh||0),0);
+    tb(`✔ Đã tải & băm xong ${xong} video`+(loi?`, ${loi} lỗi`:'')+` — kho có ${manh} mảnh theo chủ thể`);
+    try{new Notification('Bản Content',{body:`Đã tải & băm xong ${xong} video`+(loi?`, ${loi} lỗi`:'')})}catch(e){}
+    napKho()}
+}
+const ctKhoa=(cd,id)=>cd+'|'+id;
+function ctLuuGio(){try{localStorage.setItem('ct_gio_'+DU,JSON.stringify([...ctGio.values()]))}catch(e){}}
+function ctNapGio(){ctGio=new Map();try{(JSON.parse(localStorage.getItem('ct_gio_'+DU)||'[]')||[]).forEach(x=>ctGio.set(ctKhoa(x.cd,x.id),x))}catch(e){}}
+function veGio(){
+  const ds=[...ctGio.values()];$('#ct_gio_dem').textContent=ds.length;
+  $('#ct_gio').innerHTML=ds.length?ds.map(x=>`<div class="row" style="gap:4px;align-items:center;font-size:11.5px">
+      <button class="p" data-bo-gio="${esc(ctKhoa(x.cd,x.id))}" style="padding:0 5px;font-size:11px;color:var(--er)" title="Bỏ tích">✕</button>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1" title="${esc(x.tieu_de)}"><b>${esc(x.cd_ten)}</b> · ${esc(x.tieu_de)}</span></div>`).join('')
+    :'<div class="sub" style="font-size:11.5px">Chưa tích video nào.</div>';
+  document.querySelectorAll('[data-bo-gio]').forEach(b=>b.onclick=()=>{ctGio.delete(b.dataset.boGio);ctLuuGio();veGio();veKq()});
+  const so={};ds.forEach(x=>so[x.cd]=(so[x.cd]||0)+1);
+  document.querySelectorAll('.ct-cd').forEach(e=>{const n=so[+e.dataset.id]||0;let t=e.querySelector('.ct-so-gio');
+    if(!t){t=document.createElement('span');t.className='ct-so-gio';t.style.cssText='float:right;font-size:11px;color:var(--ok);font-weight:600';e.prepend(t)}
+    t.textContent=n?'🛒 '+n:''});
+  $('#ct_tai').textContent=`⬇ Tải & băm ${ds.length} video đã tích`;
+  $('#ct_tai').disabled=!ds.length||!!ctDangGui;
+}
+$('#ct_gio_xoa').onclick=()=>{if(ctGio.size&&confirm('Bỏ tích tất cả video trong giỏ?')){ctGio.clear();ctLuuGio();veGio();veKq()}};
+async function moChonTay(){$('#hop_chon_tay').showModal();await napChonTay(true)}
+async function napChonTay(dau){
+  if(dau&&!ctDs.length)$('#ct_ds').innerHTML='<div class="sub">⏳ Đang nạp chủ thể (lần đầu hỏi AI tên ngắn để tìm)…</div>';
+  let r;try{r=await api('/api/chon_tay/chu_the?nhanh=1&du_an='+encodeURIComponent(DU))}catch(e){tb('Lỗi: '+e.message);return}
+  ctDs=r.chu_the||[];const tt=r.tt||{};const v=tt.video||{};
+  $('#ct_log').textContent=(tt.dong||[]).join('\n');$('#ct_log').scrollTop=1e9;
+  $('#ct_ds').innerHTML=ctDs.length?ctDs.map(c=>`<div class="ct-cd" data-id="${c.id}" style="padding:6px 8px;border:1px solid var(--line);border-radius:8px;cursor:pointer;${ctCd&&ctCd.id===c.id?'border-color:var(--ac);box-shadow:inset 3px 0 0 var(--ac)':''}">
+    <b style="font-size:13px">${esc(c.ten)}</b><div class="sub" style="font-size:11.5px">${c.so_canh} câu · ${c.so_manh} mảnh trong kho</div></div>`).join('')
+    :'<div class="sub">Chưa có chủ thể — bấm 👥 Chủ thể trước.</div>';
+  document.querySelectorAll('.ct-cd').forEach(e=>e.onclick=()=>chonCd(+e.dataset.id));
+  if(dau)ctNapGio();veGio();
+  if(dau&&ctDs.length&&!ctCd)chonCd(ctDs[0].id);
+  if(ctKq.length)veKq(v);
+  clearTimeout(ctHen);if(tt.dang&&$('#hop_chon_tay').open)ctHen=setTimeout(()=>napChonTay(false),4000);
+}
+function chonCd(id){ctCd=ctDs.find(c=>c.id===id);if(!ctCd)return;
+  $('#ct_ten').textContent=ctCd.ten;$('#ct_tom').textContent=`${ctCd.so_canh} câu · ${ctCd.so_manh} mảnh trong kho`;
+  // 26/10 user: mỗi TRẠNG THÁI kịch bản một dòng (nhãn tiếng Việt + số câu -> từ khoá đúng chi tiết lời); dòng "Chung" =
+  // tên ngắn chủ thể. Đuôi chất lượng là ô chọn #ct_duoi, ghép lúc tìm.
+  const dong=ctCd.dong_tk||(ctCd.tu_khoa_en||[]).map(t=>({nhan:'',cau:[],tk:t}));
+  $('#ct_tk').innerHTML=dong.map((d,i)=>`<button class="p ct-tk" data-tk="${esc(d.tk)}" style="display:flex;gap:8px;align-items:center;width:100%;text-align:left;padding:3px 9px;font-size:12.5px">
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(d.nhan)}">${d.cau.length?'🎬':'🔎'} ${esc(d.nhan||'Từ khoá')}${d.cau.length?` <span class="sub">· ${d.cau.length} câu (${d.cau.slice(0,6).join(', ')}${d.cau.length>6?'…':''})</span>`:''}</span>
+      <b style="color:var(--ok);white-space:nowrap">${esc(d.tk)}</b></button>`).join('');
+  document.querySelectorAll('.ct-tk').forEach(b=>b.onclick=()=>{$('#ct_q').value=b.dataset.tk;timCt(1)});
+  $('#ct_q').value=(dong.find(d=>d.cau.length)||dong[0]||{}).tk||'';
+  document.querySelectorAll('.ct-cd').forEach(e=>e.style.borderColor=+e.dataset.id===id?'var(--ac)':'');
+  ctKq=[];$('#ct_kq').innerHTML='';if($('#ct_q').value)timCt(1)}
+async function timCt(trang){
+  const goc=$('#ct_q').value.trim();if(!goc)return;ctTrang=trang;if(trang===1)ctKq=[];
+  const duoi=$('#ct_duoi').value,q=duoi&&!goc.toLowerCase().endsWith(' '+duoi)?goc+' '+duoi:goc;
+  document.querySelectorAll('.ct-tk').forEach(b=>b.style.borderColor=b.dataset.tk===goc?'var(--ok)':'');
+  $('#ct_dem').textContent='Đang tìm…';
+  try{const r=await post('/api/chon_tay/tim',{du_an:DU,q,trang,sap:$('#ct_sap').value,dai:$('#ct_dai').value,ngay:$('#ct_ngay').value,hd:$('#ct_hd').checked,cc:$('#ct_cc').checked,loai_tru:$('#ct_loai_tru').checked});
+    ctKq=ctKq.concat(r.ds||[]);$('#ct_them').disabled=!!r.het;veKq()}catch(e){$('#ct_dem').textContent='Lỗi: '+e.message}}
+const CT_TT={cho:'⏳ chờ tải',tai:'⬇ đang tải',bam:'✂ đang băm',xong:'✔ đã băm',loi:'✖ lỗi'};
+function veKq(v){v=v||{};const an=$('#ct_an_loai').checked;
+  $('#ct_kq').innerHTML=ctKq.filter(x=>!(an&&x.loai)).map(x=>{const tt=v[x.id]||x.tt;return `<div style="border:2px solid ${ctCd&&ctGio.has(ctKhoa(ctCd.id,x.id))?'var(--ok)':'var(--line)'};border-radius:10px;overflow:hidden;background:var(--bg)">
+    <a href="${esc(x.url)}" target="_blank" rel="noopener" title="Mở trên YouTube" style="display:block;position:relative">
+      <img src="${esc(x.thumb)}" loading="lazy" style="width:100%;aspect-ratio:16/9;object-fit:cover;display:block">
+      <span style="position:absolute;right:6px;bottom:6px;background:#000c;color:#fff;font-size:12px;padding:1px 6px;border-radius:4px">${esc(x.dai_str)}</span>
+      <span style="position:absolute;left:6px;top:6px;background:#000a;color:#fff;font-size:11px;padding:1px 6px;border-radius:4px">#${x.hang}</span></a>
+    <div style="padding:6px 8px;display:grid;gap:3px">
+      <a href="${esc(x.url)}" target="_blank" rel="noopener" style="color:var(--ink);text-decoration:none;font-weight:600;font-size:13px;line-height:1.3">${esc(x.tieu_de)}</a>
+      <span class="sub" style="font-size:12px">${esc(x.kenh)}${x.xac_minh?' ✔':''} · ${esc(x.luot_xem_str)} lượt xem${x.ngay?' · '+esc(x.ngay.replace(/(\d{4})(\d\d)(\d\d)/,'$3/$2/$1')):''}</span>
+      ${x.loai?`<span class="sub" style="font-size:11px;color:var(--wa)">⚠ ${esc(x.loai)}</span>`:''}
+      ${x.da_co?`<span class="sub" style="font-size:11px;color:var(--ok)">✔ đã có ${x.da_co} mảnh trong kho</span>`:''}
+      <label style="font-size:12.5px;display:flex;gap:6px;align-items:center"><input type="checkbox" data-ct="${x.id}" ${ctCd&&ctGio.has(ctKhoa(ctCd.id,x.id))?'checked':''} ${tt&&tt!=='loi'?'disabled':''}> Tải &amp; băm${tt?` <b class="sub">${CT_TT[tt]||tt}</b>`:''}</label>
+    </div></div>`}).join('')||'<div class="sub">Không có kết quả.</div>';
+  document.querySelectorAll('[data-ct]').forEach(c=>c.onchange=()=>{if(!ctCd)return;const k=ctKhoa(ctCd.id,c.dataset.ct);
+    if(c.checked){const x=ctKq.find(y=>y.id===c.dataset.ct);if(x)ctGio.set(k,{cd:ctCd.id,cd_ten:ctCd.ten,id:x.id,tieu_de:x.tieu_de,kenh:x.kenh,dai:x.dai})}
+    else ctGio.delete(k);
+    ctLuuGio();veGio();veKq(v)});
+  const daTich=ctCd?[...ctGio.values()].filter(x=>x.cd===ctCd.id).length:0;
+  $('#ct_dem').textContent=`${ctKq.length} kết quả · chủ thể này đã tích ${daTich} · cả giỏ ${ctGio.size}`}
+$('#mo_chon_tay').onclick=moChonTay;
+$('#ct_tim').onclick=()=>timCt(1);
+$('#ct_q').addEventListener('keydown',e=>{if(e.key==='Enter')timCt(1)});
+['ct_sap','ct_dai','ct_ngay','ct_hd','ct_cc','ct_loai_tru','ct_duoi'].forEach(k=>$('#'+k).onchange=()=>timCt(1));
+try{const v=localStorage.getItem('ct_duoi');if(v!==null)$('#ct_duoi').value=v}catch(e){}
+$('#ct_duoi').addEventListener('change',()=>{try{localStorage.setItem('ct_duoi',$('#ct_duoi').value)}catch(e){}});
+$('#ct_an_loai').onchange=()=>veKq();
+$('#ct_them').onclick=()=>timCt(ctTrang+1);
+$('#ct_tai').onclick=async()=>{if(!ctGio.size)return tb('Chưa tích video nào');if(ctDangGui)return;
+  ctDangGui=true;$('#ct_tai').disabled=true;$('#ct_tai').textContent='⏳ Đang gửi…';
+  const nhom={};[...ctGio.values()].forEach(x=>(nhom[x.cd]=nhom[x.cd]||[]).push(x));
+  let tong=0,loi=[];
+  for(const cd of Object.keys(nhom)){
+    try{const r=await post('/api/chon_tay/tai',{du_an:DU,cd_id:+cd,videos:nhom[cd].map(x=>({id:x.id,tieu_de:x.tieu_de,kenh:x.kenh,dai:x.dai}))});
+      tong+=r.so||0;nhom[cd].forEach(x=>ctGio.delete(ctKhoa(x.cd,x.id)))}
+    catch(e){loi.push(`«${nhom[cd][0].cd_ten}»: ${e.message}`)}}
+  ctDangGui=false;ctLuuGio();veGio();veKq();
+  tb(`Đang tải + băm ${tong} video cho ${Object.keys(nhom).length-loi.length} chủ thể`+(loi.length?' — lỗi '+loi.join('; '):''));
+  napChonTay(false);ctTheoDoi.dang=true;ctTheoDoi()};
 // 19/10 user: xem / sửa câu mô tả / vẽ lại / lưu từng ảnh AI của bước ✨
 async function moAnhAI(){
   let r;try{r=await api('/api/anh_ai?du_an='+encodeURIComponent(DU))}catch(e){tb('Lỗi: '+e.message);return}
-  const ds=r.ds||[];$('#aai_tom').textContent=ds.length?`— ${ds.length} ảnh`:'— chưa có (chạy ✨ trước)';
+  const ds=r.ds||[], hook=r.hook||[];
+  const tong = ds.length + hook.length;
+  if ($('#dem_tat_ca')) $('#dem_tat_ca').textContent = tong;
+  if ($('#dem_video')) $('#dem_video').textContent = hook.length;
+  if ($('#dem_anh')) $('#dem_anh').textContent = ds.length;
+  $('#aai_tom').textContent = tong ? `— ${hook.length ? hook.length + ' video Veo 3, ' : ''}${ds.length} ảnh` : '— chưa có (chạy ✨ trước)';
   const fmt=s=>{s=+s||0;return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0')};
-  $('#ds_anh_ai').innerHTML=ds.map((x,k)=>`<div class="card" style="display:grid;grid-template-columns:320px 1fr 320px;gap:10px;align-items:start;padding:10px" data-k="${k}">
-    <div><img src="${x.url}" style="width:320px;border-radius:6px" loading="lazy"><div class="sub">${fmt(x.bd)} · câu ${x.cau}${x.j?` · ảnh ${x.j+1}`:''}</div></div>
-    <div style="display:flex;flex-direction:column;gap:6px"><div class="sub"><i>${esc(x.text||'')}</i></div>
-      <textarea data-ve rows="4" style="width:100%">${esc(x.ve||'')}</textarea>
-      <div class="row" style="gap:6px"><button data-ve-lai>🎨 Vẽ lại</button><span class="sub" data-tt></span></div></div>
-    <div data-xem style="display:none"><img data-anh-thu style="width:320px;border-radius:6px">
-      <div class="row" style="gap:6px;margin-top:4px"><button data-luu style="background:var(--ok);color:#fff">✅ Lưu</button><button class="p" data-bo>Bỏ qua</button></div></div>
-  </div>`).join('');
-  $('#ds_anh_ai').querySelectorAll('[data-k]').forEach(o=>{
-    const x=ds[+o.dataset.k];let thu='';
-    o.querySelector('[data-ve-lai]').onclick=async e=>{const b=e.target,tt=o.querySelector('[data-tt]');
-      b.disabled=true;tt.textContent='đang vẽ… (~30-60 s)';
-      try{const k=await post('/api/anh_ai/ve_thu',{du_an:DU,ve:o.querySelector('[data-ve]').value,thoi_dai:x.thoi_dai,mau:x.mau});
-        thu=k.thu;o.querySelector('[data-anh-thu]').src=k.url;o.querySelector('[data-xem]').style.display='';tt.textContent='xem ảnh mới bên phải →'}
-      catch(err){tt.textContent='Lỗi: '+err.message}b.disabled=false};
-    o.querySelector('[data-luu]').onclick=async()=>{try{const k=await post('/api/anh_ai/luu',{du_an:DU,file:x.file,thu,ve:o.querySelector('[data-ve]').value});
-        o.querySelector('img').src=k.url;o.querySelector('[data-xem]').style.display='none';o.querySelector('[data-tt]').textContent='đã lưu ✓';x.ve=o.querySelector('[data-ve]').value}
-      catch(err){tb('Lỗi: '+err.message)}};
-    o.querySelector('[data-bo]').onclick=()=>{o.querySelector('[data-xem]').style.display='none';o.querySelector('[data-tt]').textContent='giữ ảnh cũ';thu=''};
+
+  const htmlHook = hook.map((x, k) => `
+    <div class="card" style="display:grid;grid-template-columns:320px 1fr 320px;gap:10px;align-items:start;padding:12px;background:linear-gradient(180deg,#24262b,#1a1b1e);border:1px solid #4a3b69;border-radius:8px" data-loai="video" data-hk="${k}">
+      <div>
+        ${x.co_file && x.url ? `
+          <video src="${x.url}" controls loop style="width:320px;max-height:180px;border-radius:6px;background:#000;display:block"></video>
+        ` : `
+          <div style="width:320px;height:180px;background:#16171a;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#9aa0a6;gap:6px;border:1px dashed #5f6368">
+            <span style="font-size:28px">🎬</span>
+            <span style="font-size:12px;color:#e8eaed;font-weight:600">Chưa có video Veo 3</span>
+            <span style="font-size:11px;color:#9aa0a6">Sửa câu lệnh rồi bấm 🎬 Tạo lại video</span>
+          </div>
+        `}
+        <div class="row" style="margin-top:6px;gap:6px;align-items:center;justify-content:space-between">
+          <div class="sub">
+            <span style="background:#5e35b1;color:#fff;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600">🎬 Video Veo 3</span>
+            ${fmt(x.t0)} · câu ${x.cau} · clip ${x.giay}s
+          </div>
+          <button class="p btn-mo-tep" data-file="${esc(x.file||'hook')}" title="Mở thư mục lưu trữ video này trên máy tính (File Explorer): ${esc(x.file||'')}" style="padding:1px 8px;font-size:11px">📁 Mở thư mục</button>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="sub"><b>Lời đọc:</b> <i>${esc(x.text||'')}</i></div>
+        ${x.mo_ta_vi ? `<div class="sub" style="color:var(--ac)"><b>Ý cảnh:</b> ${esc(x.mo_ta_vi)}</div>` : ''}
+        <textarea data-hk-prompt rows="4" style="width:100%;font-size:13px;line-height:1.4" placeholder="What do you want to create? (câu lệnh video tiếng Anh)">${esc(x.prompt_en||'')}</textarea>
+        <div class="row" style="gap:6px;align-items:center;flex-wrap:wrap">
+          <select class="fv_s" data-hk-model style="padding:4px 8px;font-size:12px">
+            <option value="Veo 3.1 - Fast">Veo 3.1 - Fast (~20đ)</option>
+            <option value="Veo 3.1 - Lite">Veo 3.1 - Lite (~10đ)</option>
+            <option value="Omni 1.1 Flash">Omni 1.1 Flash (~15đ)</option>
+            <option value="Veo 3.1 - Quality">Veo 3.1 - Quality (~100đ)</option>
+          </select>
+          <button data-hk-tao style="background:linear-gradient(135deg,#1a73e8,#8e24aa);color:#fff;font-weight:600;padding:4px 10px">🎬 Tạo lại video</button>
+          <button class="p" data-hk-luu-lenh title="Lưu câu lệnh này để dùng khi chạy ✨">💾 Lưu câu lệnh</button>
+          <span class="sub" data-hk-tt></span>
+        </div>
+      </div>
+      <div data-hk-xem style="display:none">
+        <video data-hk-vid-thu controls loop style="width:320px;max-height:180px;border-radius:6px;background:#000;display:block"></video>
+        <div class="row" style="gap:6px;margin-top:6px">
+          <button data-hk-luu style="background:var(--ok);color:#fff">✅ Lưu thay video cũ</button>
+          <button class="p" data-hk-bo>Bỏ qua</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  const htmlAnh = ds.map((x, k) => `
+    <div class="card" style="display:grid;grid-template-columns:320px 1fr 320px;gap:10px;align-items:start;padding:10px" data-loai="anh" data-k="${k}">
+      <div>
+        <img src="${x.url}" style="width:320px;border-radius:6px" loading="lazy">
+        <div class="row" style="margin-top:4px;gap:6px;align-items:center;justify-content:space-between">
+          <div class="sub">${fmt(x.bd)} · câu ${x.cau}${x.j?` · ảnh ${x.j+1}`:''}</div>
+          <button class="p btn-mo-tep" data-file="${esc(x.file||'')}" title="Mở thư mục lưu trữ ảnh này trên máy tính (File Explorer): ${esc(x.file||'')}" style="padding:1px 8px;font-size:11px">📁 Mở thư mục</button>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="sub"><i>${esc(x.text||'')}</i></div>
+        <textarea data-ve rows="4" style="width:100%">${esc(x.ve||'')}</textarea>
+        <div class="row" style="gap:6px"><button data-ve-lai>🎨 Vẽ lại</button><span class="sub" data-tt></span></div>
+      </div>
+      <div data-xem style="display:none">
+        <img data-anh-thu style="width:320px;border-radius:6px">
+        <div class="row" style="gap:6px;margin-top:4px"><button data-luu style="background:var(--ok);color:#fff">✅ Lưu</button><button class="p" data-bo>Bỏ qua</button></div>
+      </div>
+    </div>
+  `).join('');
+
+  $('#ds_anh_ai').innerHTML = htmlHook + htmlAnh;
+
+  const ganNutMoTep = () => {
+    $('#hop_anh_ai').querySelectorAll('.btn-mo-tep').forEach(btn => {
+      btn.onclick = async e => {
+        e.stopPropagation();
+        const f = btn.dataset.file || '';
+        try {
+          const r = await post('/api/mo_tep', {du_an: DU, file: f});
+          tb('📁 Đã mở trong Explorer: ' + (r.path || f || 'thư mục'));
+        } catch (err) {
+          tb('Lỗi mở thư mục: ' + err.message);
+        }
+      };
+    });
+  };
+  ganNutMoTep();
+
+  if ($('#btn_mo_thu_kho_ai')) {
+    $('#btn_mo_thu_kho_ai').onclick = async e => {
+      e.stopPropagation();
+      try {
+        const r = await post('/api/mo_tep', {du_an: DU, file: 'kho/video'});
+        tb('📁 Đã mở Kho video: ' + (r.path || 'kho/video'));
+      } catch (err) {
+        tb('Lỗi: ' + err.message);
+      }
+    };
+  }
+  if ($('#btn_mo_thu_hook')) {
+    $('#btn_mo_thu_hook').onclick = async e => {
+      e.stopPropagation();
+      try {
+        const r = await post('/api/mo_tep', {du_an: DU, file: 'hook'});
+        tb('📁 Đã mở thư mục Hook: ' + (r.path || 'hook'));
+      } catch (err) {
+        tb('Lỗi: ' + err.message);
+      }
+    };
+  }
+  if ($('#btn_mo_thu_duan')) {
+    $('#btn_mo_thu_duan').onclick = async e => {
+      e.stopPropagation();
+      try {
+        const r = await post('/api/mo_tep', {du_an: DU, file: ''});
+        tb('📁 Đã mở thư mục Dự án: ' + (r.path || ''));
+      } catch (err) {
+        tb('Lỗi: ' + err.message);
+      }
+    };
+  }
+  if ($('#btn_tao_tat_ca_hook')) {
+    $('#btn_tao_tat_ca_hook').onclick = async () => {
+      if (!confirm('Tạo toàn bộ video hook bằng Google Flow (Omni 1.1 Flash 10s ~15 điểm/clip)?\nCác clip đã có sẽ được dùng lại, chỉ tạo các clip còn thiếu.')) return;
+      const b = $('#btn_tao_tat_ca_hook');
+      b.disabled = true;
+      b.textContent = '⏳ Đang khởi tạo Flow…';
+      try {
+        const r = await post('/api/hook_video/tao_tat_ca', {du_an: DU});
+        for (;;) {
+          await new Promise(z => setTimeout(z, 2500));
+          const t = await api('/api/doi_thu/tt?job=' + r.job);
+          b.textContent = '⏳ ' + (t.dong || 'Đang tạo video…');
+          if (t.dang) continue;
+          if (t.loi) { tb('Lỗi: ' + t.loi); break; }
+          // 25/10: ✨ chỉ đặt hook vào bản nháp khi ô 🎬 được tick -> tạo xong thì tick sẵn (clip đã có dùng lại, không tốn điểm)
+          if ($('#co_hook') && !$('#co_hook').checked && t.kq.so) { $('#co_hook').checked = true; $('#co_hook').onchange(); }
+          tb(`Đã tạo xong ${t.kq.so} video hook vào thư mục hook/ — đã tick «🎬 Video hook Flow», bấm ✨ Hoàn thiện để đặt vào bản nháp`);
+          await moAnhAI();
+          break;
+        }
+      } catch (err) {
+        tb('Lỗi: ' + err.message);
+      }
+      b.disabled = false;
+      b.textContent = '⚡ Tạo toàn bộ video hook (~15đ/clip)';
+    };
+  }
+
+  $('#ds_anh_ai').querySelectorAll('[data-hk]').forEach(o => {
+    const x = hook[+o.dataset.hk];
+    let thu_file = '';
+    o.querySelector('[data-hk-tao]').onclick = async e => {
+      const prompt = o.querySelector('[data-hk-prompt]').value.trim();
+      if (!prompt) return tb('Vui lòng nhập câu lệnh prompt');
+      const model = o.querySelector('[data-hk-model]').value;
+      if (!confirm(`Tạo lại video bằng ${model} trên Flow?\nSẽ dùng điểm Flow theo model đã chọn.`)) return;
+      const b = e.target, tt = o.querySelector('[data-hk-tt]');
+      b.disabled = true; tt.textContent = 'Khởi tạo tác vụ…';
+      try {
+        const r = await post('/api/hook_video/tao_thu', {du_an: DU, k: x.k, prompt_en: prompt, model});
+        for (;;) {
+          await new Promise(z => setTimeout(z, 2500));
+          const t = await api('/api/doi_thu/tt?job=' + r.job);
+          tt.textContent = t.dong || 'Đang tạo video Flow…';
+          if (t.dang) continue;
+          if (t.loi) { tt.textContent = 'Lỗi: ' + t.loi; break; }
+          thu_file = t.kq.file;
+          o.querySelector('[data-hk-vid-thu]').src = t.kq.url;
+          o.querySelector('[data-hk-xem]').style.display = '';
+          tt.textContent = `Xong (${t.kq.diem || '?'} điểm) → xem video bên phải`;
+          break;
+        }
+      } catch (err) {
+        tt.textContent = 'Lỗi: ' + err.message;
+      }
+      b.disabled = false;
+    };
+    o.querySelector('[data-hk-luu]').onclick = async () => {
+      try {
+        const prompt = o.querySelector('[data-hk-prompt]').value.trim();
+        const k = await post('/api/hook_video/luu', {du_an: DU, k: x.k, thu: thu_file, prompt_en: prompt});
+        const vTrai = o.querySelector('video');
+        if (vTrai) {
+          vTrai.src = k.url;
+        } else {
+          o.children[0].innerHTML = `<video src="${k.url}" controls loop style="width:320px;max-height:180px;border-radius:6px;background:#000;display:block"></video>` +
+            `<div class="row" style="margin-top:6px;gap:6px;align-items:center;justify-content:space-between"><div class="sub"><span style="background:#5e35b1;color:#fff;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:600">🎬 Video Veo 3</span> ${fmt(x.t0)} · câu ${x.cau} · clip ${x.giay}s</div>` +
+            `<button class="p btn-mo-tep" data-file="${esc(k.file||'')}" title="Mở thư mục lưu video: ${esc(k.file||'')}" style="padding:1px 8px;font-size:11px">📁 Mở thư mục</button></div>`;
+          ganNutMoTep();
+        }
+        o.querySelector('[data-hk-xem]').style.display = 'none';
+        o.querySelector('[data-hk-tt]').textContent = 'đã lưu video ✓ (CapCut dùng luôn)';
+        x.prompt_en = prompt; x.co_file = true; x.url = k.url; x.file = k.file;
+        tb('Đã lưu video Veo 3');
+      } catch (err) {
+        tb('Lỗi lưu: ' + err.message);
+      }
+    };
+    o.querySelector('[data-hk-luu-lenh]').onclick = async () => {
+      try {
+        const prompt = o.querySelector('[data-hk-prompt]').value.trim();
+        await post('/api/hook_video/sua_cau_lenh', {du_an: DU, k: x.k, prompt_en: prompt});
+        x.prompt_en = prompt;
+        o.querySelector('[data-hk-tt]').textContent = 'đã lưu câu lệnh ✓';
+        tb('Đã lưu câu lệnh video hook');
+      } catch (err) {
+        tb('Lỗi: ' + err.message);
+      }
+    };
+    o.querySelector('[data-hk-bo]').onclick = () => {
+      o.querySelector('[data-hk-xem]').style.display = 'none';
+      o.querySelector('[data-hk-tt]').textContent = 'giữ video cũ';
+      thu_file = '';
+    };
   });
+
+  $('#ds_anh_ai').querySelectorAll('[data-k]').forEach(o => {
+    const x = ds[+o.dataset.k]; let thu = '';
+    o.querySelector('[data-ve-lai]').onclick = async e => {
+      const b = e.target, tt = o.querySelector('[data-tt]');
+      b.disabled = true; tt.textContent = 'đang vẽ… (~30-60 s)';
+      try {
+        const k = await post('/api/anh_ai/ve_thu', {du_an: DU, ve: o.querySelector('[data-ve]').value, thoi_dai: x.thoi_dai, mau: x.mau});
+        thu = k.thu; o.querySelector('[data-anh-thu]').src = k.url; o.querySelector('[data-xem]').style.display = ''; tt.textContent = 'xem ảnh mới bên phải →';
+      } catch (err) {
+        tt.textContent = 'Lỗi: ' + err.message;
+      }
+      b.disabled = false;
+    };
+    o.querySelector('[data-luu]').onclick = async () => {
+      try {
+        const k = await post('/api/anh_ai/luu', {du_an: DU, file: x.file, thu, ve: o.querySelector('[data-ve]').value});
+        o.querySelector('img').src = k.url; o.querySelector('[data-xem]').style.display = 'none'; o.querySelector('[data-tt]').textContent = 'đã lưu ✓'; x.ve = o.querySelector('[data-ve]').value;
+        napKho();
+      } catch (err) {
+        tb('Lỗi: ' + err.message);
+      }
+    };
+    o.querySelector('[data-bo]').onclick = () => {
+      o.querySelector('[data-xem]').style.display = 'none'; o.querySelector('[data-tt]').textContent = 'giữ ảnh cũ'; thu = '';
+    };
+  });
+
+  const datLoc = loai => {
+    $('#btn_loc_tat_ca').classList.toggle('on', loai === 'tat_ca');
+    $('#btn_loc_video').classList.toggle('on', loai === 'video');
+    $('#btn_loc_anh').classList.toggle('on', loai === 'anh');
+    $('#ds_anh_ai').querySelectorAll('.card[data-loai]').forEach(card => {
+      if (loai === 'tat_ca') card.style.display = '';
+      else card.style.display = (card.dataset.loai === loai) ? '' : 'none';
+    });
+  };
+  $('#btn_loc_tat_ca').onclick = () => datLoc('tat_ca');
+  $('#btn_loc_video').onclick = () => datLoc('video');
+  $('#btn_loc_anh').onclick = () => datLoc('anh');
+  datLoc('tat_ca');
+
   if(!$('#hop_anh_ai').open)$('#hop_anh_ai').showModal();
 }
 function tb(m){const e=$('#tb');e.textContent=m;e.classList.add('hien');clearTimeout(tb.h);tb.h=setTimeout(()=>e.classList.remove('hien'),3000)}
@@ -549,7 +985,18 @@ async function api(p,o){const r=await fetch(p,o);if(!r.ok){let t='';try{t=await 
   throw new Error(((m?div.textContent:t.replace(/<[^>]*>/g,' ')).replace(/\s+/g,' ').trim().slice(0,160))||('mã '+r.status))}return r.json()}
 const post=(p,d)=>api(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
 const mmss=s=>{s=Math.max(0,s||0);return Math.floor(s/60)+':'+(s%60).toFixed(1).padStart(4,'0')};
-const DU=new URLSearchParams(location.search).get('du_an')||'';
+let DU=new URLSearchParams(location.search).get('du_an')||'';
+if (!DU) {
+  try {
+    const cu = localStorage.getItem('du_an_lan_cuoi') || '';
+    if (cu) {
+      DU = cu;
+      history.replaceState(null, '', '?du_an=' + encodeURIComponent(DU));
+    }
+  } catch(e) {}
+} else {
+  try { localStorage.setItem('du_an_lan_cuoi', DU); } catch(e) {}
+}
 let D={canh:[],dung:{},kho:[],giong_url:null}, canhChon=null, doan=[], segChon=-1, henKho=null, daSua=false;
 
 async function nap(){
@@ -563,9 +1010,14 @@ function trangThai(id){const k=D.dung[String(id)];if(!k||!k.doan||!k.doan.length
 function veDsCanh(){
   const da=D.canh.filter(c=>((D.dung[String(c.id)]||{}).doan||[]).length).length;
   $('#tongket').textContent=`${da}/${D.canh.length} cảnh có hình`;
-  $('#dscanh').innerHTML=D.canh.map(c=>{const [k,n]=trangThai(c.id);return `<div class="canh ${canhChon&&canhChon.id===c.id?'chon':''}" data-id="${c.id}">
+  $('#dscanh').innerHTML=D.canh.map(c=>{const [k,n]=trangThai(c.id);
+    const moTa=c.mo_ta_anh||c.prompt_ai||'';
+    return `<div class="canh ${canhChon&&canhChon.id===c.id?'chon':''}" data-id="${c.id}">
     <div class="row" style="justify-content:space-between"><b>Cảnh ${c.id}</b><span class="tag ${k}">${n}</span></div>
-    <div class="sub">${mmss(c.bat_dau)} · ${c.dai.toFixed(1)}s</div><div class="t">${esc(c.text)}</div></div>`}).join('');
+    <div class="sub">${mmss(c.bat_dau)} · ${c.dai.toFixed(1)}s</div>
+    <div class="t">${esc(c.text)}</div>
+    ${moTa?`<div class="sub" style="color:#ba68c8;font-size:11px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(moTa)}">🖼️ ${esc(moTa)}</div>`:''}
+  </div>`}).join('');
   $('#dscanh').querySelectorAll('.canh').forEach(e=>e.onclick=()=>chonCanh(+e.dataset.id));
 }
 function chonCanh(id){
@@ -574,6 +1026,9 @@ function chonCanh(id){
   doan=k&&k.doan?JSON.parse(JSON.stringify(k.doan)):[];segChon=doan.length?0:-1;daSua=false;
   const q=(canhChon.video||[])[0]||'';if(q){$('#qvideo').value=q}
   const qa=(canhChon.anh||[])[0]||'';if(qa){$('#qanh').value=qa}
+  const qai=canhChon.prompt_ai || canhChon.mo_ta_anh || canhChon.noi_dung || (canhChon.anh||[])[0] || canhChon.text || '';
+  const inpAi=$('#prompt_ve_ai');
+  if(inpAi&&(!inpAi.value.trim()||inpAi.dataset.cId!=id)){inpAi.value=qai;inpAi.dataset.cId=id}
   veDsCanh();veGiua();
 }
 function khoTheo(id){return D.kho.find(m=>m.id===id)||{}}
@@ -585,7 +1040,16 @@ function veGiua(){
   $('#giua').innerHTML=`<div class="row" style="justify-content:space-between"><h3 style="margin:0">Cảnh ${c.id} <span class="sub">${mmss(c.bat_dau)} → ${mmss(c.bat_dau+c.dai)} · ${c.dai.toFixed(2)}s</span></h3>
       <span class="tag ${trangThai(c.id)[0]}">${trangThai(c.id)[1]}${daSua?' · chưa lưu':''}</span></div>
     <p style="margin:6px 0">${esc(c.text)}</p>
-    ${c.noi_dung?`<div class="sub"><b>Nên chiếu:</b> ${esc(c.noi_dung)}</div>`:''}
+    ${(c.mo_ta_anh || c.prompt_ai) ? `
+      <div style="margin:6px 0;padding:8px 10px;background:#1e1f24;border-left:3px solid #ba68c8;border-radius:6px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+          <b style="font-size:12px;color:#ba68c8">🎨 Mô tả ảnh riêng cho cảnh này (Flow):</b>
+          <button class="p" id="btn_sua_mo_ta_canh" style="padding:1px 6px;font-size:11px" title="Sửa lại prompt ảnh của cảnh này">✏️ Sửa</button>
+        </div>
+        ${c.mo_ta_anh ? `<div style="font-size:12px;color:#e8eaed;margin-bottom:2px">${esc(c.mo_ta_anh)}</div>` : ''}
+        ${c.prompt_ai ? `<div style="font-size:11.5px;color:#9aa0a6;font-family:monospace;white-space:pre-wrap;line-height:1.35">${esc(c.prompt_ai)}</div>` : ''}
+      </div>
+    ` : (c.noi_dung ? `<div class="sub"><b>Nên chiếu:</b> ${esc(c.noi_dung)}</div>` : '')}
     <div style="margin:6px 0">${tk}</div>
     <div class="row"><button class="p" id="phat">▶ Nghe cảnh</button><span class="sub">Kéo vạch trắng giữa các đoạn để đổi chỗ chuyển hình. Thêm đoạn từ cột phải (Kho dự án).</span></div>
     <div class="trucgian" id="truc"><div class="dauphat" id="dauphat"></div></div>
@@ -598,6 +1062,20 @@ function veGiua(){
   $('#giua').querySelectorAll('.chiptk[data-v]').forEach(e=>e.onclick=()=>{$('#qvideo').value=e.dataset.v;moTab('video');timVideo()});
   $('#giua').querySelectorAll('.chiptk[data-a]').forEach(e=>e.onclick=()=>{$('#qanh').value=e.dataset.a;moTab('anh');timAnh()});
   $('#phat').onclick=()=>phatDoan(0,c.dai);
+  const btnSua = $('#btn_sua_mo_ta_canh');
+  if (btnSua) {
+    btnSua.onclick = async () => {
+      const pCu = c.prompt_ai || c.mo_ta_anh || '';
+      const pMoi = prompt('Sửa prompt ảnh riêng cho Cảnh ' + c.id + ' (Flow):', pCu);
+      if (pMoi !== null && pMoi.trim() !== pCu) {
+        c.prompt_ai = pMoi.trim();
+        await post('/api/dung/luu_mo_ta_canh', {du_an: DU, canh_id: c.id, prompt_ai: c.prompt_ai});
+        if ($('#prompt_ve_ai')) $('#prompt_ve_ai').value = c.prompt_ai;
+        veDsCanh(); veGiua();
+        tb('Đã lưu mô tả ảnh cho Cảnh ' + c.id);
+      }
+    };
+  }
   $('#luu').onclick=luu;$('#goiy').onclick=goiYCanh;
   veTruc();veChiTiet();
 }
@@ -678,15 +1156,26 @@ async function theoDoiGoiY(){
   clearTimeout(henGY);let t;try{t=await api('/api/dung/goi_y_tt?du_an='+encodeURIComponent(DU))}catch(e){return}
   const b=$('#goiytatca');
   const b2=$('#tudong');
-  if(t.dang){b.disabled=true;b2.disabled=true;b.textContent=t.buoc==='nhap'?'📦 Đang tạo bản nháp…':`✨ Đang gợi ý ${t.xong||0}/${t.tong||'…'}`;henGY=setTimeout(theoDoiGoiY,2000);
+  if(t.dang){b.disabled=true;b2.disabled=true;
+    const nd=t.buoc==='nhap'?'📦 Đang tạo bản nháp…':t.buoc==='doc_manh'?`⏳ Đọc mảnh kho ${t.xong||0}/${t.tong||'…'}`:`✨ Đang khớp cảnh ${t.xong||0}/${t.tong||'…'}`;
+    b.textContent=nd;b2.textContent='⚡ '+nd;henGY=setTimeout(theoDoiGoiY,2000);
     if((t.xong||0)%5===0){await napLaiDung();veDsCanh()}return}
-  b.disabled=false;b2.disabled=false;b.textContent='✨ Gợi ý cho mọi cảnh chưa dựng';
+  b.disabled=false;b2.disabled=false;b.textContent='✨ Gợi ý cho mọi cảnh chưa dựng';b2.textContent='⚡ Tự chọn đoạn + bản nháp + hoàn thiện';
   if(t.loi)tb('Lỗi: '+t.loi);else if(t.tong!==undefined&&t.luc&&Date.now()/1000-t.luc<600){await napLaiDung();veDsCanh();if(canhChon&&!daSua)chonCanh(canhChon.id);
-    tb(t.nhap?`Đã gợi ý ${t.so_canh} cảnh và tạo bản nháp "${t.nhap.ten}" (${t.nhap.so} đoạn, trỏ video gốc)`:`Đã gợi ý ${t.so_canh} cảnh — xem từng cảnh, sửa rồi Lưu`)}
+    tb(t.nhap?`Đã gợi ý ${t.so_canh} cảnh và tạo bản nháp "${t.nhap.ten}" (${t.nhap.so} đoạn, trỏ video gốc)`
+      +(t.hoan_thien?(String(t.hoan_thien).startsWith('lỗi')?' — Hoàn thiện KHÔNG chạy được: '+t.hoan_thien:' — đang tự Hoàn thiện…'):''):`Đã gợi ý ${t.so_canh} cảnh — xem từng cảnh, sửa rồi Lưu`);
+    if(t.hoan_thien&&!String(t.hoan_thien).startsWith('lỗi')){$('#hoanthien').dataset.cho='1';theoDoiHoanThien()}}
 }
+// 26/10 user: ⚡ xong tự chạy luôn ✨ Hoàn thiện (theo các ô tick 🎵 Nhạc / 🔊 SFX / 🎬 Hook) — nối ở máy chủ, đóng trang vẫn chạy
 $('#tudong').onclick=async()=>{const ten=$('#tennhap').value.trim()||DU;
-  if(!confirm(`Tự chọn đoạn cho mọi cảnh CHƯA dựng (cảnh bạn đã dựng giữ nguyên), rồi tạo bản nháp CapCut "${ten}" (ghi đè nếu trùng tên). Tiếp tục?`))return;
-  try{await post('/api/dung/goi_y',{du_an:DU,ten_nhap:ten});theoDoiGoiY()}catch(e){tb('Lỗi: '+e.message)}};
+  const ten_ht=ten.replace(/_dung$|_tu_dong$/,'')+'_hoan_chinh';
+  const co_nhac=!!$('#co_nhac')?.checked,co_sfx=!!$('#co_sfx')?.checked,co_hook=!!$('#co_hook')?.checked;
+  const kem=[co_nhac?'🎵 nhạc':'',co_sfx?'🔊 SFX':'',co_hook?'🎬 hook Veo3':''].filter(Boolean).join(', ')||'không nhạc / SFX / hook';
+  if(!confirm(`1) Tự chọn đoạn cho mọi cảnh CHƯA dựng (cảnh bạn đã dựng giữ nguyên) -> bản nháp thô "${ten}".
+2) Rồi TỰ chạy ✨ Hoàn thiện -> bản nháp "${ten_ht}": ảnh AI theo 📝, chuyển cảnh, ${kem}.
+
+Ghi đè nếu trùng tên. Hoàn thiện mất khoảng 10-30 phút. Tiếp tục?`))return;
+  try{await post('/api/dung/goi_y',{du_an:DU,ten_nhap:ten,hoan_thien:true,ten_ht,co_nhac,co_sfx,co_hook});theoDoiGoiY()}catch(e){tb('Lỗi: '+e.message)}};
 const TEN_BUOC={
   bat_dau:'bắt đầu',
   chia_chu_de:'chia chủ đề',
@@ -967,6 +1456,7 @@ $('#tim_ngay_cd').onclick=async()=>{
 };
 
 $('#tutim').onclick=async()=>{
+  if($('#chedo_tim').value==='tay')return moChonTay();    // 25/10 user: tự chọn trên YouTube, không quét / chấm tự động
   const ten=$('#tennhap').value.trim()||DU;
   const ns=+$('#ngansach').value||120;
   const lien=$('#lienht').checked;
@@ -976,7 +1466,7 @@ $('#tutim').onclick=async()=>{
   const moTaChedo=chedo==='chu_de'?'theo CHỦ ĐỀ (tải từng khoảng 20-40s)':'theo CẢNH (tải cả video)';
   if(!confirm(`Tự tìm + tải ${moTaChedo} tối đa ~${ns} phút video (lố ≤10%), khớp đoạn cho mọi cảnh CHƯA dựng, ảnh Google bù chỗ thiếu, rồi tạo bản nháp "${ten}".`+
     (stock?'':'\n\nKho video free: TẮT — chỉ tải video YouTube.')+
-    (lien?`\n\nXONG sẽ TỰ chạy tiếp ✨ Hoàn thiện -> bản nháp "${tenHT}" (diễn cảnh, bản đồ, nhạc). Đóng bản nháp đó trong CapCut nếu đang mở.`:'')+
+    (lien?`\n\nXONG sẽ TỰ chạy tiếp ✨ Hoàn thiện -> bản nháp "${tenHT}" (diễn cảnh, ảnh AI, nhạc). Đóng bản nháp đó trong CapCut nếu đang mở.`:'')+
     `\n\nCảnh bạn đã tự dựng giữ nguyên. Tiếp tục?`))return;
   try{
     await post('/api/dung/tu_dong',{du_an:DU,ngan_sach:ns,ten_nhap:ten,hoan_thien:lien,ten_ht:tenHT,dung_stock:stock,che_do:chedo,co_hook:!!$('#co_hook')?.checked});
@@ -990,15 +1480,189 @@ async function luu(){
   try{const r=await post('/api/dung/luu',{du_an:DU,canh_id:canhChon.id,doan});D.dung[String(canhChon.id)]=r.canh;daSua=false;
     doan=JSON.parse(JSON.stringify(r.canh.doan));veDsCanh();veGiua();tb('Đã lưu cảnh '+canhChon.id)}catch(e){tb('Lỗi: '+e.message)}}
 // ---------- kho
+let boLocKho = 'tat_ca';
 function veKho(){
   const ds=D.kho;
-  $('#tab_kho').innerHTML=ds.length?`<div class="luoi">${ds.map(m=>`<div class="the">
-      ${m.thumb?`<img src="${m.thumb}" data-u="${m.url||''}" data-l="${m.loai}">`:'<div style="aspect-ratio:16/9;background:#000"></div>'}
+  const dsAnh = ds.filter(m => m.loai === 'anh');
+  const dsVid = ds.filter(m => m.loai === 'video');
+  const dsHien = boLocKho === 'anh' ? dsAnh : (boLocKho === 'video' ? dsVid : ds);
+
+  const thanhKho = `
+    <div style="padding:8px 10px;border-bottom:1px solid var(--line);background:var(--card);display:flex;flex-direction:column;gap:6px">
+      <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+        <div class="row" style="gap:6px">
+          <b style="font-size:12.5px">📦 Kho media (${ds.length})</b>
+        </div>
+        <div class="row" style="gap:4px">
+          <button class="p btn-loc-kho ${boLocKho==='tat_ca'?'on':''}" data-loc="tat_ca" style="padding:2px 8px;font-size:11.5px">Tất cả (${ds.length})</button>
+          <button class="p btn-loc-kho ${boLocKho==='anh'?'on':''}" data-loc="anh" style="padding:2px 8px;font-size:11.5px">🖼 Ảnh (${dsAnh.length})</button>
+          <button class="p btn-loc-kho ${boLocKho==='video'?'on':''}" data-loc="video" style="padding:2px 8px;font-size:11.5px">🎞 Video (${dsVid.length})</button>
+        </div>
+      </div>
+      <div class="row" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">
+        <div class="row" style="gap:4px">
+          <button class="p" id="btn_quet_lai_kho" style="padding:3px 8px;font-size:11px;font-weight:600;border-color:var(--ok);color:var(--ok)" title="Tự động quét lại toàn bộ thư mục kho/anh, anh_chen, hook... để đẩy ảnh và video mới lên">🔄 Quét lại kho</button>
+          <button class="p" id="btn_mo_thu_kho_anh" style="padding:3px 8px;font-size:11px;font-weight:600" title="Mở thư mục ảnh dự án (ra/${DU}/kho/anh)">📂 Thư mục Ảnh</button>
+          <button class="p" id="btn_mo_thu_anh_chen" style="padding:3px 8px;font-size:11px" title="Mở thư mục ảnh/video AI đã giữ (ra/${DU}/anh_chen)">📂 Ảnh đã tạo AI</button>
+          <button class="p" id="btn_mo_thu_kho_vid" style="padding:3px 8px;font-size:11px;font-weight:600" title="Mở thư mục video (ra/${DU}/kho/video)">📂 Kho video</button>
+        </div>
+        <div class="row" style="gap:4px">
+          <button class="p" id="btn_xoa_video_tim" style="padding:3px 8px;font-size:11px;font-weight:600;color:var(--er);border-color:var(--er)" title="Xoá HẾT video tìm kiếm + băm của dự án (thư mục kho/video) khỏi kho và ổ đĩa. Video Veo3, ảnh và video AI giữ nguyên.">🗑 Xoá hết video tìm &amp; băm</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const luoiKho = dsHien.length ? `<div class="luoi">${dsHien.map(m=>`<div class="the">
+      <div style="aspect-ratio:16/9;position:relative;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden">
+        ${m.loai==='anh'
+          ? `<img src="${m.thumb||m.url}" loading="lazy" decoding="async" data-u="${m.url||''}" data-l="${m.loai}" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in" title="Bấm xem lớn">`
+          : (m.thumb
+             ? `<img src="${m.thumb}" loading="lazy" decoding="async" data-u="${m.url||''}" data-l="${m.loai}" style="width:100%;height:100%;object-fit:cover;cursor:pointer">`
+             : m.url
+               ? `<video src="${m.url}#t=0.5" preload="none" muted style="width:100%;height:100%;object-fit:cover;pointer-events:none"></video>`
+               : `<span style="color:#888;font-size:22px">${m.loai==='anh'?'🖼':'🎞'}</span>`
+            )
+        }
+        <span style="position:absolute;top:4px;left:4px;background:#0009;color:#fff;font-size:10px;padding:1px 5px;border-radius:4px;backdrop-filter:blur(2px)">
+          ${m.loai==='anh'?'🖼 Ảnh':'🎞 Video'}
+        </span>
+      </div>
       <div class="n"><b>${m.loai==='anh'?'🖼':'🎞'} ${esc(m.tieu_de||m.id)}</b>
         <div class="sub">${m.trang_thai==='xong'?(m.loai==='video'?mmss(m.dai):(m.rong?m.rong+'×'+m.cao:'')):m.trang_thai==='loi'?'<span style="color:var(--er)">lỗi tải</span>':'đang tải '+Math.round(m.pt||0)+'%'}</div></div>
-      <div class="hang"><button data-k="${m.id}" ${m.trang_thai==='xong'?'':'disabled'}>＋ Dùng cho cảnh</button></div></div>`).join('')}</div>`
-    :'<p class="sub" style="padding:10px">Kho trống. Tìm video/ảnh ở hai tab bên cạnh rồi bấm Tải.</p>';
+      <div class="hang" style="justify-content:space-between;align-items:center">
+        <button data-k="${m.id}" ${m.trang_thai==='xong'?'':'disabled'}>＋ Dùng cho cảnh</button>
+        <div class="row" style="gap:4px">
+
+          <button class="p btn-mo-tep" data-file="${esc(m.file||'kho/video')}" title="Mở file này trong Explorer: ${esc(m.file||'')}" style="padding:2px 7px;font-size:11px">📁</button>
+          <button class="p btn-xoa-kho-don" data-kid="${esc(m.id)}" title="Xoá mục này khỏi kho dự án" style="padding:2px 7px;font-size:11px;color:var(--er)">✕</button>
+        </div>
+      </div></div>`).join('')}</div>`
+    : `<p class="sub" style="padding:16px;text-align:center">${boLocKho==='anh'?'Kho chưa có ảnh nào. Bạn có thể bấm "🎨 Tạo ảnh AI" ở tab Tìm ảnh hoặc vẽ ảnh ở hộp thoại trên.':(boLocKho==='video'?'Kho chưa có video nào.':'Kho trống. Tìm video/ảnh ở tab bên cạnh hoặc bấm Quét lại kho.')}</p>`;
+
+  $('#tab_kho').innerHTML = thanhKho + luoiKho;
+
   $('#tab_kho').querySelectorAll('button[data-k]').forEach(b=>b.onclick=()=>themVaoCanh(b.dataset.k));
+
+  $('#tab_kho').querySelectorAll('.btn-loc-kho').forEach(b => {
+    b.onclick = () => {
+      boLocKho = b.dataset.loc;
+      veKho();
+    };
+  });
+
+  if ($('#btn_quet_lai_kho')) {
+    $('#btn_quet_lai_kho').onclick = async () => {
+      const b = $('#btn_quet_lai_kho');
+      b.disabled = true;
+      b.textContent = '⏳ Đang quét…';
+      try {
+        const r = await post('/api/kho/quet', {du_an: DU});
+        tb(`✓ Đã quét kho dự án: ${r.tong} mục (${r.so_anh} ảnh, ${r.so_vid} video)`);
+        D.kho = r.kho || [];
+        veKho();
+      } catch (e) {
+        tb('Lỗi quét: ' + e.message);
+      } finally {
+        b.disabled = false;
+        b.textContent = '🔄 Quét lại kho';
+      }
+    };
+  }
+
+  if ($('#btn_mo_thu_kho_anh')) {
+    $('#btn_mo_thu_kho_anh').onclick = async () => {
+      try {
+        const r = await post('/api/mo_tep', {du_an: DU, file: 'kho/anh'});
+        tb('📁 Đã mở thư mục Ảnh dự án: ' + (r.path || 'kho/anh'));
+      } catch (e) {
+        tb('Lỗi: ' + e.message);
+      }
+    };
+  }
+
+  if ($('#btn_mo_thu_anh_chen')) {
+    $('#btn_mo_thu_anh_chen').onclick = async () => {
+      try {
+        const r = await post('/api/mo_tep', {du_an: DU, file: 'anh_chen'});
+        tb('📁 Đã mở thư mục Ảnh đã tạo AI: ' + (r.path || 'anh_chen'));
+      } catch (e) {
+        tb('Lỗi: ' + e.message);
+      }
+    };
+  }
+
+  if ($('#btn_mo_thu_kho_vid')) {
+    $('#btn_mo_thu_kho_vid').onclick = async () => {
+      try {
+        const r = await post('/api/mo_tep', {du_an: DU, file: 'kho/video'});
+        tb('📁 Đã mở thư mục Kho video: ' + (r.path || 'kho/video'));
+      } catch (e) {
+        tb('Lỗi: ' + e.message);
+      }
+    };
+  }
+
+  $('#btn_xoa_video_tim').onclick = async () => {
+    const n = D.kho.filter(m => m.loai === 'video' && m.nguon !== 'hook' && /[\\/]kho[\\/]video[\\/]/i.test(m.file || '')).length;
+    if (!confirm(`Xoá HẾT ${n} video tìm kiếm + băm của dự án «${DU}» (thư mục kho/video) khỏi kho VÀ ổ đĩa?
+
+Video Veo3 (hook), ảnh và video AI giữ nguyên.
+Cảnh đã dựng bằng các video này sẽ mất hình. Không hoàn tác được.`)) return;
+    const b = $('#btn_xoa_video_tim');
+    b.disabled = true;
+    b.textContent = '⏳ Đang xoá…';
+    try {
+      const r = await post('/api/kho/xoa_video_tim', {du_an: DU});
+      tb(`🗑 Đã xoá ${r.so_muc} mục, ${r.so_file} tệp video tìm & băm`);
+      await napKho();
+    } catch (e) {
+      tb('Lỗi: ' + e.message);
+      b.disabled = false;
+      b.textContent = '🗑 Xoá hết video tìm & băm';
+    }
+  };
+
+  $('#tab_kho').querySelectorAll('.btn-mo-tep').forEach(b => {
+    b.onclick = async e => {
+      e.stopPropagation();
+      const f = b.dataset.file || 'kho/video';
+      try {
+        const r = await post('/api/mo_tep', {du_an: DU, file: f});
+        tb('📁 Đã mở trong Explorer: ' + (r.path || f));
+      } catch (err) {
+        tb('Lỗi: ' + err.message);
+      }
+    };
+  });
+
+  $('#tab_kho').querySelectorAll('.btn-xoa-kho-don').forEach(b => {
+    b.onclick = async e => {
+      e.stopPropagation();
+      const kid = b.dataset.kid;
+      if (!confirm('Xoá mục này khỏi kho media của dự án?')) return;
+      b.disabled = true;
+      try {
+        await post('/api/kho/xoa', {du_an: DU, kid: kid, xoa_file: true});
+        tb('Đã xoá mục khỏi kho');
+        napKho();
+      } catch (err) {
+        tb('Lỗi: ' + err.message);
+        b.disabled = false;
+      }
+    };
+  });
+
+
+  $('#tab_kho').querySelectorAll('img[data-u]').forEach(img => {
+    img.onclick = () => {
+      if (img.dataset.l === 'anh' && img.dataset.u) {
+        $('#xemanh').innerHTML = `<img src="${esc(img.dataset.u)}" style="max-width:100%;max-height:280px;border-radius:8px;display:block">`;
+        moTab('anh');
+      }
+    };
+  });
+
   clearTimeout(henKho);if(ds.some(m=>m.trang_thai==='dang'))henKho=setTimeout(napKho,2000);
 }
 async function napKho(){try{D.kho=(await api('/api/kho?du_an='+encodeURIComponent(DU))).kho;veKho();if(canhChon){veTruc()}}catch(e){}}
@@ -1065,6 +1729,173 @@ async function timAnh(){
   }catch(e){if(lan===soTimAnh&&!$('#kqanh .the'))$('#kqanh').innerHTML='<p class="sub">Lỗi: '+esc(e.message)+'</p>';else tb('Chấm điểm lỗi: '+e.message)}
 }
 $('#timanh').onclick=timAnh;$('#qanh').onkeydown=e=>{if(e.key==='Enter')timAnh()};
+
+// ---------- Tab Ảnh: Tạo ảnh AI & Lưu vào kho dự án
+let anhAiTam = null;
+$('#btn_mo_thu_anh_tab').onclick = () => post('/api/mo_thu_muc', {du_an: DU, loai: 'kho_anh'}).catch(e => tb('Lỗi: ' + e.message));
+
+$('#btn_goi_y_ve_tab').onclick = async () => {
+  const b = $('#btn_goi_y_ve_tab');
+  const tt = $('#tt_ve_ai_tab');
+  b.disabled = true;
+  tt.textContent = '⏳ Đang hỏi AI gợi ý câu vẽ điện ảnh...';
+  try {
+    const r = await post('/api/anh_ai/goi_y_cau_ve', {
+      du_an: DU,
+      text: canhChon ? (canhChon.text || '') : '',
+      noi_dung: canhChon ? (canhChon.noi_dung || '') : ''
+    });
+    if (r.prompt) {
+      $('#prompt_ve_ai').value = r.prompt;
+      if (canhChon) $('#prompt_ve_ai').dataset.cId = canhChon.id;
+      tt.textContent = '✓ Đã có câu lệnh gợi ý từ AI';
+    }
+  } catch (err) {
+    tt.textContent = 'Lỗi gợi ý: ' + err.message;
+  } finally {
+    b.disabled = false;
+  }
+};
+
+$('#btn_ve_ai_tab').onclick = async () => {
+  const prompt = $('#prompt_ve_ai').value.trim();
+  if (!prompt) return tb('Vui lòng nhập câu mô tả hoặc bấm "💡 Hỏi AI gợi ý câu vẽ"');
+  const cong_cu = $('#sel_cong_cu_anh') ? $('#sel_cong_cu_anh').value : 'flow';
+  const ti_le = $('#sel_ti_le_anh') ? $('#sel_ti_le_anh').value : '16:9';
+  const b = $('#btn_ve_ai_tab');
+  const tt = $('#tt_ve_ai_tab');
+  b.disabled = true;
+  tt.textContent = (cong_cu === 'flow' ? '🌊 Đang tạo ảnh qua Google Flow (0 điểm)...' : '✨ Đang tạo ảnh qua Gemini Cookie...') + ' (~15-30s)';
+  try {
+    const r = await post('/api/anh_ai/ve_thu', {
+      du_an: DU,
+      ve: prompt,
+      cong_cu: cong_cu,
+      ti_le: ti_le
+    });
+    anhAiTam = r;
+    $('#img_ai_tab').src = r.url;
+    $('#xem_anh_ai_tab').style.display = 'block';
+    const tagNguon = r.nguon === 'flow' ? '🌊 Google Flow (0 điểm)' : '✨ Gemini';
+    tt.innerHTML = `<span style="color:var(--ok)">✅ Đã tạo xong từ ${tagNguon}! Bấm Lưu vào Kho hoặc Dùng cho cảnh.</span>`;
+  } catch (err) {
+    tt.textContent = 'Lỗi tạo ảnh: ' + err.message;
+    tb('Lỗi tạo ảnh: ' + err.message);
+  } finally {
+    b.disabled = false;
+  }
+};
+
+$('#btn_luu_kho_tab').onclick = async () => {
+  if (!anhAiTam || !anhAiTam.thu) return tb('Chưa có ảnh AI để lưu');
+  const b = $('#btn_luu_kho_tab');
+  b.disabled = true;
+  b.textContent = 'Đang lưu…';
+  const prompt = $('#prompt_ve_ai').value.trim();
+  const tagTieuDe = (anhAiTam && anhAiTam.nguon === 'gemini') ? '🎨 [Gemini] ' : '🌊 [Flow] ';
+  const tieuDe = tagTieuDe + (prompt.slice(0, 45) || 'Ảnh tạo');
+  const nguon = (anhAiTam && anhAiTam.nguon) || 'flow';
+  try {
+    const r = await post('/api/kho/luu_anh_ai', {
+      du_an: DU,
+      thu: anhAiTam.thu,
+      tieu_de: tieuDe,
+      mo_ta: prompt,
+      nguon: nguon
+    });
+    tb('💾 Đã lưu ảnh vào thư mục dự án (ra/' + DU + '/kho/anh/) và nạp vào Kho media!');
+    $('#tt_ve_ai_tab').innerHTML = '<span style="color:var(--ok)">✓ Đã lưu thành công vào Kho dự án!</span>';
+    await napKho();
+  } catch (err) {
+    tb('Lỗi lưu ảnh: ' + err.message);
+  } finally {
+    b.disabled = false;
+    b.textContent = '💾 Lưu vào Kho dự án';
+  }
+};
+
+$('#btn_dung_canh_tab').onclick = async () => {
+  if (!anhAiTam || !anhAiTam.thu) return tb('Chưa có ảnh AI để dùng');
+  if (!canhChon) return tb('Vui lòng chọn một cảnh ở cột bên trái trước');
+  const b = $('#btn_dung_canh_tab');
+  b.disabled = true;
+  b.textContent = 'Đang lưu & gắn…';
+  const prompt = $('#prompt_ve_ai').value.trim();
+  const tagTieuDe = (anhAiTam && anhAiTam.nguon === 'gemini') ? '🎨 [Gemini] ' : '🌊 [Flow] ';
+  const tieuDe = tagTieuDe + (prompt.slice(0, 45) || 'Ảnh tạo');
+  const nguon = (anhAiTam && anhAiTam.nguon) || 'flow';
+  try {
+    const r = await post('/api/kho/luu_anh_ai', {
+      du_an: DU,
+      thu: anhAiTam.thu,
+      tieu_de: tieuDe,
+      mo_ta: prompt,
+      nguon: nguon
+    });
+    await napKho();
+    themVaoCanh(r.kid);
+    tb('🎉 Đã lưu vào dự án và gán vào Cảnh ' + canhChon.id + '!');
+    $('#tt_ve_ai_tab').innerHTML = '<span style="color:var(--ok)">✓ Đã gán vào Cảnh ' + canhChon.id + ' (nhớ bấm Lưu cảnh)</span>';
+  } catch (err) {
+    tb('Lỗi: ' + err.message);
+  } finally {
+    b.disabled = false;
+    b.textContent = '＋ Lưu & Dùng cho cảnh';
+  }
+};
+
+$('#btn_bo_ai_tab').onclick = () => {
+  $('#xem_anh_ai_tab').style.display = 'none';
+  anhAiTam = null;
+  $('#tt_ve_ai_tab').textContent = '';
+};
+
+// ---------- Khóa nhân vật đồng nhất & Tạo mô tả ảnh cho mọi câu thoại
+if ($('#btn_mo_hop_dna')) {
+  $('#btn_mo_hop_dna').onclick = async () => {
+    try {
+      const r = await api('/api/dung/nhan_vat_dna?du_an=' + encodeURIComponent(DU));
+      if (r.nhan_vat) $('#dna_nhan_vat').value = r.nhan_vat;
+      if (r.phong_cach) $('#dna_phong_cach').value = r.phong_cach;
+    } catch (e) {}
+    $('#hop_dong_nhat').showModal();
+  };
+}
+
+if ($('#btn_bat_dau_tao_mo_ta')) {
+  $('#btn_bat_dau_tao_mo_ta').onclick = async () => {
+    const b = $('#btn_bat_dau_tao_mo_ta');
+    const tt = $('#tt_tao_mo_ta_all');
+    const nv = $('#dna_nhan_vat').value.trim();
+    const pc = $('#dna_phong_cach').value;
+    b.disabled = true;
+    tt.innerHTML = '<span style="color:var(--ac)">⏳ Đang duyệt qua MỌI câu thoại và viết mô tả ảnh riêng cho từng cảnh (giữ nhân vật đồng nhất)... Khoảng 20-45s.</span>';
+    try {
+      const r = await post('/api/dung/tao_mo_ta_anh_hang_loat', {
+        du_an: DU,
+        nhan_vat: nv,
+        phong_cach: pc
+      });
+      D.canh = r.canh || D.canh;
+      veDsCanh();
+      if (canhChon) {
+        const cMoi = D.canh.find(c => c.id === canhChon.id);
+        if (cMoi) {
+          canhChon = cMoi;
+          veGiua();
+          if ($('#prompt_ve_ai')) $('#prompt_ve_ai').value = canhChon.prompt_ai || canhChon.mo_ta_anh || '';
+        }
+      }
+      tb(`🎉 Đã tạo xong mô tả ảnh riêng cho ${r.so}/${r.tong} câu thoại!`);
+      $('#hop_dong_nhat').close();
+    } catch (err) {
+      tt.innerHTML = `<span style="color:var(--er)">Lỗi: ${esc(err.message)}</span>`;
+      tb('Lỗi: ' + err.message);
+    } finally {
+      b.disabled = false;
+    }
+  };
+}
 // ---------- bản nháp
 $('#taonhap').onclick=async()=>{const b=$('#taonhap');b.disabled=true;
   try{const r=await post('/api/dung/nhap',{du_an:DU,ten:$('#tennhap').value});tb(`Đã tạo bản nháp "${r.ten}" (${r.so} đoạn hình trỏ video gốc + giọng đọc)`)}
@@ -1081,7 +1912,7 @@ async function theoDoiHoanThien(){
 }
 $('#mo_anh_ai').onclick=moAnhAI;
 $('#hoanthien').onclick=async()=>{const goc=($('#tennhap').value.trim()||DU).replace(/_dung$|_tu_dong$/,'');const ten=goc+'_hoan_chinh';
-  if(!confirm(`Hoàn thiện bản nháp từ kế hoạch hiện tại → bản nháp CapCut "${ten}" (ghi đè nếu trùng tên).\n\nGồm: căn giờ theo giọng đọc, bản đồ vệ tinh, thẻ ảnh highlight + chữ nhấn mạnh, phủ màu, chuyển cảnh. Mất khoảng 10-30 phút (tìm ảnh Google — nếu Google hỏi captcha, giải ở cửa sổ Chrome tìm ảnh). Tiếp tục?`))return;
+  if(!confirm(`Hoàn thiện bản nháp từ kế hoạch hiện tại → bản nháp CapCut "${ten}" (ghi đè nếu trùng tên).\n\nGồm: căn giờ theo giọng đọc, ảnh AI, thẻ ảnh highlight + chữ nhấn mạnh, phủ màu, chuyển cảnh. Mất khoảng 10-30 phút (tìm ảnh Google — nếu Google hỏi captcha, giải ở cửa sổ Chrome tìm ảnh). Tiếp tục?`))return;
   try{const co_nhac=!!$('#co_nhac')?.checked,co_sfx=!!$('#co_sfx')?.checked;await post('/api/dung/hoan_thien',{du_an:DU,ten,co_nhac,co_sfx,co_hook:!!$('#co_hook')?.checked});$('#hoanthien').dataset.cho='1';theoDoiHoanThien()}catch(e){tb('Lỗi: '+e.message)}};
 // ---------- 🍪 Cookie YouTube
 async function veCookieYT(){
@@ -1099,6 +1930,32 @@ async function veCookieYT(){
   }catch(e){$('#ck_yt_tt').textContent='Lỗi kiểm tra cookie: '+e.message}
 }
 $('#nutck_yt').onclick=()=>{veCookieYT();$('#hopck_yt').showModal()};
+// 26/10 user: một nút kiểm tra mọi cookie / tài khoản TRƯỚC khi chạy (lỗi giữa chừng thì bước đó bị bỏ qua)
+const KT_TEN={gemini:['🤖 Gemini','Trang chính → 🍪 Cookie: xuất cookie Gemini mới rồi bấm "Gửi vào app" (đúng tên tài khoản)'],
+  chatgpt:['💬 ChatGPT','Trang chính → 🍪 Cookie: xuất cookie ChatGPT mới rồi gửi lại (đúng tên tài khoản)'],
+  youtube:['▶ YouTube','Bấm 🍪 Cookie YouTube ngay trên trang này, dán cookie mới'],
+  flow:['🎨 Hồ sơ Flow','Trang chính → 🎨 Hồ sơ Flow: bấm "Mở" hồ sơ đó, đăng nhập lại Google']};
+let henKT=null;
+async function veKT(){
+  clearTimeout(henKT);let d;try{d=await api('/api/kiem_tra_het')}catch(e){$('#kt_ds').textContent='Lỗi: '+e.message;return}
+  const kq=d.kq||{};let hong=0,tot=0;
+  $('#kt_ds').innerHTML=Object.keys(KT_TEN).map(dv=>{const [ten,huong]=KT_TEN[dv];const ds=kq[dv];
+    if(!ds)return `<div><b>${ten}</b> <span class="sub">${d.dang?'⏳ đang kiểm tra…':'chưa kiểm tra'}</span></div>`;
+    const ids=Object.keys(ds).sort((a,b)=>(ds[a].ok-ds[b].ok)||a.localeCompare(b,undefined,{numeric:true}));
+    const h=ids.filter(i=>!ds[i].ok).length;hong+=h;tot+=ids.length-h;
+    return `<div style="border:1px solid ${h?'var(--er)':'var(--line)'};border-radius:8px;padding:8px 10px">
+      <div class="row" style="justify-content:space-between"><b>${ten}</b><span class="sub">${ids.length?`${ids.length-h}/${ids.length} dùng được`:'không có tài khoản nào'}</span></div>
+      ${ids.map(i=>`<div style="font-size:12.5px;margin-top:3px">${ds[i].ok?'✅':(ds[i].canh_bao?'⚠️':'❌')} <b>${esc(i==='__loi__'?'':i)}</b> <span class="sub">${esc(ds[i].msg||'')}</span></div>`).join('')}
+      ${h?`<div style="font-size:12px;margin-top:6px;color:var(--er)">👉 ${huong}</div>`:''}</div>`}).join('');
+  $('#kt_tom').textContent=d.dang?'— đang kiểm tra…':(d.xong_luc?`— ${hong?hong+' tài khoản hỏng, ':'tất cả dùng được, '}${tot} tốt · lúc ${new Date(d.xong_luc*1000).toLocaleTimeString()}`:'');
+  $('#nut_kt_het').textContent=d.dang?'🩺 Đang kiểm tra…':(d.xong_luc?(hong?`🩺 ${hong} tài khoản hỏng`:'🩺 Tài khoản ổn'):'🩺 Kiểm tra tài khoản');
+  $('#nut_kt_het').style.color=d.dang||!d.xong_luc?'':(hong?'var(--er)':'var(--ok)');
+  if(d.dang)henKT=setTimeout(veKT,2500);
+  else if(veKT.cho&&d.xong_luc){veKT.cho=false;tb(hong?`🩺 ${hong} tài khoản hỏng — xem bảng để gửi lại cookie`:'🩺 Mọi tài khoản dùng được')}
+}
+async function batDauKT(){try{await post('/api/kiem_tra_het',{})}catch(e){if(!/đang kiểm tra/.test(e.message))return tb('Lỗi: '+e.message)}veKT.cho=true;veKT()}
+$('#nut_kt_het').onclick=()=>{$('#hop_kt_het').showModal();api('/api/kiem_tra_het').then(d=>{if(d.dang||d.xong_luc)veKT();else batDauKT()}).catch(()=>batDauKT())};
+$('#kt_lai').onclick=batDauKT;
 $('#ck_yt_chontep').onclick=()=>$('#ck_yt_tep').click();
 $('#ck_yt_tep').onchange=async e=>{
   const f=e.target.files[0];if(!f)return;
@@ -1125,396 +1982,8 @@ $('#ck_yt_xoa').onclick=async()=>{
   }catch(e){tb('Lỗi: '+e.message)}
 };
 
-// ---------- 🎬 DUYỆT & TỰ CHỌN NGUỒN THEO CHỦ ĐỀ
-let duyetData = { chu_de: [], lich_su: [] };
-let henDuyet = null;
 
-function chuyenTabDuyet(tab) {
-  if (tab === 'vid') {
-    $('#tab_btn_duyet_vid').classList.add('on');
-    $('#tab_btn_duyet_ls').classList.remove('on');
-    $('#noi_dung_duyet_vid').style.display = 'block';
-    $('#noi_dung_duyet_ls').style.display = 'none';
-  } else {
-    $('#tab_btn_duyet_ls').classList.add('on');
-    $('#tab_btn_duyet_vid').classList.remove('on');
-    $('#noi_dung_duyet_ls').style.display = 'block';
-    $('#noi_dung_duyet_vid').style.display = 'none';
-  }
-}
-$('#tab_btn_duyet_vid').onclick = () => chuyenTabDuyet('vid');
-$('#tab_btn_duyet_ls').onclick = () => chuyenTabDuyet('ls');
-
-function xemThuVid(vid, tieuDe) {
-  $('#xem_thu_tieu_de').textContent = tieuDe || 'Xem thử video YouTube';
-  $('#iframe_xem_thu').src = 'https://www.youtube-nocookie.com/embed/' + vid + '?autoplay=1';
-  $('#vung_xem_thu_yt').style.display = 'block';
-  $('#hop_duyet_nguon').scrollTop = 0;
-}
-
-function capNhatThongKeDuyet() {
-  let tongVid = 0;
-  (duyetData.chu_de || []).forEach(cd => (cd.videos || []).forEach(v => { if (v.chon) tongVid++; }));
-  let tongAnh = 0;
-  (duyetData.lich_su || []).forEach(ls => (ls.anhs || []).forEach(a => { if (a.chon) tongAnh++; }));
-  let tongKho = 0;
-  let soCdDungKho = 0;
-  (duyetData.chu_de || []).forEach(cd => {
-    if (cd.dung_kho && cd.kho_co_san && cd.kho_co_san.length) {
-      tongKho += cd.kho_co_san.length;
-      soCdDungKho++;
-    }
-  });
-
-  $('#dem_vid_chon').textContent = tongVid;
-  $('#dem_ls_chon').textContent = tongAnh;
-
-  const moTa = [];
-  if (tongVid > 0) moTa.push(`${tongVid} video YouTube mới`);
-  if (tongKho > 0) moTa.push(`${soCdDungKho} CĐ dùng kho (${tongKho} clip · 0s tải)`);
-  if (tongAnh > 0) moTa.push(`${tongAnh} ảnh tư liệu lịch sử`);
-  $('#thong_ke_duyet').textContent = `Đã chọn: ${moTa.join(' · ') || 'Chưa chọn nguồn nào'}`;
-
-  const btn = $('#btn_bat_dau_tai_ghep');
-  if (btn && !btn.disabled) {
-    if (tongVid > 0) btn.innerHTML = `⬇ Tải ${tongVid} video mới &amp; Khớp bản nháp`;
-    else if (tongKho > 0) btn.innerHTML = `⚡ Khớp bản nháp từ ${tongKho} clip kho (0s tải)`;
-    else btn.innerHTML = `🎬 Khớp bản nháp CapCut`;
-  }
-}
-
-function chuyenDungKho(cdIdx) {
-  const cd = (duyetData.chu_de || [])[cdIdx];
-  if (!cd) return;
-  cd.dung_kho = !cd.dung_kho;
-  if (cd.dung_kho) {
-    (cd.videos || []).forEach(v => v.chon = false);
-  } else {
-    { let n = 0; (cd.videos || []).forEach(v => { v.chon = !v.ke_lai && n < 2; n += v.chon; }); }   // 18/10: bỏ qua bản kể lại
-  }
-  veDuyetVid();
-  capNhatThongKeDuyet();
-}
-
-function toggleHienKho(cdIdx) {
-  const cd = (duyetData.chu_de || [])[cdIdx];
-  if (!cd) return;
-  cd.an_kho = !cd.an_kho;
-  veDuyetVid();
-}
-
-function veDuyetVid() {
-  const cds = duyetData.chu_de || [];
-  if (!cds.length) {
-    $('#ds_duyet_cd').innerHTML = '<p class="sub">Không tìm thấy video nào. Hãy kiểm tra lại từ khoá trong kịch bản.</p>';
-    return;
-  }
-  $('#ds_duyet_cd').innerHTML = cds.map((cd, idx) => {
-    const vids = cd.videos || [];
-    const kho = cd.kho_co_san || [];
-    return `<div style="border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--bg)">
-      <div class="row" style="justify-content:space-between;margin-bottom:8px">
-        <div>
-          <b style="font-size:14px;color:var(--ac)">Chủ đề ${cd.id}: ${esc(cd.ten)}</b>
-          <span class="sub" style="margin-left:8px">Cảnh ${cd.canh_tu}–${cd.canh_den} (${cd.so_canh} cảnh · ~${Math.round(cd.dai||0)}s)</span>
-        </div>
-        <div class="row" style="gap:6px">
-          ${kho.length > 0 ? `
-            <button class="p ${cd.dung_kho ? 'on' : ''}" style="font-size:11px;padding:3px 9px;font-weight:600;${cd.dung_kho ? 'background:#2e7d32;color:#fff;border-color:#2e7d32' : 'border-color:#2e7d32;color:#2e7d32'}" onclick="chuyenDungKho(${idx})" title="Dùng lại kho footage có sẵn trên máy (0s tải, chỉ lấy đoạn chưa dùng trên timeline)">
-              ${cd.dung_kho ? `✅ Đang dùng kho (${kho.length} clip · 0s tải)` : `📦 Dùng ${kho.length} clip kho có sẵn`}
-            </button>
-          ` : ''}
-          <button class="p" style="font-size:11px;padding:2px 8px" onclick="chonTop2Vid(${idx})">Chọn top 2 YT</button>
-          <button class="p" style="font-size:11px;padding:2px 8px" onclick="chonTatCaVid(${idx}, true)">Tất cả YT</button>
-          <button class="p" style="font-size:11px;padding:2px 8px" onclick="chonTatCaVid(${idx}, false)">Bỏ chọn YT</button>
-        </div>
-      </div>
-      <div style="font-size:12px;color:var(--mut);margin-bottom:8px">
-        <b>Từ khoá:</b> ${(cd.tu_khoa_en||[]).map(k=>`<code>${esc(k)}</code>`).join(' · ')}
-      </div>
-
-      ${kho.length > 0 ? `
-        <div style="background:${cd.dung_kho ? '#2e7d3215' : 'var(--card)'};border:1px solid ${cd.dung_kho ? '#2e7d3266' : 'var(--line)'};border-radius:8px;padding:8px 10px;margin-bottom:10px">
-          <div class="row" style="justify-content:space-between;margin-bottom:6px">
-            <div class="row" style="gap:8px">
-              <span style="font-weight:600;font-size:12px;color:${cd.dung_kho ? '#2e7d32' : 'var(--ink)'}">
-                ${cd.dung_kho ? '✅ Đang dùng kho video có sẵn:' : '📦 Kho clip đã có trên máy:'} <b>${kho.length} clip</b>
-              </span>
-              <span class="sub" style="font-size:11px;color:${cd.dung_kho ? '#2e7d32' : 'var(--mut)'}">
-                • Quy tắc: Chỉ lấy các đoạn chưa từng xuất hiện trên timeline, tối đa 2 lần/clip (0s tải mạng)
-              </span>
-            </div>
-            <button class="p" style="font-size:10.5px;padding:1px 6px" onclick="toggleHienKho(${idx})">${cd.an_kho ? '👁 Xem clip' : 'Ẩn bớt'}</button>
-          </div>
-          ${!cd.an_kho ? `
-            <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px">
-              ${kho.map(k => `
-                <div style="flex:0 0 135px;border:1px solid var(--line);border-radius:6px;background:var(--card);overflow:hidden;font-size:11px;box-shadow:0 1px 2px #0001">
-                  <div style="position:relative;aspect-ratio:16/9;background:#000">
-                    ${k.thumb ? `<img src="${esc(k.thumb)}" style="width:100%;height:100%;object-fit:cover" onerror="this.src='https://i.ytimg.com/vi/${esc(k.video_goc||'')}/hqdefault.jpg'">` : `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#888;font-size:10px">🎬 Clip ${esc(k.id)}</div>`}
-                    <span style="position:absolute;bottom:2px;right:3px;background:rgba(0,0,0,0.8);color:#fff;font-size:10px;padding:1px 4px;border-radius:3px;font-weight:600">${esc(k.dai_str||'')}</span>
-                  </div>
-                  <div style="padding:4px 6px">
-                    <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600" title="${esc(k.tieu_de)}">${esc(k.tieu_de)}</div>
-                    <div class="sub" style="font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(k.kenh || k.id)}</div>
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          ` : ''}
-        </div>
-      ` : ''}
-
-      <div class="row" style="justify-content:space-between;margin-bottom:6px">
-        <span style="font-size:12px;font-weight:600;color:var(--ink)">
-          🌐 Video YouTube mới ${cd.dung_kho ? '<span class="sub" style="font-weight:400">(Tùy chọn tải thêm nếu muốn thêm góc máy)</span>' : ''}:
-        </span>
-      </div>
-
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px">
-        ${(cd.mo_rong ? vids : vids.slice(0, 8)).map(v => {
-          const vIdx = vids.indexOf(v);
-          return `
-          <div style="border:1px solid var(--line);border-radius:8px;background:var(--card);overflow:hidden;display:flex;flex-direction:column;font-size:12px;box-shadow:0 1px 3px #0001">
-            <div style="position:relative;aspect-ratio:16/9;background:#000;cursor:pointer" onclick="xemThuVid('${esc(v.id)}', '${esc(v.tieu_de).replace(/'/g, "\\'")}')">
-              <img src="${esc(v.thumb)}" style="width:100%;height:100%;object-fit:cover" onerror="this.src='https://i.ytimg.com/vi/${esc(v.id)}/hqdefault.jpg'">
-              <span style="position:absolute;bottom:4px;right:6px;background:rgba(0,0,0,0.8);color:#fff;font-size:11px;padding:1px 5px;border-radius:4px;font-weight:600">${esc(v.dai_str||'')}</span>
-              ${v.ke_lai ? '<span style="position:absolute;top:4px;left:6px;background:#e65100;color:#fff;font-size:10.5px;padding:1px 6px;border-radius:4px;font-weight:600" title="Kênh khác KỂ LẠI đúng câu chuyện trong kịch bản (thường giọng AI + phụ đề) — dùng lại dễ dính bản quyền, bạn tự quyết">🔁 Kể lại cùng chuyện</span>' : ''}
-              <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.2);opacity:0;transition:.2s" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0">
-                <span style="background:rgba(0,0,0,0.7);color:#fff;padding:4px 8px;border-radius:6px;font-size:11px">▶ Xem thử</span>
-              </div>
-            </div>
-            <div style="padding:8px 8px 6px;flex:1;display:flex;flex-direction:column">
-              <label style="display:flex;align-items:flex-start;gap:6px;cursor:pointer;margin-bottom:4px">
-                <input type="checkbox" ${v.chon ? 'checked' : ''} onchange="doiChonVid(${idx}, ${vIdx}, this.checked)" style="margin-top:2px">
-                <span style="font-weight:600;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3" title="${esc(v.tieu_de)}">${esc(v.tieu_de)}</span>
-              </label>
-              <div class="sub" style="font-size:11px;margin-top:auto;display:flex;justify-content:space-between;align-items:center">
-                <span title="${esc(v.kenh)}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px">${esc(v.kenh)}</span>
-                ${v.xac_minh ? '<span style="color:#1976d2;font-size:11px;font-weight:bold" title="Kênh lớn có tích xác minh (Verified)">✓</span>' : '<span style="color:var(--mut);font-size:10px" title="Kênh cá nhân / không có tích">👤</span>'}
-              </div>
-            </div>
-            <div style="padding:0 8px 8px;display:flex;gap:4px">
-              <button class="p" style="flex:1;font-size:11px;padding:3px" onclick="xemThuVid('${esc(v.id)}', '${esc(v.tieu_de).replace(/'/g, "\\'")}')">▶ Xem thử</button>
-              <a href="https://www.youtube.com/watch?v=${esc(v.id)}" target="_blank" style="text-decoration:none">
-                <button class="p" style="font-size:11px;padding:3px 6px" title="Mở trên YouTube">🔗</button>
-              </a>
-            </div>
-          </div>`;
-        }).join('')}
-      </div>
-      ${vids.length > 8 ? `
-        <div style="margin-top:10px;text-align:center">
-          <button class="p" style="font-size:11.5px;padding:4px 16px;border-radius:20px;font-weight:600;background:var(--card);border:1px solid var(--line);cursor:pointer;box-shadow:0 1px 2px #0001" onclick="toggleMoRongVid(${idx})">
-            ${cd.mo_rong ? '🔼 Thu gọn lại (hiện 8 video)' : `🔽 Xem thêm (${vids.length - 8} video khác)`}
-          </button>
-        </div>
-      ` : ''}
-    </div>`;
-  }).join('');
-}
-
-function toggleMoRongVid(cdIdx) {
-  const cd = (duyetData.chu_de || [])[cdIdx];
-  if (!cd) return;
-  cd.mo_rong = !cd.mo_rong;
-  veDuyetVid();
-}
-
-function veDuyetLs() {
-  const ls = duyetData.lich_su || [];
-  if (!ls.length) {
-    $('#ds_duyet_ls').innerHTML = '<p class="sub" style="padding:12px">Không có cảnh nào chứa mốc thời gian hoặc từ khoá lịch sử đặc biệt.</p>';
-    return;
-  }
-  $('#ds_duyet_ls').innerHTML = ls.map((item, idx) => {
-    const anhs = item.anhs || [];
-    return `<div style="border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--bg)">
-      <div class="row" style="justify-content:space-between;margin-bottom:6px">
-        <div>
-          <b style="color:var(--wa)">Cảnh ${item.canh_id}</b> <span class="sub">${mmss(item.bat_dau)} · ${item.dai.toFixed(1)}s</span>
-        </div>
-        <span class="tag wa">Tư liệu lịch sử</span>
-      </div>
-      <p style="margin:4px 0 6px;font-size:13px;font-style:italic">"${esc(item.text)}"</p>
-      <div class="sub" style="margin-bottom:10px">🔎 Tìm: <code>${esc(item.tu_khoa)}</code></div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px">
-        ${anhs.map((a, aIdx) => `
-          <div style="border:1px solid var(--line);border-radius:8px;background:var(--card);overflow:hidden;display:flex;flex-direction:column;font-size:11.5px">
-            <a href="${esc(a.url)}" target="_blank" style="display:block;aspect-ratio:4/3;background:#000;overflow:hidden">
-              <img src="${esc(a.thumb||a.url)}" style="width:100%;height:100%;object-fit:cover" onerror="this.src='${esc(a.url)}'" title="Bấm để xem ảnh lớn">
-            </a>
-            <div style="padding:6px;flex:1;display:flex;flex-direction:column">
-              <label style="display:flex;align-items:flex-start;gap:6px;cursor:pointer">
-                <input type="checkbox" ${a.chon ? 'checked' : ''} onchange="doiChonAnh(${idx}, ${aIdx}, this.checked)" style="margin-top:2px">
-                <span style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-weight:600">${esc(a.tieu_de)}</span>
-              </label>
-              <div class="sub" style="margin-top:auto;padding-top:2px">${esc(a.kenh)}${a.rong?' · '+a.rong+'×'+a.cao:''}</div>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function doiChonVid(cdIdx, vIdx, checked) {
-  if (duyetData.chu_de[cdIdx] && duyetData.chu_de[cdIdx].videos[vIdx]) {
-    duyetData.chu_de[cdIdx].videos[vIdx].chon = checked;
-    capNhatThongKeDuyet();
-  }
-}
-
-function doiChonAnh(lsIdx, aIdx, checked) {
-  if (duyetData.lich_su[lsIdx] && duyetData.lich_su[lsIdx].anhs[aIdx]) {
-    duyetData.lich_su[lsIdx].anhs[aIdx].chon = checked;
-    capNhatThongKeDuyet();
-  }
-}
-
-function chonTop2Vid(cdIdx) {
-  const cd = duyetData.chu_de[cdIdx];
-  if (cd && cd.videos) {
-    let n = 0; cd.videos.forEach(v => { v.chon = !v.ke_lai && n < 2; n += v.chon; });   // 18/10: bỏ qua bản kể lại
-    veDuyetVid();
-    capNhatThongKeDuyet();
-  }
-}
-
-function chonTatCaVid(cdIdx, val) {
-  const cd = duyetData.chu_de[cdIdx];
-  if (cd && cd.videos) {
-    cd.videos.forEach(v => v.chon = val);
-    veDuyetVid();
-    capNhatThongKeDuyet();
-  }
-}
-
-async function moHopDuyetNguon(taiLai=false) {
-  $('#hop_duyet_nguon').showModal();
-  chuyenTabDuyet('vid');
-  const nam = $('#loc_nam_duyet') ? $('#loc_nam_duyet').value : '';
-  const boKenh = $('#loc_bo_kenh_xac_minh') && $('#loc_bo_kenh_xac_minh').checked ? '1' : '0';
-  const filterKey = `${DU}|${nam}|${boKenh}`;
-
-  if (!taiLai && duyetData.chu_de && duyetData.chu_de.length && duyetData._filterKey === filterKey) {
-    return;
-  }
-  duyetData._filterKey = filterKey;
-  $('#ds_duyet_cd').innerHTML = '<div style="padding:30px;text-align:center"><p style="font-size:15px;font-weight:600">⏳ Đang tìm kiếm video theo chủ đề...</p><span class="sub">Chỉ mất 5–10s, không tốn tài nguyên GPU</span></div>';
-  $('#ds_duyet_ls').innerHTML = '<div style="padding:30px;text-align:center"><p style="font-size:15px;font-weight:600">⏳ Đang tìm kiếm ảnh tư liệu lịch sử...</p></div>';
-  $('#thong_ke_duyet').textContent = 'Đang tìm kiếm...';
-  try {
-    let url = '/api/duyet_nguon/ds?du_an=' + encodeURIComponent(DU);
-    if (nam) url += '&nam_truoc=' + encodeURIComponent(nam);
-    if (boKenh === '1') url += '&bo_kenh_lon=1';
-    if (taiLai) url += '&lam_moi=1';
-    const d = await api(url);
-    duyetData = { chu_de: d.chu_de || [], lich_su: d.lich_su || [], _filterKey: filterKey };
-    veDuyetVid();
-    veDuyetLs();
-    capNhatThongKeDuyet();
-  } catch (e) {
-    $('#ds_duyet_cd').innerHTML = '<p class="sub" style="color:var(--er);padding:16px">Lỗi tìm kiếm: ' + esc(e.message) + '</p>';
-    tb('Lỗi tìm kiếm video: ' + e.message);
-  }
-}
-
-$('#nut_duyet_nguon').onclick = () => moHopDuyetNguon(false);
-$('#btn_tai_lai_duyet').onclick = () => moHopDuyetNguon(true);
-if ($('#loc_nam_duyet')) $('#loc_nam_duyet').onchange = () => moHopDuyetNguon(true);
-if ($('#loc_bo_kenh_xac_minh')) $('#loc_bo_kenh_xac_minh').onchange = () => moHopDuyetNguon(true);
-
-async function batDauTaiVaGhepDuyet() {
-  const chon_video = {};
-  (duyetData.chu_de || []).forEach(cd => {
-    const vids = (cd.videos || []).filter(v => v.chon);
-    if (vids.length) chon_video[cd.id] = vids;
-  });
-  const chon_anh = {};
-  (duyetData.lich_su || []).forEach(ls => {
-    const anhs = (ls.anhs || []).filter(a => a.chon);
-    if (anhs.length) chon_anh[ls.canh_id] = anhs;
-  });
-
-  let tongKho = 0;
-  let soCdKho = 0;
-  (duyetData.chu_de || []).forEach(cd => {
-    if (cd.dung_kho && cd.kho_co_san && cd.kho_co_san.length) {
-      tongKho += cd.kho_co_san.length;
-      soCdKho++;
-    }
-  });
-
-  const tongVid = Object.values(chon_video).reduce((s, a) => s + a.length, 0);
-  const tongAnh = Object.values(chon_anh).reduce((s, a) => s + a.length, 0);
-
-  if (tongVid === 0 && tongKho === 0 && tongAnh === 0) {
-    tb('Vui lòng chọn ít nhất 1 video YouTube hoặc bật Dùng kho có sẵn!');
-    return;
-  }
-
-  const tenNhap = ($('#tennhap').value.trim() || `${DU}_tu_chon`);
-  let xacNhan = `Xác nhận khớp bản nháp "${tenNhap}"?\n`;
-  if (tongVid > 0) xacNhan += `• Tải ${tongVid} video YouTube mới (cắt 3–4 khoảng/video)\n`;
-  if (tongKho > 0) xacNhan += `• Tận dụng kho ${tongKho} clip có sẵn tại ${soCdKho} chủ đề (0s tải mạng, chỉ lấy các đoạn chưa từng dùng)\n`;
-  if (tongAnh > 0) xacNhan += `• Tải ${tongAnh} ảnh tư liệu lịch sử\n`;
-  xacNhan += `(Áp dụng trần cứng chống lặp tối đa 2 lần/clip, tránh lặp khung hình)`;
-
-  if (!confirm(xacNhan)) return;
-
-  const btn = $('#btn_bat_dau_tai_ghep');
-  btn.disabled = true;
-  btn.textContent = '⏳ Đang khởi chạy...';
-
-  try {
-    await post('/api/duyet_nguon/tai_va_ghep', {
-      du_an: DU,
-      chon_video,
-      chon_anh,
-      ten_nhap: tenNhap
-    });
-    $('#hop_duyet_nguon').close();
-    tb(tongVid > 0 ? `Đã bắt đầu tải ${tongVid} video & khớp bản nháp CapCut.` : `Đang khớp bản nháp CapCut từ ${tongKho} clip kho có sẵn (0s tải)...`);
-    theoDoiDuyetNguon();
-  } catch (e) {
-    tb('Lỗi khởi động: ' + e.message);
-    btn.disabled = false;
-    btn.textContent = '⬇ Tải video đã chọn & Khớp bản nháp';
-  }
-}
-$('#btn_bat_dau_tai_ghep').onclick = batDauTaiVaGhepDuyet;
-
-async function theoDoiDuyetNguon() {
-  clearTimeout(henDuyet);
-  let tt;
-  try {
-    tt = await api('/api/duyet_nguon/tien_do?du_an=' + encodeURIComponent(DU));
-  } catch (e) { return; }
-
-  const btn = $('#nut_duyet_nguon');
-  if (tt.dang) {
-    let text = '⏳ ';
-    if (tt.buoc === 'tai_khoang') text += `Đang tải ${tt.xong||0}/${tt.tong||0} khoảng (${tt.pt||0}%)`;
-    else if (tt.buoc === 'loc_yt') text += 'Đang lọc logo/phụ đề...';
-    else if (tt.buoc === 'goi_y') text += 'Đang ghép cảnh (chống lặp)...';
-    else if (tt.buoc === 'nhap') text += 'Đang tạo bản nháp CapCut...';
-    else text += 'Đang xử lý...';
-    btn.textContent = text;
-    henDuyet = setTimeout(theoDoiDuyetNguon, 2500);
-    return;
-  }
-
-  btn.textContent = '🎬 Duyệt & Tự chọn Video';
-  if (tt.buoc === 'xong') {
-    tb(`🎉 Xong! Bản nháp "${tt.ten}" đã tạo trong CapCut với ${tt.so} đoạn hình!`);
-    nap();
-  } else if (tt.buoc === 'loi') {
-    tb('Lỗi quá trình tải/ghép: ' + (tt.loi || ''));
-  }
-}
-
-nap();theoDoiGoiY();theoDoiTuDong();theoDoiHoanThien();theoDoiDuyetNguon();
+nap();theoDoiGoiY();theoDoiTuDong();theoDoiHoanThien();ctTheoDoi();
 </script>
 </body>
 </html>

@@ -1,0 +1,333 @@
+{
+  "id": "L_nh_Vcl",
+  "kenh_ten": "Lạnh Vcl",
+  "kenh_url": "https://www.youtube.com/channel/UCx22jLvTBWMrcI7PE2DH3-g",
+  "thumb": "https://i.ytimg.com/vi_webp/O0FmGbjxBX0/maxresdefault.webp",
+  "sub": 200000,
+  "view_tb": 532050,
+  "ngay_tao": "25/10/2026 17:50",
+  "chi_so_kich_ban": {
+    "so_tu_tb": 4271,
+    "thoi_luong_tb_giay": 1238,
+    "thoi_luong_tb_phut": 20.6,
+    "toc_do_wpm": 207,
+    "so_tu_viral": 4864
+  },
+  "cach_trien_khai": {
+    "cau_truc_mach_truyen": "Cấu trúc kịch bản 5 phần: (0-15s) Hook bằng một thực tế nghiệt ngã hoặc con số ám ảnh; (15s-2m) Hoàn cảnh bế tắc ở quê nhà; (2m-7m) Quyết định bước ngoặt và quá trình dấn thân đầy thử thách; (7m-18m) Biến cố, sự rạn nứt tâm lý và góc khuất dần phơi bày; (18m-cuối) Kết bài bỏ lửng hoặc cú twist đọng lại suy ngẫm.",
+    "so_canh_tb": 120,
+    "nhip_ngat_cau": "Câu dài 5-12 từ, đan xen liên tục các câu ngắn 2-3 từ (ví dụ: 'Cắt.', 'Ổn.', 'Hết.') để tạo nhịp đập dồn dập, nghẹt thở."
+  },
+  "de_tai_viral": [
+    {
+      "loai": "Góc khuất lao động",
+      "tieu_de": "Làm Việc Tại Công Xưởng Đêm Gặp Những Gì?",
+      "ly_do": "Khai thác trực tiếp nỗi sợ và sự tò mò về môi trường làm việc khắc nghiệt ban đêm mà người lao động trẻ quan tâm."
+    },
+    {
+      "loai": "Mặt trái tình cảm",
+      "tieu_de": "Khi Vợ Chồng Trẻ Xa Cách Vì Tiền Bạc Sẽ Ra Sao?",
+      "ly_do": "Đánh trúng tâm lý nhạy cảm về hôn nhân và khoảng cách địa lý trong thời đại kinh tế khó khăn."
+    },
+    {
+      "loai": "Góc khuất dịch vụ",
+      "tieu_de": "Bên Trong Dịch Vụ Chăm Sóc Thú Cưng Cao Cấp Có Gì?",
+      "ly_do": "Mở rộng sang các dịch vụ đắt đỏ nhưng ẩn chứa nhiều câu chuyện trái chiều về lối sống giới trẻ."
+    },
+    {
+      "loai": "Hiện thực xã hội",
+      "tieu_de": "Tại Sao Thật Tệ Khi Làm Thu Mua Đồng Nát Đêm?",
+      "ly_do": "Phản ánh những mảnh đời lao động dưới đáy xã hội với góc nhìn chân thực, dễ tạo đồng cảm."
+    },
+    {
+      "loai": "Tâm lý đời sống",
+      "tieu_de": "Tại Sao Bị Lừa Đảo Việc Làm Online Lại Dễ Đến Vậy?",
+      "ly_do": "Cảnh báo những cạm bẫy tài chính phổ biến mà ai cũng có nguy cơ gặp phải."
+    },
+    {
+      "loai": "Đời sống đô thị",
+      "tieu_de": "Người Ở Trọ Ghép Sống Qua Ngày Thế Nào?",
+      "ly_do": "Phản ánh trực diện cuộc sống chật vật của người trẻ lập nghiệp tại các thành phố lớn."
+    }
+  ],
+  "ngach": "Kênh hoạt hình kể chuyện đời sống góc khuất, phản ánh hiện thực xã hội và tâm lý con người (như xuất khẩu lao động, mặt trái khu công nghiệp, góc tối dịch vụ) dưới góc nhìn trần trụi, đời thường dành cho khán giả trẻ và người lao động.",
+  "minh_hoa": {
+    "vi_du": [
+      {
+        "cau": "Đứa lớn vừa vào lớp một. Đứa nhỏ mới hơn",
+        "khung": "ngoai_canh",
+        "cach_en": "An exterior wide shot of a primary school gate with a sign reading 'Trường Tiểu Học' illustrates the eldest child just entering the first grade."
+      },
+      {
+        "cau": "3 tuổi. Hai vợ chồng đều đi làm thuê, nhưng tháng nào cũng thiếu trước hụt sau. Thế là bạn vay tiền. Đi học tiếng",
+        "khung": "trung",
+        "cach_en": "A medium shot of a man and a woman in a living room represents the couple struggling with financial difficulties and studying a language before going abroad."
+      },
+      {
+        "cau": "rồi sang Hàn Quốc làm việc. Mục tiêu rất rõ ràng. Trả hết nợ, sửa lại nhà, để",
+        "khung": "trung",
+        "cach_en": "A medium classroom shot showing students attending a Korean language lesson fits the line about studying Korean to work abroad."
+      },
+      {
+        "cau": "dành một khoản để làm ăn rồi trở về.",
+        "khung": "can_do_vat",
+        "cach_en": "A close-up insert of a paper listing goals for going to South Korea visually depicts clearing debts and repairing the house."
+      },
+      {
+        "cau": "Nhưng 18 tháng sau, đúng ngày khoản nợ cuối cùng về con số 0. Bạn vẫn chưa muốn",
+        "khung": "trung",
+        "cach_en": "A medium shot of a man holding a phone while sitting at a table with a paper represents the time passing and the loan hitting zero."
+      },
+      {
+        "cau": "về. Không phải vì ông chủ giữ lại. Cũng không phải vì công việc chưa xong, mà là",
+        "khung": "rong",
+        "cach_en": "A wide shot of a mechanical workshop with heavy industrial machinery and equipment represents the protagonist's workplace in South Korea."
+      },
+      {
+        "cau": "vì ở Hàn Quốc. Bạn đã có một cuộc sống khác. Và tối hôm đấy. Vợ gọi video call.",
+        "khung": "trung",
+        "cach_en": "A medium shot of four people standing together in a living room represents the new lifestyle and social circle built in South Korea."
+      },
+      {
+        "cau": "Bắt bạn quay camera về phía cửa nhà tắm.",
+        "khung": "can_do_vat",
+        "cach_en": "A close-up insert of a modern bathroom vanity and sink illustrates the wife's request on the video call to point the camera toward the bathroom door."
+      },
+      {
+        "cau": "6:00 tối, bạn vừa tan ca ở xưởng cơ khí. Áo vẫn còn mùi sắt và khói hàn. Về tới",
+        "khung": "ngoai_canh",
+        "cach_en": "An exterior shot of a mechanical workshop entrance with a sign reading 'Xưởng cơ khí' illustrates the protagonist finishing a shift at the workshop."
+      },
+      {
+        "cau": "nhà đã thấy Ngân, vợ bạn đã càu nhàu. Nào là tiền học của con. Tiền điện. Tiền",
+        "khung": "trung",
+        "cach_en": "A medium shot of the man returning home to see his wife sitting on the couch illustrates coming back home and facing his wife."
+      },
+      {
+        "cau": "nhà. Khoản vay tháng trước chưa trả hết. Ngân cộng đi cộng lại rồi bảo.",
+        "khung": "can_mat",
+        "cach_en": "A face close-up of the wife looking serious and talking illustrates her complaining and calculating household expenses."
+      },
+      {
+        "cau": "Tháng này lại thiếu. Bạn chẳng cần nhìn cũng biết. Xưởng có đơn hàng thì được",
+        "khung": "can_mat",
+        "cach_en": "A face close-up of the wife talking with a neutral expression continues the scene of her discussing financial shortages and bills."
+      },
+      {
+        "cau": "tăng ca. Không có việc thì nghỉ ở nhà. Ngân cũng đi làm thuê. Hai vợ chồng cộng",
+        "khung": "trung",
+        "cach_en": "A wide shot shows the couple standing together in their living room to depict their shared daily life and financial struggle."
+      },
+      {
+        "cau": "lại nuôi bốn miệng ăn. Con lớn vừa vào lớp một nên phát sinh",
+        "khung": "ngoai_canh",
+        "cach_en": "An exterior shot of an elementary school gate illustrates their eldest child starting first grade and incurring new expenses."
+      },
+      {
+        "cau": "thêm đủ thứ. Con nhỏ lại hay ốm vặt. Bạn từng nghĩ cố thêm một hai năm nữa. Mong",
+        "khung": "can_mat",
+        "cach_en": "A close-up of the protagonist's face highlights their inner thoughts and fatigue when reflecting on years of financial hardship."
+      },
+      {
+        "cau": "là sẽ khá hơn. Nhưng hai năm trôi qua, mọi thứ vẫn vậy. 9:00 tối hôm nay. Thằng",
+        "khung": "trung",
+        "cach_en": "A medium shot of the couple in the living room represents the passage of time and the continuation of their difficult routine."
+      },
+      {
+        "cau": "Nam làm bên xuất khẩu lao động gọi cho bạn. Biết bạn làm hàn xì. Đầu óc đơn",
+        "khung": "trung",
+        "cach_en": "A medium shot shows a friend working in an overseas labor office, illustrating the phone call from Nam about labor export."
+      },
+      {
+        "cau": "giản như được cái chân tay to. Nó bảo đang có đợt tuyển lao động sang Hàn Quốc. Theo chương trình EPS. Ngành sản",
+        "khung": "can_mat",
+        "cach_en": "A close-up shot of the friend talking emphasizes the details of the recruitment program for South Korea."
+      },
+      {
+        "cau": "xuất cơ khí. Cắt. Hàn và gia công kim",
+        "khung": "can_mat",
+        "cach_en": "A close-up shot focuses on the speaker's face as he specifies the mechanical engineering and welding job requirements."
+      },
+      {
+        "cau": "loại. Đúng với công việc bạn đã làm nhiều năm qua. Lương cơ bản là 30 triệu.",
+        "khung": "can_mat",
+        "cach_en": "A close-up shot highlights the facial expression of the speaker detailing the high base salary offered."
+      },
+      {
+        "cau": "Tháng nào tăng ca đều thì tổng có thể lên 40, 50 triệu một tháng. Sau lành",
+        "khung": "can_mat",
+        "cach_en": "A close-up shot captures the speaker explaining potential earnings and overtime pay."
+      },
+      {
+        "cau": "nghề thì sẽ được nhiều hơn. Bạn chưa sang Hàn ngày nào. Nhưng trong đầu đã tiêu gần hết số tiền lương bên đấy rồi.",
+        "khung": "trung",
+        "cach_en": "A medium shot shows the protagonist in the living room daydreaming and imagining spending the overseas salary."
+      },
+      {
+        "cau": "Bạn nghĩ tới con số 40, 50 triệu đấy rất lâu. Đến tối, hai đứa con đã say giấc",
+        "khung": "can_mat",
+        "cach_en": "A close-up shot of the protagonist holding a phone to his ear depicts him making the late-night phone call."
+      },
+      {
+        "cau": "nồng. Bạn nói với Ngân, \"Hay là anh đi xuất khẩu nhỉ? Đi mấy năm, hợp đồng 3",
+        "khung": "trung",
+        "cach_en": "A medium shot shows the couple talking in the living room at night as the husband proposes going abroad."
+      },
+      {
+        "cau": "năm, có thể được gia hạn thêm. Thế hai",
+        "khung": "can_mat",
+        "cach_en": "Close-up of a man speaking inside a room, matching the dialogue about contract extension."
+      },
+      {
+        "cau": "đứa con nhỏ thì sao? Thì em ở nhà chăm.\" \"Có mỗi mình em à?\" Hai đứa tính tới gần",
+        "khung": "can_mat",
+        "cach_en": "Close-up of the man speaking, discussing childcare arrangements with his wife."
+      },
+      {
+        "cau": "nửa đêm. Nếu ở Việt Nam, trừ hết chi phí thì mỗi tháng chỉ còn vài triệu, có",
+        "khung": "can_mat",
+        "cach_en": "Close-up of the man talking about financial costs and earnings in Vietnam."
+      },
+      {
+        "cau": "tháng thì âm. Nếu sang Hàn Quốc, thời gian đầu phải vay thêm, nhưng khả năng trả nợ nhanh hơn rất nhiều. Cuối cùng",
+        "khung": "can_mat",
+        "cach_en": "Close-up of the man explaining the financial pros and cons of going to South Korea."
+      },
+      {
+        "cau": "Ngân bảo, \"Nếu đi thật thì cố mà làm,",
+        "khung": "can_mat",
+        "cach_en": "Close-up of the man delivering a serious statement about working hard abroad."
+      },
+      {
+        "cau": "đừng sang được vài tháng lại bỏ về.\" \"Anh đi kiếm tiền chứ có phải đi chơi",
+        "khung": "can_mat",
+        "cach_en": "Close-up of the woman responding to her husband's determination."
+      },
+      {
+        "cau": "đâu.\" Hôm sau, bạn gọi cho Nam để đăng ký. Trước hết là đi học tiếng. Ban ngày",
+        "khung": "can_mat",
+        "cach_en": "Close-up of the man speaking about calling to register for language classes."
+      },
+      {
+        "cau": "bạn đi làm, buổi tối tới lớp, có hôm gần 10:00 mới về. Hai đứa con đã ngủ. Ngân",
+        "khung": "rong",
+        "cach_en": "Wide shot of the living room with the man standing next to the sofa, representing his daily routine."
+      },
+      {
+        "cau": "để phần cơm ở trong nồi. Bạn vừa ăn, vừa mở điện thoại để học tiếp. 3 tháng sau,",
+        "khung": "trung",
+        "cach_en": "Medium shot of the character eating at a table with food while looking at a phone, illustrating studying during meals."
+      },
+      {
+        "cau": "bạn thi tiếng Hàn. Đậu, nhưng chưa được đi ngay. Bạn còn phải hoàn thiện hồ sơ,",
+        "khung": "man_hinh",
+        "cach_en": "Computer screen showing EPS test results with a passing score, illustrating passing the Korean language exam."
+      },
+      {
+        "cau": "kiểm tra tay nghề, rồi chờ doanh nghiệp Hàn Quốc lựa chọn. 1 tháng, 3 tháng, rồi nửa năm trôi qua,",
+        "khung": "rong",
+        "cach_en": "Wide shot of the empty living room, illustrating the long and silent waiting period."
+      },
+      {
+        "cau": "không có hợp đồng nào gửi về. Bạn bắt",
+        "khung": "an_du",
+        "cach_en": "Abstract symbolic image of flowing clouds or passing time, illustrating the passage of months waiting for a contract."
+      }
+    ],
+    "quy_tac": [
+      "When the line mentions children starting school, the channel shows an exterior shot of a school gate.",
+      "When the line describes financial struggles or studying languages, the channel shows a medium shot of the couple in a living room or classroom.",
+      "When the line states specific goals or lists items, the channel shows a close-up insert of a document with bullet points.",
+      "When the line refers to working abroad or in a factory, the channel shows a wide shot of a mechanical workshop with industrial equipment.",
+      "When the line involves video calls or specific objects requested by callers, the channel shows a close-up insert of the relevant room feature.",
+      "When the line describes returning home from work, the channel shows an exterior shot of the workplace or a medium shot entering the living room.",
+      "When the line portrays a character speaking or complaining, the channel uses face close-ups of the person talking.",
+      "When the line describes living situations or household burdens, the channel shows a medium shot of the couple in the living room.",
+      "When the line mentions specific external events like schools or children entering education, the channel shows an exterior shot of the location.",
+      "When the line conveys internal thoughts, reflections, or specific job details and salary figures, the channel shows a close-up face shot of the character.",
+      "When the line involves a phone call or communication with someone else, the channel shows a medium or close-up shot centered on the speaker or caller.",
+      "When the narration features conversational dialogue between characters, the channel shows close-up face shots of the speaker.",
+      "When the narration describes daily habits or routines like eating and studying simultaneously, the channel shows medium shots of characters interacting with objects at a table.",
+      "When the narration mentions specific official outcomes like exam results or online statuses, the channel shows a screen capture of a computer monitor displaying the data.",
+      "When the narration emphasizes time passing or empty waiting periods, the channel shows wide room shots or abstract symbolic visuals."
+    ]
+  },
+  "nhan_vat": {
+    "prompt_nhan_vat": "Fixed visual identity of the main male character: short swept-back silver-gray hair, a distinct small mole on the left cheek, wearing a dark green sleeveless tank top over a dark lower body, simple facial expressions with dot eyes and minimalist lines.",
+    "negative_prompt": "3D render, hyperrealism, complex lighting, heavy gradients, vibrant neon colors, detailed textures, photorealism, anime style, high detail shading.",
+    "dac_diem": "Nhân vật nam chính mặc áo thun xanh rêu, quần tối màu, tóc chải ngược màu xám bạc, có một nốt ruồi bên má trái, gương mặt biểu cảm đơn giản đặc trưng.",
+    "nhan_vat_phu": [
+      {
+        "ten_vi": "Vợ (Ngân)",
+        "mo_ta_en": "Female character with tied-up dark hair or bun, wearing simple home clothes or shirts, expressive eyes reflecting worry and everyday family stress."
+      },
+      {
+        "ten_vi": "Bạn cùng phòng (Tú, Khải)",
+        "mo_ta_en": "Male characters with different hair styles and simple tank tops in yellow or light blue, representing fellow overseas workers in shared rooms."
+      }
+    ],
+    "con_roi": {
+      "than": "gon",
+      "dau": "to",
+      "mau_da": "#ede8df",
+      "tuoi": "trẻ 18-30",
+      "mo_ta_vi": "Nhân vật được vẽ theo dạng con rối tối giản với phần đầu to hơn cơ thể, thân hình gọn gàng cách điệu, biểu cảm khuôn mặt tối giản nhưng rõ nét qua ánh mắt và đường nét miệng."
+    }
+  },
+  "boi_canh": {
+    "art_style": "Minimalist 2D vector animation style, clean bold black outlines, flat color shading with muted earth tones and grays, simplified character proportions with oversized heads and simplified facial features, static interior or exterior backgrounds with clean lines, no complex gradients, clean digital art aesthetic.",
+    "art_style_vi": "Hoạt hình 2D tối giản phong cách vector pha mảng khối phẳng (flat illustration), nét vẽ viền đen đậm rõ nét, không đổ bóng cầu kỳ (hoặc bóng đổ mảng bơn giản), tông màu trầm ấm thiên đất và xám ghi, chi tiết bối cảnh ở mức tương đối đủ dùng để nhận diện không gian.",
+    "bang_mau": [
+      "#94887f",
+      "#ede8df",
+      "#d2bfa4",
+      "#a28d77",
+      "#d9edf4",
+      "#6f6358"
+    ],
+    "khong_gian": "Phòng khách nhà trọ hoặc căn hộ chật chội tông màu be/nâu; Bàn ăn gia đình nhỏ với nồi cơm điện và bát đũa; Giường ngủ tập thể chật chội của công nhân; Bầu trời mây trắng nét vẽ tay đơn giản; Xưởng cơ khí ngập khói hàn và máy móc; Sân bay với cửa kiểm soát hành lý",
+    "bo_cuc_canh": "Bố cục khung hình rộng (wide shot) hoặc trung cảnh (medium shot) cố định, nhân vật đứng hoặc ngồi ở trung tâm hoặc lệch nhẹ, bối cảnh phòng ốc phối cảnh góc rộng đơn giản, đôi khi lồng ghép khung hình điện thoại smartphone góc nhìn thứ nhất (POV).",
+    "bo_cuc_canh_en": "Wide and medium fixed framing shots featuring centered or slightly offset stylized characters inside simply rendered interior rooms with perspective lines, occasional first-person smartphone screen overlays displaying video calls.",
+    "khung_hinh": [
+      "D:\\CapCutTTS\\bán-content\\cache\\doi_thu\\khung\\O0FmGbjxBX0\\k_00.jpg",
+      "D:\\CapCutTTS\\bán-content\\cache\\doi_thu\\khung\\O0FmGbjxBX0\\k_01.jpg",
+      "D:\\CapCutTTS\\bán-content\\cache\\doi_thu\\khung\\O0FmGbjxBX0\\k_02.jpg",
+      "D:\\CapCutTTS\\bán-content\\cache\\doi_thu\\khung\\O0FmGbjxBX0\\k_03.jpg",
+      "D:\\CapCutTTS\\bán-content\\cache\\doi_thu\\khung\\O0FmGbjxBX0\\k_04.jpg",
+      "D:\\CapCutTTS\\bán-content\\cache\\doi_thu\\khung\\O0FmGbjxBX0\\k_05.jpg"
+    ],
+    "nhip_hinh": "Nhịp chuyển cảnh chậm rãi, mỗi hình ảnh/khung hình giữ lâu từ 3 đến 8 giây khớp theo nhịp đọc chậm và đều của người kể chuyện."
+  },
+  "kich_ban": {
+    "ngoi_ke": "Người kể chuyện dùng ngôi thứ nhất ('bạn') để kéo người xem trực tiếp nhập vai vào nhân vật chính, chứng minh qua câu mở đầu: '33 tuổi, bạn có một vợ và hai đứa con.'",
+    "giong_van": "Giọng văn trầm tĩnh, tự sự, bàng quan nhưng chứa đựng áp lực cơm áo gạo tiền nặng nề; sử dụng từ ngữ đời thường, câu ngắn gọn, không lên lớp đạo đức mà để hiện thực tự lên tiếng.",
+    "nhip_cam_xuc": "Cấu trúc kịch bản 5 phần: (0-15s) Hook bằng một thực tế nghiệt ngã hoặc con số ám ảnh; (15s-2m) Hoàn cảnh bế tắc ở quê nhà; (2m-7m) Quyết định bước ngoặt và quá trình dấn thân đầy thử thách; (7m-18m) Biến cố, sự rạn nứt tâm lý và góc khuất dần phơi bày; (18m-cuối) Kết bài bỏ lửng hoặc cú twist đọng lại suy ngẫm.",
+    "hook_mau": "33 tuổi, bạn có một vợ và hai đứa con. Đứa lớn vừa vào lớp một. Đứa nhỏ mới hơn 3 tuổi. Hai vợ chồng đều đi làm thuê, nhưng tháng nào cũng thiếu trước hụt sau. Thế là bạn vay tiền. Đi học tiếng rồi sang Hàn Quốc làm việc. Mục tiêu rất rõ ràng. Trả hết nợ, sửa lại nhà, để dành một khoản để làm ăn rồi trở về. Nhưng 18 tháng sau, đúng ngày khoản nợ cuối cùng về con số 0. Bạn vẫn chưa muốn về. Không phải vì ông chủ giữ lại. Cũng không phải vì công việc chưa xong, mà là vì ở Hàn Quốc. Bạn đã có một cuộc sống khác. Và tối hôm đấy. Vợ gọi video call. Bắt bạn quay camera về phía cửa nhà tắm.",
+    "hook_cong_thuc": "Mở đầu bằng độ tuổi, tình trạng gia đình và một gánh nặng tài chính cụ thể ngay câu đầu tiên.",
+    "ky_thuat_giu_chan": [
+      "Tạo khoảng trống tâm lý và câu hỏi mở liên tục về hệ quả của quyết định",
+      "Sử dụng các chi tiết nhỏ đời thường có sức sát thương cao (tin nhắn số dư, tiếng thở dài qua điện thoại)",
+      "Mở ra các mối quan hệ bất ngờ hoặc bi kịch tiềm ẩn ở phần giữa video"
+    ],
+    "ket_bai": "Kết thúc bằng một câu nói bỏ lửng đầy ám ảnh hoặc một sự thật phũ phàng không có lời giải đáp trọn vẹn, đẩy cảm xúc người xem vào sự cô độc.",
+    "cau_mau": [
+      "33 tuổi, bạn có một vợ và hai đứa con.",
+      "Nói đơn giản là muốn sang nước ngoài kiếm tiền trả nợ, trước tiên bạn phải đi vay thêm tiền để được đi kiếm tiền.",
+      "Chưa đầy 1 phút sau, Ngân nhắn: Em nhận được rồi.",
+      "Những thứ cô ấy cần tối nay lại là một người chồng cùng chờ con hạ sốt.",
+      "Có những thứ nhớ thì còn gọi điện được, có những thứ thì gọi video được, nhưng có những thứ gọi video cũng chẳng giải quyết được gì."
+    ],
+    "prompt_viet": "Hãy viết kịch bản bằng giọng văn tự sự ở ngôi thứ hai ('bạn'), xoáy sâu vào những bế tắc tài chính và sự vụn vỡ âm thầm trong các mối quan hệ gia đình. Bắt đầu ngay bằng thực trạng phũ phàng của nhân vật chính. Dùng từ ngữ mộc mạc, câu văn ngắn gọn, ngắt nhịp liên tục để tạo cảm giác nặng nề, cô độc. Tuyệt đối không dùng văn phong hào hứng, không dạy đời, hãy để chi tiết đời sống tự nói lên bản chất vấn đề.",
+    "super_script": "# CẢM HỨNG TỪ: Lạnh Vcl - Đàn Ông Đi Xuất Khẩu Lao Động Ngoại Tình Như Thế Nào?\n# ĐỘ DÀI: ~4271 từ (~20.6 phút) | PHONG CÁCH: Hoạt hình 2D tối giản phong cách vector pha mảng khối phẳng (flat illustration), nét vẽ viền đen đậm rõ nét, không đổ bóng cầu kỳ (hoặc bóng đổ mảng bơn giản), tông màu trầm ấm thiên đất và xám ghi, chi tiết bối cảnh ở mức tương đối đủ dùng để nhận diện không gian.\n\n--- CẢNH 01\nHÌNH: Khung hình tĩnh góc rộng phòng trọ tối tăm, nhân vật ngồi cúi mặt nhìn điện thoại phát ra ánh sáng xanh.\nTEXT_NARRATOR: \"29 tuổi, trong tài khoản của bạn chỉ còn đúng số tiền đủ mua một gói mì tôm.\"\n\n--- CẢNH 02\nHÌNH: Cận cảnh màn hình điện thoại hiển thị tin nhắn trừ tiền tài khoản ngân hàng với số âm đỏ rực.\nTEXT_NARRATOR: \"Hóa đơn tiền nhà tháng này lại đến hạn, trong khi điện thoại chẳng có cuộc gọi nào ngoài tin nhắn đòi nợ.\"\n\n--- CẢNH 03\nHÌNH: Nhân vật đứng trước cửa xưởng làm việc lạnh lẽo lúc rạng sáng, hơi thở phả ra làn khói mờ.\nTEXT_NARRATOR: \"Bạn rời nhà từ lúc 5 giờ sáng khi con cái còn chưa tỉnh giấc để đến chỗ làm.\"\n\n--- CẢNH 04\nHÌNH: Bàn ăn đơn độc chỉ có bát cơm nguội và một đĩa rau luộc dưới ánh đèn vàng nhạt.\nTEXT_NARRATOR: \"Bữa cơm tối nào cũng diễn ra trong im lặng, ngoại trừ tiếng tivi phát ra từ phòng bên cạnh.\"\n\n--- CẢNH 05\nHÌNH: Nhân vật quay mặt vào bức tường trống trải trong phòng ngủ tập thể, ánh mắt vô định.\nTEXT_NARRATOR: \"Có những đêm bạn tự hỏi bản thân đang cố gắng vì điều gì ở một nơi xa lạ này.\""
+  },
+  "am_thanh": {
+    "the_loai": "Lo-fi ambient, piano tối giản kết hợp tiếng động thực tế (tiếng gió lạnh, tiếng xưởng cơ khí, tiếng chuông điện thoại)",
+    "bpm": "65-75",
+    "sfx": [
+      "Tiếng chuông điện thoại video call",
+      "Tiếng máy hàn xì, cắt kim loại",
+      "Tiếng thở dài, tiếng bước chân nặng nhọc"
+    ],
+    "prompt_suno": "Sad minimalist lo-fi ambient instrumental, slow melancholic piano chords, subtle vinyl crackle, lonely atmosphere, cinematic documentary underscore, 70 bpm."
+  }
+}

@@ -34,7 +34,136 @@ def _kho_path(du_an):
     return os.path.join(_ra(du_an), "kho", "kho.json")
 
 
-def doc_kho(du_an):
+def quet_va_dong_bo_kho(du_an):
+    """Tự động quét toàn bộ thư mục lưu trữ media của dự án (kho/anh, anh_chen, anh_flow, kho/video, hook).
+    Bất kỳ ảnh hoặc video nào có trong các thư mục lưu của dự án mà chưa được ghi nhận vào kho.json
+    sẽ được tự động nạp lên, xác định kích thước, tạo thẻ và đẩy lên Kho Media của dự án.
+    Đồng thời dọn dẹp các mục mà file vật lý đã bị xóa khỏi ổ đĩa."""
+    out = _ra(du_an)
+    kho = doc_json(_kho_path(du_an), {}) or {}
+    da_thay_doi = False
+
+    files_trong_kho = {}
+    for kid, m in list(kho.items()):
+        f = m.get("file", "")
+        if f:
+            p_abs = os.path.normpath(os.path.abspath(f))
+            if not os.path.isfile(p_abs):
+                del kho[kid]
+                da_thay_doi = True
+            else:
+                files_trong_kho[p_abs.lower()] = kid
+
+    # Đọc thêm thông tin từ anh_chen.json nếu có
+    p_chen_json = os.path.join(out, "anh_chen.json")
+    info_chen = {}
+    if os.path.isfile(p_chen_json):
+        da_chen = doc_json(p_chen_json, {}) or {}
+        for y in da_chen.get("ds", []):
+            if y.get("file"):
+                info_chen[os.path.normpath(os.path.abspath(y["file"])).lower()] = y
+
+    # Các thư mục chứa ảnh & media của dự án
+    cac_thu_muc = [
+        (os.path.join(out, "kho", "anh"), "anh", "kho_anh"),
+        (os.path.join(out, "anh_chen"), "tu_dong", "anh_chen"),
+        (os.path.join(out, "anh_flow"), "anh", "anh_flow"),
+        (os.path.join(out, "kho", "video"), "video", "kho_video"),
+        (os.path.join(out, "hook"), "video", "hook"),
+        (os.path.join(out, "video_tai"), "video", "video_tai"),    # 25/10: video tải từ link cũng vào Kho media
+    ]
+
+    DUOI_ANH = (".png", ".jpg", ".jpeg", ".webp", ".bmp")
+    DUOI_VID = (".mp4", ".mov", ".webm", ".mkv")
+
+    for thu_muc, loai_md, nguon_tag in cac_thu_muc:
+        if not os.path.isdir(thu_muc):
+            continue
+        try:
+            entries = os.listdir(thu_muc)
+        except OSError:
+            continue
+
+        for ten_file in entries:
+            duong_dan = os.path.join(thu_muc, ten_file)
+            if not os.path.isfile(duong_dan):
+                continue
+            duoi = os.path.splitext(ten_file)[1].lower()
+            if duoi not in DUOI_ANH and duoi not in DUOI_VID:
+                continue
+            if re.search(r"(\.goc|_goc|\._sach|\.part)\.", ten_file + "."):   # bản gốc còn logo / file tạm của hook
+                continue
+
+            p_abs = os.path.normpath(os.path.abspath(duong_dan))
+            if p_abs.lower() in files_trong_kho:
+                continue
+
+            loai = "anh" if duoi in DUOI_ANH else "video"
+            if loai_md != "tu_dong":
+                loai = loai_md
+
+            try:
+                size = os.path.getsize(duong_dan)
+                if size < 500:
+                    continue
+                mtime = os.path.getmtime(duong_dan)
+            except OSError:
+                continue
+
+            tien_to = "a_" if loai == "anh" else "v_"
+            ma = hashlib.md5(p_abs.lower().encode("utf-8")).hexdigest()[:10]
+            kid = f"{tien_to}{nguon_tag}_{ma}"
+
+            rong, cao, dai = 0, 0, 0.0
+            if loai == "anh":
+                try:
+                    from PIL import Image
+                    with Image.open(duong_dan) as im:
+                        rong, cao = im.size
+                except Exception:
+                    pass
+            elif loai == "video":
+                dai = _do_dai(duong_dan)
+
+            tieu_de = ten_file
+            ic = info_chen.get(p_abs.lower())
+            if ic and ic.get("ve"):
+                ve_rut = ic["ve"].strip()
+                tieu_de = f"🎨 {ten_file} · {ve_rut[:50]}"
+            elif nguon_tag == "anh_chen":
+                tieu_de = f"🎨 [AI] {ten_file}"
+            elif nguon_tag == "hook":
+                tieu_de = f"🎬 [Hook] {ten_file}"
+            elif nguon_tag == "anh_flow":
+                tieu_de = f"🖼️ [Flow] {ten_file}"
+            elif nguon_tag == "video_tai":
+                tieu_de = f"⬇️ [Tải link] {ten_file}"
+
+            kho[kid] = {
+                "id": kid,
+                "loai": loai,
+                "tieu_de": tieu_de,
+                "file": p_abs,
+                "nguon": nguon_tag,
+                "trang_thai": "xong",
+                "pt": 100.0,
+                "luc": mtime,
+                "rong": rong,
+                "cao": cao,
+                "dai": dai,
+            }
+            files_trong_kho[p_abs.lower()] = kid
+            da_thay_doi = True
+
+    if da_thay_doi:
+        _ghi_kho(du_an, kho)
+
+    return kho
+
+
+def doc_kho(du_an, quet=True):
+    if quet:
+        return quet_va_dong_bo_kho(du_an)
     return doc_json(_kho_path(du_an), {}) or {}
 
 
@@ -45,9 +174,79 @@ def _ghi_kho(du_an, kho):
 
 def _cap_nhat_kho(du_an, kid, **kw):
     with _KHOA:
-        kho = doc_kho(du_an)
+        kho = doc_kho(du_an, quet=False)
         kho.setdefault(kid, {}).update(kw)
         _ghi_kho(du_an, kho)
+
+
+def luu_anh_kho(du_an, tep_nguon, tieu_de="", mo_ta="", nguon="flow"):
+    """Lưu một file ảnh (ảnh vừa tạo, ảnh tải lên) vào thư mục kho ảnh của dự án ra/<du_an>/kho/anh/ và nạp vào kho."""
+    import shutil
+    out = _ra(du_an)
+    thu_anh = os.path.join(out, "kho", "anh")
+    os.makedirs(thu_anh, exist_ok=True)
+
+    duoi = os.path.splitext(tep_nguon)[1].lower() or ".png"
+    ma = hashlib.md5((tep_nguon + str(time.time())).encode()).hexdigest()[:8]
+    ten_dich = f"anh_{int(time.time())}_{ma}{duoi}"
+    f_dich = os.path.join(thu_anh, ten_dich)
+
+    shutil.copy2(tep_nguon, f_dich)
+
+    rong, cao = 0, 0
+    try:
+        from PIL import Image
+        with Image.open(f_dich) as im:
+            rong, cao = im.size
+    except Exception:
+        pass
+
+    kid = f"a_kho_{nguon}_{ma}"
+    _cap_nhat_kho(du_an, kid, loai="anh", tieu_de=tieu_de or f"Ảnh {nguon} {ma}", file=f_dich,
+                  nguon=nguon, trang_thai="xong", pt=100.0, rong=rong, cao=cao, luc=time.time(), mo_ta=mo_ta)
+    return kid, f_dich
+
+
+def xoa_muc_kho(du_an, kid, xoa_file=True):
+    """Xoá một mục khỏi kho media và tuỳ chọn xoá file vật lý trên đĩa."""
+    with _KHOA:
+        kho = doc_json(_kho_path(du_an), {}) or {}
+        if kid in kho:
+            m = kho.pop(kid)
+            _ghi_kho(du_an, kho)
+            if xoa_file and m.get("file") and os.path.isfile(m["file"]):
+                try:
+                    os.remove(m["file"])
+                except OSError:
+                    pass
+            return True
+        return False
+
+
+def xoa_video_tim_bam(du_an):
+    """26/10 user: XOÁ HẾT video tìm kiếm + băm của dự án (thư mục kho/video + mục rỗng đang tách) khỏi kho và ổ đĩa.
+    GIỮ NGUYÊN video Veo3 (hook/), ảnh / video AI (anh_chen, anh_flow), ảnh kho và video tải từ link (video_tai)."""
+    thu = os.path.normcase(os.path.normpath(os.path.join(_ra(du_an), "kho", "video")))
+    so_muc = so_file = 0
+    with _KHOA:
+        kho = doc_json(_kho_path(du_an), {}) or {}
+        for kid, m in list(kho.items()):
+            f = m.get("file") or ""
+            if (f and os.path.normcase(os.path.dirname(os.path.normpath(f))) == thu) or (not f and m.get("loai") != "anh"):
+                del kho[kid]
+                so_muc += 1
+        _ghi_kho(du_an, kho)
+        if os.path.isdir(thu):
+            for ten in os.listdir(thu):
+                p = os.path.join(thu, ten)
+                if os.path.isfile(p):
+                    try:
+                        os.remove(p)
+                        so_file += 1
+                    except OSError:
+                        pass
+    log(f"  [kho] xoá video tìm + băm: {so_muc} mục, {so_file} tệp ({du_an})")
+    return {"so_muc": so_muc, "so_file": so_file}
 
 
 def _sach_ten(s, n=60):
@@ -378,7 +577,7 @@ def khoang_khop(t, s, tong, toi_da=3):
     return sorted(ra, key=lambda x: -x[2])[:toi_da]
 
 
-def cat_sat_khop(du_an, kid, Q):
+def cat_sat_khop(du_an, kid, Q, mo_ta_vat=""):
     """18/10: clip vừa tải (khoảng định vị thô từ storyboard, có nới) -> chấm KHUNG THẬT 2 khung/giây với mô tả các
     cảnh của chủ đề (Q: ma trận vector cảnh), cắt MỌI dãy khớp thành các mảnh ~MANH_GIAY (mỗi mảnh 1 mục kho riêng
     "<kid>_m<i>"; khoảng thô -> trang_thai "tach", xoá file). Không khớp / toàn phụ đề -> "loi". Trả (giây giữ, số mảnh)."""
@@ -407,6 +606,12 @@ def cat_sat_khop(du_an, kid, Q):
         best = np.where(xau_k, -1.0, best)
     except Exception:                                        # noqa: BLE001
         pass
+    if mo_ta_vat:                                            # 25/10 user: chốt vật thể (toa tàu chìm != ô tô chìm)
+        try:
+            import loc_minh_hoa
+            best = np.where(loc_minh_hoa.sai_vat(E_khung, mo_ta_vat), -1.0, best)
+        except Exception as e:                               # noqa: BLE001
+            log(f"    ! chốt vật thể {kid}: {str(e)[:80]}")
     try:                                                     # 19/10 user: khúc ẢNH TĨNH phóng / lia chậm -> không cắt mảnh
         import loc_minh_hoa
         for a_, b_ in loc_minh_hoa.keo_tinh("goc_" + kid, f):
@@ -488,13 +693,19 @@ def cat_sat_khop(du_an, kid, Q):
 
 BAM_CA_VIDEO = True         # 22/10 user: tải về thì BĂM CẢ VIDEO theo cảnh quay (không chỉ vài khoảng khớp ảnh xem trước)
 BAM_SHOT_MIN = 1.5          # cảnh quay ngắn hơn bỏ (chớp nhoáng / chuyển cảnh)
+BAM_TOI_DA_TAY = 120        # 25/10 user: video NGƯỜI DÙNG tự chọn (🎯) — lọc nhẹ, giữ tới bấy nhiêu mảnh
+NGUONG_TAY = 0.08           # 🎯 sàn khớp chủ thể (26/10: 0,05 -> 0,08; tự động: NGUONG_KHUNG_THAT 0,10)
+TI_LE_TAY = 0.60            # 🎯 26/10 user: cảnh phải khớp >= bấy nhiêu x điểm cảnh khớp nhất (phân vị 95) của chính video
+NGUONG_RAC = 0.08           # 🎯 cảnh rác (chữ / người nói / màn kết thúc…) khớp từ mức này VÀ hơn điểm chủ thể -> bỏ
+SANG_TOI_THIEU = 28         # 🎯 độ sáng trung vị (0-255) dưới mức này = cảnh tối / màn đen
+NET_TOI_THIEU = 4.0         # 🎯 độ nét (chênh điểm ảnh kề nhau) dưới mức này = mờ nhoè / nền trơn
 BAM_TOI_DA = 12             # tối đa bấy nhiêu mảnh / video (điểm cao trước) — 22/10 user: băm từ NHIỀU video khác nhau
 BAM_DU = 1.0                # 22/10 user ("cắt hụt"): file mảnh cắt DƯ bấy nhiêu giây mỗi đầu; khớp chỉ trong phần LÕI
 #                             (loi_bd / loi_kt = giây lõi tính trong file mảnh)
 BAM_LE = 0.15               # cắt lùi vào trong mỗi đầu cảnh (tránh dính khung cảnh bên cạnh)
 
 
-def bam_theo_canh(du_an, vid, file_goc, Q, chu_de=None, meta=None):
+def bam_theo_canh(du_an, vid, file_goc, Q, chu_de=None, meta=None, mo_ta_vat="", giu_het=False):
     """22/10 user ("băm video gần chủ thể lấp vào"): băm CẢ video gốc vừa tải thành MẢNH = MỘT CẢNH QUAY (điểm đổi cảnh
     sach_hinh.canh_cat); cảnh dài quá 1,5 x MANH_GIAY chia đều ~MANH_GIAY. Mỗi mảnh chấm SigLIP (nửa khung tốt nhất) với
     các mô tả chủ thể Q, đạt NGUONG_KHUNG_THAT mới giữ; khung hoạt hình / game / ẢNH TĨNH kéo chậm > 30% mảnh -> bỏ.
@@ -518,9 +729,24 @@ def bam_theo_canh(du_an, vid, file_goc, Q, chu_de=None, meta=None):
         return 0.0, 0
     E = nhung_siglip.nhung_anh([Image.fromarray(np.frombuffer(buf, np.uint8, W * H * 3, k * W * H * 3).reshape(H, W, 3))
                                for k in range(n)])
+    if giu_het:                                              # độ sáng + độ nét từng khung (bỏ cảnh tối / mờ nhoè)
+        xam = np.frombuffer(buf, np.uint8, n * W * H * 3).reshape(n, H, W, 3).mean(3)
+        sang = xam.mean((1, 2))
+        net = np.abs(np.diff(xam, axis=1)).mean((1, 2)) + np.abs(np.diff(xam, axis=2)).mean((1, 2))
+        del xam
     del buf
     diem = (E @ np.asarray(Q).T).max(1)
     xau = np.zeros(n, bool)
+    rac = None
+    if giu_het:
+        try:
+            import loc_minh_hoa
+            # chủ thể là người -> người nói trước ống kính / phỏng vấn KHÔNG là rác
+            co_nguoi = not any(w in (mo_ta_vat or "").lower() for w in ("person", "people", "man", "woman", "diver", "worker",
+                                                                         "scientist", "official", "researcher", "fisherman"))
+            rac = loc_minh_hoa.diem_rac(E, co_nguoi)
+        except Exception as e:                               # noqa: BLE001
+            log(f"    ! băm {vid_safe}: lọc cảnh rác lỗi ({str(e)[:80]})")
     try:                                                     # hoạt hình / game: như cat_sat_khop
         import loc_minh_hoa
         xau |= loc_minh_hoa.diem_hoat_hinh(E) > loc_minh_hoa.NGUONG_HOAT_HINH
@@ -528,10 +754,16 @@ def bam_theo_canh(du_an, vid, file_goc, Q, chu_de=None, meta=None):
         xau |= ((E @ loc_minh_hoa._V["game"].T).max(1) - (E @ loc_minh_hoa._V["t"].T).max(1)) > loc_minh_hoa.LE_GAME   # noqa: SLF001
         for a_, b_ in loc_minh_hoa.keo_tinh("goc_" + vid_safe, file_goc):   # ảnh tĩnh phóng / lia chậm
             xau[max(0, int(a_ * fps)):min(n, int(np.ceil(b_ * fps)) + 1)] = True
+        if mo_ta_vat:                                        # 25/10 user: khung thấy vật DỄ NHẦM (ô tô chìm khi chủ thể là
+            sv = loc_minh_hoa.sai_vat(E, mo_ta_vat)          # toa tàu chìm) -> mảnh nhiều khung như vậy bị bỏ
+            xau |= sv
+            if sv.any():
+                log(f"    băm {vid_safe}: chốt vật thể «{loc_minh_hoa.vat_chinh(mo_ta_vat)}» loại {int(sv.sum())}/{n} khung")
     except Exception as e:                                   # noqa: BLE001
         log(f"    ! băm {vid_safe}: lọc hoạt hình / ảnh tĩnh lỗi ({str(e)[:80]})")
     moc = [0.0] + [b for b in sach_hinh.canh_cat(file_goc, "goc_" + vid_safe) if 0 < b < tong] + [tong]
     ung = []
+    bam_theo_canh.cuoi = []                                  # (t0, t1, điểm khớp, điểm rác, sáng, nét, lý do bỏ) — để soát
     for a, b in zip(moc, moc[1:]):
         a, b = a + BAM_LE, b - BAM_LE
         if b - a < BAM_SHOT_MIN:
@@ -545,11 +777,37 @@ def bam_theo_canh(du_an, vid, file_goc, Q, chu_de=None, meta=None):
             if not len(s) or xau[k0:k1].mean() > 0.3:
                 continue
             sc = float(np.sort(s)[-max(1, len(s) // 2):].mean())
-            if sc >= NGUONG_KHUNG_THAT:
+            if giu_het:                                      # chấm xong mọi cảnh mới chốt ngưỡng (theo cả video)
+                bam_theo_canh.cuoi.append([round(t0, 1), round(t1, 1), round(sc, 3),
+                                           round(float(np.median(rac[k0:k1])), 3) if rac is not None else None,
+                                           round(float(np.median(sang[k0:k1])), 1), round(float(np.median(net[k0:k1])), 1), ""])
+            elif sc >= NGUONG_KHUNG_THAT:
                 ung.append((sc, t0, t1))
-    ung = sorted(ung, key=lambda x: -x[0])[:BAM_TOI_DA * 2]
+    if giu_het and bam_theo_canh.cuoi:
+        # 25/10 user ("phải khớp cơ bản những cảnh rõ ràng") + 26/10 ("chỉ giữ cảnh phù hợp lô tìm, bỏ chỗ ngoài"):
+        # video người dùng tự chọn -> giữ cảnh THẤY RÕ CHỦ THỂ: điểm khớp >= TI_LE_TAY x điểm cảnh khớp nhất của CHÍNH
+        # video đó (video quay xa / mờ điểm chung thấp vẫn giữ được cảnh rõ nhất) và >= sàn NGUONG_TAY; bỏ rác / tối / mờ
+        dinh = float(np.percentile([x[2] for x in bam_theo_canh.cuoi], 95))
+        nguong = max(NGUONG_TAY, TI_LE_TAY * dinh)
+        bam_theo_canh.nguong = round(nguong, 3)
+        for x in bam_theo_canh.cuoi:
+            t0, t1, sc, rc, sg, nt, _ = x
+            x[6] = ("lạc chủ thể" if sc < nguong else
+                    "rác" if rc is not None and rc >= max(NGUONG_RAC, sc) else
+                    "tối" if sg < SANG_TOI_THIEU else
+                    "mờ" if nt < NET_TOI_THIEU else "")
+            if not x[6]:
+                ung.append((sc, t0, t1))
+        bo = {}
+        for x in bam_theo_canh.cuoi:
+            if x[6]:
+                bo[x[6]] = bo.get(x[6], 0) + 1
+        log(f"    băm {vid_safe}: ngưỡng chủ thể {nguong:.3f} (đỉnh video {dinh:.3f}) — giữ {len(ung)}/{len(bam_theo_canh.cuoi)} cảnh"
+            + (", bỏ " + ", ".join(f"{k} {v}" for k, v in bo.items()) if bo else ""))
+    toi_da = BAM_TOI_DA_TAY if giu_het else BAM_TOI_DA
+    ung = sorted(ung, key=lambda x: -x[0])[:toi_da * 2]
     hep = sach_hinh.song_song(lambda x: sach_hinh.khung_hep(file_goc, x[1], x[2] - x[1]), ung)   # 23/10: dọc / 4:3 -> bỏ
-    ung = sorted([x for x, h in zip(ung, hep) if not h][:BAM_TOI_DA], key=lambda x: x[1])
+    ung = sorted([x for x, h in zip(ung, hep) if not h][:toi_da], key=lambda x: x[1])
     thu = os.path.dirname(file_goc)
     giu, so_giu = 0.0, 0
     for i, (sc, t0, t1) in enumerate(ung):

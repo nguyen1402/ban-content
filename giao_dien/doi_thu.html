@@ -3,76 +3,1076 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Đối thủ YouTube — Bản Content</title>
+<title>Tình Báo & Đối Thủ YouTube — Bản Content</title>
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--ink:#1c2230;--mut:#667085;--line:#e3e6ec;--ac:#2f6df6;--ac-ink:#fff;--ok:#1a9d5c;--wa:#c27803;--er:#d33a3a}
-@media (prefers-color-scheme:dark){:root{--bg:#0f1218;--card:#171b24;--ink:#e8ecf3;--mut:#93a0b4;--line:#262c39;--ac:#5b8cff;--ac-ink:#0b0f18;--ok:#43c783;--wa:#e0a43a;--er:#ff7070}}
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1c2230;--mut:#667085;--line:#e3e6ec;--ac:#2f6df6;--ac-ink:#fff;--ok:#1a9d5c;--wa:#c27803;--er:#d33a3a;--purple:#8e24aa}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1218;--card:#171b24;--ink:#e8ecf3;--mut:#93a0b4;--line:#262c39;--ac:#5b8cff;--ac-ink:#0b0f18;--ok:#43c783;--wa:#e0a43a;--er:#ff7070;--purple:#ab47bc}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Segoe UI",system-ui,sans-serif}
-header{display:flex;gap:12px;align-items:center;padding:12px 20px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
-header a{color:var(--ac);text-decoration:none}
-main{max-width:1200px;margin:16px auto;padding:0 16px;display:grid;gap:16px}
+body{margin:0;background:var(--bg);color:var(--ink);font:14.5px/1.5 "Segoe UI",system-ui,sans-serif}
+header{display:flex;gap:12px;align-items:center;padding:12px 20px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10;flex-wrap:wrap}
+header h1{font-size:17px;margin:0;display:flex;align-items:center;gap:6px}
+header a{color:var(--ac);text-decoration:none;font-size:13.5px}
+
+.nav-tabs{display:flex;gap:4px;padding:0 20px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:53px;z-index:9}
+.nav-tab{background:transparent;border:0;padding:10px 16px;font:inherit;font-weight:600;color:var(--mut);border-bottom:3px solid transparent;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.nav-tab:hover{color:var(--ink)}
+.nav-tab.on{color:var(--ac);border-bottom-color:var(--ac)}
+.nav-tab.purple.on{color:var(--purple);border-bottom-color:var(--purple)}
+
+main{max-width:1280px;margin:16px auto;padding:0 16px 60px;display:grid;gap:16px}
+.tab-pane{display:none;gap:16px}
+.tab-pane.on{display:grid}
+
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
-h2{margin:0 0 6px;font-size:17px}
+h2{margin:0 0 6px;font-size:16.5px}
 .sub{color:var(--mut);font-size:13px}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-input,textarea,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 9px}
-button{font:inherit;border:0;border-radius:8px;padding:7px 14px;background:var(--ac);color:var(--ac-ink);cursor:pointer}
+input,textarea,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+textarea{width:100%;resize:vertical}
+button{font:inherit;border:0;border-radius:8px;padding:7px 14px;background:var(--ac);color:var(--ac-ink);cursor:pointer;white-space:nowrap}
 button.p{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button.purple{background:var(--purple);color:#fff;font-weight:600}
 button:disabled{opacity:.55;cursor:default}
+
 table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
-th,td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:left;vertical-align:top}
+th,td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
 th{cursor:pointer;color:var(--mut);font-weight:600;white-space:nowrap;position:sticky;top:0;background:var(--card)}
 td.so{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 a{color:var(--ac)}
 .bieu{display:grid;gap:3px;align-items:end;height:120px;margin-top:8px}
 .cot{background:var(--ac);border-radius:3px 3px 0 0;min-height:1px;position:relative}
 .nhan{display:grid;gap:3px;font-size:11px;color:var(--mut);text-align:center}
-.tt{min-height:20px}
-.cuon{max-height:520px;overflow:auto}
-.noi{background:#1a9d5c22}
+.tt{min-height:22px;padding:8px 12px;border-radius:8px;background:var(--bg);border:1px solid var(--line);margin-top:8px;display:none;font-size:13px}
+.tt.hien{display:block}
+.cuon{max-height:540px;overflow:auto}
+
+/* Spy Studio Card Styling */
+.spy-kenh-card{border:1px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden;margin-top:14px;box-shadow:0 2px 8px #0000000d}
+.spy-kenh-header{display:flex;gap:16px;align-items:center;padding:14px 18px;background:var(--bg);border-bottom:1px solid var(--line);flex-wrap:wrap}
+.spy-thumb{width:140px;aspect-ratio:16/9;object-fit:cover;border-radius:8px;background:#000;border:1px solid var(--line)}
+.spy-kenh-info{flex:1;min-width:240px}
+.spy-kenh-title{font-size:17px;font-weight:700;margin:0 0 4px}
+.spy-stat-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.badge{font-size:11.5px;padding:2px 8px;border-radius:6px;background:var(--line);color:var(--ink);font-weight:600}
+.badge.viral{background:#e8f5e9;color:#1b5e20}
+.badge.hot{background:#ffebee;color:#b71c1c}
+
+.sub-tabs{display:flex;border-bottom:1px solid var(--line);background:var(--card);overflow-x:auto}
+.sub-tab-btn{background:transparent;border:0;padding:9px 14px;font:inherit;font-size:13px;color:var(--mut);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
+.sub-tab-btn:hover{color:var(--ink)}
+.sub-tab-btn.on{color:var(--ac);border-bottom-color:var(--ac);font-weight:600}
+.sub-pane{display:none;padding:14px 18px}
+.sub-pane.on{display:block}
+
+.color-swatch-group{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}
+.swatch{width:36px;height:36px;border-radius:8px;border:1px solid #0003;box-shadow:0 1px 3px #0002;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.swatch-item{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px;font-family:monospace}
+
+.prompt-box{position:relative;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;font-family:inherit;font-size:13px;line-height:1.5;margin-top:6px;white-space:pre-wrap}
+.copy-btn{position:absolute;top:8px;right:8px;padding:3px 9px;font-size:11.5px}
+
+.topic-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin-top:8px}
+.topic-card{border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--bg)}
+.topic-type{font-size:11px;font-weight:700;color:var(--purple);text-transform:uppercase}
+.topic-title{font-size:13.5px;font-weight:600;margin:4px 0}
+.topic-reason{font-size:12px;color:var(--mut)}
+
+/* Plugin Grid in Tab Spy */
+.plugin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-top:10px}
+.plugin-card{border:1px solid var(--line);border-radius:10px;background:var(--card);padding:12px;display:flex;flex-direction:column;gap:8px;transition:.2s;box-shadow:0 1px 4px #0000000a;position:relative;cursor:pointer}
+.plugin-card:hover{border-color:var(--purple);box-shadow:0 4px 14px #8e24aa22}
+.plugin-card-header{display:flex;gap:10px;align-items:center}
+.plugin-thumb{width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--line);background:#111}
+.plugin-card-info{flex:1;min-width:0}
+.plugin-card-title{font-size:14.5px;font-weight:700;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plugin-tag-group{display:flex;gap:4px;flex-wrap:wrap;font-size:11px}
+.plugin-card-actions{display:flex;gap:6px;margin-top:4px;justify-content:flex-end}
+
+/* Modal Plugin Styling */
+.modal-backdrop{position:fixed;inset:0;background:#00000077;z-index:999;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(3px)}
+.modal-content{background:var(--card);border:1px solid var(--line);border-radius:14px;width:100%;max-width:880px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 30px #00000040}
+.modal-header{padding:12px 18px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);background:var(--card)}
+.modal-body{padding:16px 20px;overflow-y:auto;flex:1}
+.edit-group label{display:block;margin-bottom:2px}
+.edit-input{width:100%;font-size:13px;line-height:1.5}
+
+#tb{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(90px);background:var(--ink);color:var(--bg);padding:9px 18px;border-radius:10px;transition:.25s;z-index:99;box-shadow:0 4px 14px #00000033;font-size:13.5px}
+#tb.hien{transform:translateX(-50%) translateY(0)}
 </style>
 </head>
 <body>
-<header><b>📈 Đối thủ YouTube</b><a href="/">← Bản Content</a><span class="sub">Chỉ đọc dữ liệu công khai (yt-dlp) — không tải video, không cần khoá API. Giờ hiển thị theo giờ Việt Nam.</span></header>
+
+<header>
+  <h1>📈 Đối thủ YouTube</h1>
+  <a href="/">← Về Bản Content</a>
+  <span class="sub" style="flex:1">Tình báo & giải mã kịch bản, visual, âm thanh và tìm video đột biến</span>
+</header>
+
+<nav class="nav-tabs">
+  <button class="nav-tab purple on" id="btn_tab_spy" onclick="chuyenTab('tab_spy')">🕵️ Tình Báo Danh Sách Kênh (Spy Studio)</button>
+  <button class="nav-tab" id="btn_tab_dot_bien" onclick="chuyenTab('tab_dot_bien')">🚀 Video Đột Biến Ngách</button>
+  <button class="nav-tab" id="btn_tab_gio" onclick="chuyenTab('tab_gio')">🕒 Giờ Đăng &amp; Lịch Xuất Bản</button>
+</nav>
+
 <main>
-<section class="card">
-  <h2>1. Giờ đăng của kênh đối thủ</h2>
-  <p class="sub">Dán link kênh hoặc @handle (mỗi dòng một kênh). Máy đọc giờ đăng chính xác đến giây của các video mới nhất (tab Video) và thống kê khung giờ, thứ hay đăng kèm lượt xem trung bình.</p>
-  <div class="row"><textarea id="kenh" rows="2" style="flex:1;min-width:280px" placeholder="https://www.youtube.com/@tenkenh&#10;@kenhkhac"></textarea>
-    <span class="sub">Số video</span><input id="so_vid" type="number" value="50" min="5" max="300" style="width:80px"><button id="quet">🔍 Quét giờ đăng</button></div>
-  <div class="sub tt" id="tt1"></div>
-  <div id="kq1"></div>
-</section>
-<section class="card">
-  <h2>2. Video đột biến của kênh ít sub cùng ngách</h2>
-  <p class="sub">Nhập từ khoá ngách (mỗi dòng hoặc cách nhau bởi dấu phẩy, nên dùng tiếng Anh nếu ngách quốc tế). Máy tìm video mới đăng + liên quan nhất, đọc số sub kênh, view, like, bình luận rồi giữ video của kênh nhỏ có view cao. <b>Hệ số</b> = view ÷ sub (càng cao càng đột biến so với cỡ kênh).</p>
-  <div class="row" style="margin-bottom:6px"><span class="sub">Lấy từ khoá từ kênh đối thủ:</span><input id="kenh_tk" style="flex:1;min-width:240px" placeholder="https://www.youtube.com/@kenhdoithu (tiếng Việt cũng được)">
-    <button class="p" id="ai_tk">🤖 AI lấy từ khoá (tiếng Anh)</button></div>
-  <div class="sub" id="ngach" style="margin-bottom:4px"></div>
-  <div class="row"><textarea id="tu_khoa" rows="2" style="flex:1;min-width:280px" placeholder="invasive species australia, feral animals australia"></textarea></div>
-  <div class="row" style="margin-top:6px">
-    <span class="sub">Sub tối đa</span><input id="sub_max" type="number" value="50000" style="width:100px">
-    <span class="sub">Đăng trong (ngày)</span><input id="ngay_max" type="number" value="30" style="width:70px">
-    <span class="sub">View tối thiểu</span><input id="view_min" type="number" value="10000" style="width:100px">
-    <span class="sub">Kết quả mỗi từ khoá</span><input id="n_tu" type="number" value="30" min="5" max="100" style="width:70px">
-    <label class="sub"><input type="checkbox" id="bo_short" checked> bỏ Shorts</label>
-    <label class="sub" title="Giữ video tiếng Anh và mọi tiếng khác, chỉ bỏ video tiếng Việt"><input type="checkbox" id="bo_vi" checked> bỏ video tiếng Việt</label>
-    <button id="tim">🚀 Tìm video đột biến</button><button class="p" id="csv2" style="display:none">⬇ CSV</button>
-  </div>
-  <div class="sub tt" id="tt2"></div>
-  <div id="kq2" class="cuon"></div>
-</section>
+
+<!-- ================= TAB 3: SPY STUDIO ================= -->
+<div class="tab-pane on" id="tab_spy">
+
+  <!-- BỘ PLUGIN KÊNH ĐỐI THỦ ĐÃ LƯU -->
+  <section class="card" style="border-left:4px solid var(--purple)">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+      <div>
+        <h2 style="margin:0;display:flex;align-items:center;gap:6px;color:var(--purple)">
+          <span>📦</span> Bộ Sưu Tập Plugin Kênh Đối Thủ
+          <span class="badge" id="so_luong_plugin">0 plugin</span>
+        </h2>
+        <p class="sub" style="margin:4px 0 0">Mỗi lần phân tích kênh sẽ tự động lưu thành 1 bộ Plugin. Trỏ/click vào Plugin để chỉnh sửa nhân vật, bối cảnh, kịch bản hoặc <b>viết lại kịch bản sẵn có</b> theo phong cách của kênh.</p>
+      </div>
+      <button class="p" onclick="taiDanhSachPlugin()" style="font-size:12px">🔄 Tải lại danh sách</button>
+    </div>
+    <div id="plugin_list" class="plugin-grid">
+      <div class="sub" style="padding:14px 0">Đang nạp danh sách plugin đã lưu…</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">
+      <div>
+        <h2 style="color:var(--purple)">🕵️ Tình Báo &amp; Giải Mã Danh Sách Kênh Đối Thủ (H2 Spy Studio)</h2>
+        <p class="sub" style="margin:2px 0 10px">Nhập danh sách link kênh hoặc @handle (mỗi dòng 1 kênh). Máy sẽ tự động quét video triệu view nhất, bóc tách Hook 30s, nhịp câu chuyện, trích xuất bảng màu HEX, prompt AI tạo ảnh nhân vật, âm thanh, ma trận đề tài và sinh Siêu Kịch Bản.</p>
+      </div>
+      <button class="p" id="nut_mau_lanh" style="font-size:12.5px">⚡ Thử mẫu @Lanhvcl</button>
+    </div>
+
+    <div class="row">
+      <textarea id="spy_kenh_ds" rows="4" placeholder="Nhập danh sách kênh (mỗi dòng 1 kênh hoặc cách nhau bởi dấu phẩy):
+https://www.youtube.com/@Lanhvcl
+@kenh_khac_1
+https://www.youtube.com/@kenh_khac_2"></textarea>
+    </div>
+
+    <div class="row" style="margin-top:10px">
+      <span class="sub">Số video quét mỗi kênh</span>
+      <input id="spy_n" type="number" value="10" min="3" max="50" style="width:70px">
+      <button class="purple" id="nut_chay_spy" style="padding:8px 18px">🚀 Bắt Đầu Tình Báo Danh Sách Kênh</button>
+    </div>
+
+    <div class="tt" id="tt_spy"></div>
+    <div id="kq_spy"></div>
+  </section>
+</div>
+
+<!-- ================= TAB 2: ĐỘT BIẾN ================= -->
+<div class="tab-pane" id="tab_dot_bien">
+  <section class="card">
+    <h2>2. Video đột biến của kênh ít sub cùng ngách</h2>
+    <p class="sub">Nhập từ khoá ngách (mỗi dòng hoặc cách nhau bởi dấu phẩy). Máy tìm video mới đăng + liên quan nhất, lọc giữ video của kênh nhỏ có view cao. <b>Hệ số</b> = view ÷ sub.</p>
+    <div class="row" style="margin-bottom:6px"><span class="sub">Lấy từ khoá từ kênh đối thủ:</span><input id="kenh_tk" style="flex:1;min-width:240px" placeholder="https://www.youtube.com/@kenhdoithu (tiếng Việt cũng được)">
+      <button class="p" id="ai_tk">🤖 AI lấy từ khoá (tiếng Anh)</button></div>
+    <div class="sub" id="ngach" style="margin-bottom:4px"></div>
+    <div class="row"><textarea id="tu_khoa" rows="2" style="flex:1;min-width:280px" placeholder="invasive species australia, feral animals australia"></textarea></div>
+    <div class="row" style="margin-top:6px">
+      <span class="sub">Sub tối đa</span><input id="sub_max" type="number" value="50000" style="width:100px">
+      <span class="sub">Đăng trong (ngày)</span><input id="ngay_max" type="number" value="30" style="width:70px">
+      <span class="sub">View tối thiểu</span><input id="view_min" type="number" value="10000" style="width:100px">
+      <span class="sub">Kết quả mỗi từ khoá</span><input id="n_tu" type="number" value="30" min="5" max="100" style="width:70px">
+      <label class="sub"><input type="checkbox" id="bo_short" checked> bỏ Shorts</label>
+      <label class="sub" title="Giữ video tiếng Anh và mọi tiếng khác, chỉ bỏ video tiếng Việt"><input type="checkbox" id="bo_vi" checked> bỏ video tiếng Việt</label>
+      <button id="tim">🚀 Tìm video đột biến</button><button class="p" id="csv2" style="display:none">⬇ CSV</button>
+    </div>
+    <div class="sub tt" id="tt2"></div>
+    <div id="kq2" class="cuon"></div>
+  </section>
+</div>
+
+<!-- ================= TAB 1: GIỜ ĐĂNG ================= -->
+<div class="tab-pane" id="tab_gio">
+  <section class="card">
+    <h2>1. Giờ đăng &amp; lịch xuất bản của kênh</h2>
+    <p class="sub">Nhập link kênh (ví dụ <code>https://www.youtube.com/@kenh</code> hoặc mỗi dòng một kênh nếu muốn xem nhiều). Máy đọc giờ đăng của n video mới nhất, quy sang giờ Việt Nam rồi thống kê khung giờ hay đăng và lượt xem trung bình.</p>
+    <div class="row"><textarea id="kenh" rows="2" style="flex:1;min-width:280px" placeholder="https://www.youtube.com/@DailyStoic&#10;https://www.youtube.com/@Kurzgesagt"></textarea></div>
+    <div class="row" style="margin-top:6px">
+      <span class="sub">Số video mỗi kênh</span><input id="so_vid" type="number" value="50" min="10" max="300" style="width:80px">
+      <button id="quet">Quét giờ đăng</button>
+    </div>
+    <div class="sub tt" id="tt1"></div>
+    <div id="kq1"></div>
+  </section>
+</div>
+
 </main>
+
+<!-- Modal Plugin Editor -->
+<div id="modal_plugin" class="modal-backdrop" style="display:none">
+  <div class="modal-content">
+    <div class="modal-header">
+      <div style="display:flex;align-items:center;gap:12px;flex:1">
+        <img id="mpl_thumb" src="" style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:1px solid var(--line)" onerror="this.src=''">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <h3 id="mpl_ten" style="margin:0;font-size:16px">Tên Plugin</h3>
+            <span id="mpl_stats_badge" style="background:#f3e5f5;color:#6a1b9a;padding:2px 10px;border-radius:12px;font-size:11.5px;font-weight:700">📊 ~480 từ/video (3.0 phút)</span>
+          </div>
+          <div class="sub" id="mpl_sub">ID: ... · Cập nhật: ...</div>
+        </div>
+      </div>
+      <button class="p" onclick="dongModalPlugin()" style="padding:4px 10px;font-size:16px;border-radius:50%">✕</button>
+    </div>
+    
+    <div class="sub-tabs" style="border-bottom:1px solid var(--line);background:var(--bg)">
+      <button class="sub-tab-btn on" id="btn_mpl_tab_new" onclick="chuyenMplTab('new')">✍️ 1. Viết Mới Kịch Bản (Lên Dàn Bài)</button>
+      <button class="sub-tab-btn" id="btn_mpl_tab_rewrite" onclick="chuyenMplTab('rewrite')">🔄 2. Viết Lại Kịch Bản Sẵn Có (Giữ Cốt Lõi)</button>
+      <button class="sub-tab-btn" id="btn_mpl_tab_edit" onclick="chuyenMplTab('edit')">⚙️ 3. Tinh Chỉnh DNA Plugin Kênh</button>
+    </div>
+
+    <!-- PANE 1: VIẾT MỚI KỊCH BẢN (2 BƯỚC: LẬP DÀN BÀI -> VIẾT TỪNG PHẦN -> 1 BÀI HOÀN CHỈNH) -->
+    <div id="mpl_pane_new" class="modal-body">
+      <div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <b style="color:var(--purple)">🎙️ Kịch Bản Thuần Đọc: Phân Tích Đối Thủ $\rightarrow$ Lập Dàn Bài $\rightarrow$ Viết Từng Phần $\rightarrow$ Ghép Thành 1 Bài Hoàn Chỉnh</b>
+          <span class="badge" id="mpl_new_wpm_badge">Tốc độ đọc: ~160 từ/phút</span>
+        </div>
+        <div class="sub" style="margin-top:6px" id="mpl_mach_truyen_desc">
+          <b>Cách triển khai đặc trưng:</b> 6 nhịp kinh điển (Hook 3s $\rightarrow$ Cám dỗ $\rightarrow$ Trượt dốc $\rightarrow$ Đổ vỡ $\rightarrow$ Thức tỉnh $\rightarrow$ Bài học).
+        </div>
+      </div>
+
+      <!-- Quick Topics Suggestions -->
+      <div id="mpl_box_quick_topics" style="margin-bottom:12px">
+        <span class="sub" style="font-weight:600">💡 Chọn nhanh đề tài viral phái sinh từ đối thủ:</span>
+        <div id="mpl_quick_topics_list" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+      </div>
+
+      <label><b>Tiêu đề hoặc Ý tưởng kịch bản mới:</b></label>
+      <input id="mpl_tieu_de_moi" placeholder="Ví dụ: Cái bẫy sống tử tế: Tại sao người nhẫn nhịn luôn bị cướp sạch đầu tiên?..." style="width:100%;font-size:14px;padding:9px 12px;margin-top:4px;font-weight:600">
+
+      <div class="row" style="margin-top:10px;align-items:center;flex-wrap:wrap;gap:8px">
+        <span class="sub" style="font-weight:600">Số từ mong muốn khi viết thành bài hoàn chỉnh:</span>
+        <input id="mpl_so_tu_moi" type="number" style="width:100px;font-weight:700" value="500" oninput="capNhatUocTinhThoiLuong()">
+        <span class="sub">từ (Ước tính video: <b id="mpl_tg_moi">~3.1 phút</b>)</span>
+        
+        <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap">
+          <button class="p" id="nut_chay_lap_dan_bai" onclick="chayLapDanBai()" style="padding:8px 14px;border:1px solid var(--purple);color:var(--purple);font-weight:600">📋 Bước 1: Lập Dàn Bài</button>
+          <button class="purple" id="nut_chay_viet_moi" onclick="chayVietMoiKichBan()" style="padding:8px 16px">🚀 Viết Tự Động Trọn Gói</button>
+        </div>
+      </div>
+
+      <!-- Trạng thái tiến độ thực hiện -->
+      <div class="tt" id="tt_viet_moi" style="margin-top:10px"></div>
+
+      <!-- BƯỚC 1: HỘP DÀN BÀI CHO PHÉP XEM & CHỈNH SỬA -->
+      <div id="box_dan_bai" style="margin-top:14px;display:none;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+          <div>
+            <b style="color:var(--purple)">📋 Bước 1: Dàn Bài Triển Khai (Bạn có thể xem &amp; chỉnh sửa các phần trước khi viết)</b>
+            <div class="sub">Mỗi phần được phân bổ số từ mục tiêu để AI viết sâu, không bị giới hạn token.</div>
+          </div>
+          <div class="row">
+            <button class="purple" id="nut_chay_viet_theo_dan_bai" onclick="chayVietTheoDanBai()" style="padding:8px 16px;font-weight:700">✍️ Bước 2: Viết Kịch Bản Từng Phần</button>
+          </div>
+        </div>
+        <textarea id="mpl_dan_bai_text" rows="8" style="font-family:monospace;font-size:12.5px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:8px"></textarea>
+      </div>
+
+      <!-- BƯỚC 2: HỘP KỊCH BẢN HOÀN CHỈNH THUẦN ĐỌC -->
+      <div id="box_kq_viet_moi" style="margin-top:14px;display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px">
+          <div>
+            <b style="color:var(--ok)">🎙️ Bài Viết Hoàn Chỉnh Thuần Đọc (Mạch lạc, xuyên suốt, không icon, không phân đoạn):</b>
+            <div class="sub">Văn xuôi liền mạch, lời thoại/lời bình sẵn sàng để đọc thu âm hoặc nạp vào TTS.</div>
+          </div>
+          <div class="row">
+            <span class="badge" id="mpl_dem_tu_moi">0 từ</span>
+            <button class="p" onclick="copy($('#mpl_kb_moi_ra').value)">📋 Copy Bài Viết</button>
+            <button class="purple" onclick="luuKichBanMoi()">💾 Lưu vào kịch bản dự án</button>
+          </div>
+        </div>
+        <textarea id="mpl_kb_moi_ra" rows="16" style="font-family:sans-serif;font-size:13.5px;line-height:1.7;padding:12px"></textarea>
+      </div>
+    </div>
+
+    <!-- PANE 2: VIẾT LẠI KỊCH BẢN SẴN CÓ (GIỮ NGUYÊN 100% CỐT LÕI) -->
+    <div id="mpl_pane_rewrite" class="modal-body" style="display:none">
+      <div style="background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:12px">
+        <b style="color:var(--purple)">💡 Nguyên tắc chuyển thể: Giữ nguyên 100% Cốt lõi vấn đề &amp; Thuần văn để đọc</b>
+        <p class="sub" style="margin:4px 0 0">
+          Dán kịch bản gốc bất kỳ (bài báo, câu chuyện, kịch bản kênh khác).
+          AI sẽ giữ nguyên mâu thuẫn trung tâm, chuỗi nhân quả và bài học đắt giá, sau đó <b>tái sinh toàn bộ giọng văn, ngôi kể, nhịp câu ngắn theo phong cách kênh đối thủ</b> thành 1 bài viết hoàn chỉnh thuần để đọc, không chia phân cảnh, không icon.
+        </p>
+      </div>
+
+      <label><b>Kịch bản gốc cần viết lại:</b></label>
+      <textarea id="mpl_kb_goc" rows="5" placeholder="Dán nội dung kịch bản gốc vào đây..."></textarea>
+
+      <div class="row" style="margin-top:10px;align-items:center;flex-wrap:wrap;gap:8px">
+        <span class="sub" style="font-weight:600">Số từ mục tiêu chuyển thể:</span>
+        <input id="mpl_so_tu_lai" type="number" style="width:100px;font-weight:700" value="500">
+        <span class="sub">từ (Bám sát nhịp độ của kênh)</span>
+        <button class="purple" id="nut_chay_viet_lai" onclick="chayVietLaiKichBan()" style="margin-left:auto;padding:8px 18px">⚡ Viết Lại Kịch Bản Thuần Đọc</button>
+      </div>
+
+      <div class="tt" id="tt_viet_lai" style="margin-top:10px"></div>
+
+      <div id="box_kq_viet_lai" style="margin-top:14px;display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;flex-wrap:wrap;gap:8px">
+          <div>
+            <b style="color:var(--ok)">🎙️ Kịch bản chuyển thể hoàn chỉnh thuần đọc (Giữ 100% cốt lõi):</b>
+            <div class="sub">Văn xuôi liền mạch theo phong cách kênh, không icon, không phân cảnh, sẵn sàng thu âm.</div>
+          </div>
+          <div class="row">
+            <span class="badge" id="mpl_dem_tu_lai">0 từ</span>
+            <button class="p" onclick="copy($('#mpl_kb_ra').value)">📋 Copy</button>
+            <button class="purple" onclick="luuKichBanChuyenThe()">💾 Lưu vào kịch bản dự án</button>
+          </div>
+        </div>
+        <textarea id="mpl_kb_ra" rows="16" style="font-family:sans-serif;font-size:13.5px;line-height:1.7;padding:12px"></textarea>
+      </div>
+    </div>
+
+    <!-- PANE 3: TINH CHỈNH DNA PLUGIN KÊNH -->
+    <div id="mpl_pane_edit" class="modal-body" style="display:none">
+      <!-- 1. Nhân vật đồng nhất -->
+      <div class="edit-group">
+        <label><b>👤 1. Câu lệnh tạo nhân vật đồng nhất (Character Prompt):</b></label>
+        <span class="sub">Prompt mô tả diện mạo, quần áo, nét vẽ, góc máy để AI sinh nhân vật xuyên suốt mọi cảnh</span>
+        <textarea id="mpl_prompt_nhan_vat" rows="3" class="edit-input" style="margin-top:4px"></textarea>
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <input id="mpl_negative_prompt" placeholder="Negative Prompt (Prompt phủ định)..." style="flex:1;font-size:12px">
+          <button class="p" onclick="copy($('#mpl_prompt_nhan_vat').value)">📋 Copy Prompt</button>
+        </div>
+      </div>
+
+      <!-- 2. Bối cảnh & Art style -->
+      <div class="edit-group" style="margin-top:14px">
+        <label><b>🖼️ 2. Bối cảnh &amp; Visual DNA (Art style, ánh sáng, màu sắc):</b></label>
+        <span class="sub">Trường phái mỹ thuật, tone màu, cách bố trí ánh sáng không gian</span>
+        <textarea id="mpl_art_style" rows="2" class="edit-input" style="margin-top:4px"></textarea>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+          <span class="sub">Bảng màu HEX:</span>
+          <input id="mpl_bang_mau" style="flex:1;font-family:monospace;font-size:12px" placeholder="#121418, #000000, #f2b588">
+        </div>
+      </div>
+
+      <!-- 3. Kịch bản viết -->
+      <div class="edit-group" style="margin-top:14px">
+        <label><b>📝 3. Kịch bản viết (Master Script Prompt &amp; Cung nhịp cảm xúc):</b></label>
+        <span class="sub">Câu lệnh ra lệnh cho AI viết kịch bản, quy tắc độ dài câu, ngôi kể</span>
+        <div style="display:flex;gap:8px;margin:6px 0">
+          <input id="mpl_ngoi_ke" placeholder="Ngôi kể (vd: Ngôi thứ hai 'Bạn')..." style="width:220px">
+          <input id="mpl_nhip_cam_xuc" placeholder="Cung nhịp cảm xúc..." style="flex:1">
+        </div>
+        <textarea id="mpl_prompt_viet" rows="3" class="edit-input"></textarea>
+      </div>
+
+      <!-- 4. Chỉ số kịch bản của kênh -->
+      <div class="edit-group" style="margin-top:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px">
+        <label><b>📊 4. Chỉ số kịch bản của đối thủ (Độ dài &amp; Tốc độ đọc):</b></label>
+        <div style="display:flex;gap:12px;margin-top:8px;flex-wrap:wrap">
+          <div>
+            <span class="sub">Số từ TB mỗi kịch bản:</span><br>
+            <input id="mpl_edit_so_tu_tb" type="number" style="width:110px;font-weight:700"> từ
+          </div>
+          <div>
+            <span class="sub">Thời lượng TB:</span><br>
+            <input id="mpl_edit_thoi_luong_giay" type="number" style="width:110px;font-weight:700"> giây
+          </div>
+          <div>
+            <span class="sub">Tốc độ đọc (WPM):</span><br>
+            <input id="mpl_edit_wpm" type="number" style="width:110px;font-weight:700"> từ/phút
+          </div>
+        </div>
+      </div>
+
+      <!-- 5. Âm thanh -->
+      <div class="edit-group" style="margin-top:14px">
+        <label><b>🎵 5. Âm thanh &amp; SFX:</b></label>
+        <div style="display:flex;gap:8px;margin:6px 0">
+          <input id="mpl_am_thanh_the_loai" placeholder="Thể loại nhạc nền (BGM)..." style="flex:1">
+          <input id="mpl_am_thanh_bpm" placeholder="BPM (vd: 64 BPM)..." style="width:120px">
+        </div>
+        <input id="mpl_am_thanh_sfx" placeholder="SFX then chốt (cách nhau bởi dấu phẩy)..." style="width:100%;font-size:12px;margin-bottom:6px">
+        <textarea id="mpl_prompt_suno" rows="2" placeholder="Prompt tạo nhạc AI (Suno / Udio)..." class="edit-input"></textarea>
+      </div>
+
+      <div style="margin-top:18px;display:flex;justify-content:flex-end;gap:10px">
+        <button class="p" onclick="dongModalPlugin()">Đóng</button>
+        <button class="purple" onclick="luuModalPlugin()">💾 Lưu Cập Nhật Bộ Plugin</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="tb"></div>
+
 <script>
 const $=s=>document.querySelector(s);
+const $$=s=>document.querySelectorAll(s);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-async function api(p,o){const r=await fetch(p,o);if(!r.ok){let t='';try{t=await r.text()}catch(e){}throw new Error(t.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,200)||('mã '+r.status))}return r.json()}
-const post=(p,d)=>api(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
 const so=n=>n==null?'—':(+n).toLocaleString('vi-VN');
 const ngan=n=>n==null?'—':n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(1)+'K':String(n);
-async function cho(job,tt,xong){for(;;){let t;try{t=await api('/api/doi_thu/tt?job='+job)}catch(e){tt.textContent='Lỗi: '+e.message;return}
-  tt.textContent=t.dong||'';if(!t.dang){if(t.loi){tt.textContent='Lỗi: '+t.loi;return}xong(t.kq);return}await new Promise(r=>setTimeout(r,1500))}}
+
+function tb(msg){const t=$('#tb');t.textContent=msg;t.classList.add('hien');setTimeout(()=>t.classList.remove('hien'),2500)}
+function copy(txt){navigator.clipboard.writeText(txt);tb('Đã sao chép vào bộ nhớ tạm!')}
+
+async function api(p,o){const r=await fetch(p,o);if(!r.ok){let t='';try{t=await r.text()}catch(e){}throw new Error(t.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,200)||('mã '+r.status))}return r.json()}
+const post=(p,d)=>api(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
+
+async function cho(job,tt,xong){
+  for(;;){
+    let t;
+    try{t=await api('/api/doi_thu/tt?job='+job)}catch(e){tt.textContent='Lỗi: '+e.message;return}
+    tt.textContent=t.dong||'';
+    if(!t.dang){
+      if(t.loi){tt.textContent='Lỗi: '+t.loi;return}
+      xong(t.kq);
+      return;
+    }
+    await new Promise(r=>setTimeout(r,1500));
+  }
+}
+
+function chuyenTab(id){
+  $$('.nav-tab').forEach(b=>b.classList.remove('on'));
+  $$('.tab-pane').forEach(p=>p.classList.remove('on'));
+  if(id==='tab_spy'){$('#btn_tab_spy').classList.add('on');$('#tab_spy').classList.add('on');location.hash='spy'}
+  else if(id==='tab_dot_bien'){$('#btn_tab_dot_bien').classList.add('on');$('#tab_dot_bien').classList.add('on');location.hash='dot_bien'}
+  else if(id==='tab_gio'){$('#btn_tab_gio').classList.add('on');$('#tab_gio').classList.add('on');location.hash='gio'}
+}
+
+// Check hash on load
+if(location.hash==='#dot_bien') chuyenTab('tab_dot_bien');
+else if(location.hash==='#gio') chuyenTab('tab_gio');
+else chuyenTab('tab_spy');
+
+// ================= SPY STUDIO LOGIC =================
+$('#nut_mau_lanh').onclick=()=>{
+  $('#spy_kenh_ds').value='https://www.youtube.com/@Lanhvcl';
+};
+
+$('#nut_chay_spy').onclick=async()=>{
+  const txt=$('#spy_kenh_ds').value.trim();
+  const ds=txt.split(/\n|,/).map(s=>s.trim()).filter(Boolean);
+  if(!ds.length){alert('Vui lòng nhập ít nhất một kênh đối thủ');return}
+
+  const n=+$('#spy_n').value||10;
+  const nut=$('#nut_chay_spy');
+  const tt=$('#tt_spy');
+  nut.disabled=true;
+  tt.classList.add('hien');
+  tt.textContent='Đang khởi động tiến trình tình báo…';
+  $('#kq_spy').innerHTML='';
+
+  try{
+    const r=await post('/api/doi_thu/tinh_bao',{kenh_ds:ds,n:n});
+    await cho(r.job,tt,kq=>{
+      tt.textContent=`Đã hoàn thành tình báo ${kq.tong_kenh} kênh!`;
+      veKetQuaSpy(kq.ds);
+    });
+  }catch(e){
+    tt.textContent='Lỗi: '+e.message;
+  }finally{
+    nut.disabled=false;
+  }
+};
+
+function veKetQuaSpy(ds){
+  const c=$('#kq_spy');
+  if(!ds||!ds.length){c.innerHTML='<p class="sub">Không có dữ liệu kênh nào.</p>';return}
+
+  c.innerHTML=ds.map((k,idx)=>{
+    if(k.loi){
+      return `<div class="spy-kenh-card" style="padding:16px"><b style="color:var(--er)">Lỗi kênh: ${esc(k.kenh_input)}</b> — ${esc(k.loi)}</div>`;
+    }
+    const v=k.video_viral||{};
+    const pal=k.bang_mau||[];
+    const de_tai=k.de_tai_viral||[];
+
+    const swatches=pal.map(hex=>`
+      <div class="swatch-item" onclick="copy('${hex}')" title="Bấm để copy mã ${hex}">
+        <div class="swatch" style="background:${hex}"></div>
+        <span>${hex}</span>
+      </div>
+    `).join('');
+
+    const topics=de_tai.map(t=>`
+      <div class="topic-card">
+        <div class="topic-type">${esc(t.loai)}</div>
+        <div class="topic-title">${esc(t.tieu_de)}</div>
+        <div class="topic-reason">${esc(t.ly_do)}</div>
+      </div>
+    `).join('');
+
+    return `
+      <div class="spy-kenh-card" id="card_${idx}">
+        <div class="spy-kenh-header">
+          <img class="spy-thumb" src="${esc(v.anh||'')}" alt="Thumb" loading="lazy">
+          <div class="spy-kenh-info">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+              <h3 class="spy-kenh-title" style="margin:0"><a href="${esc(k.kenh_url)}" target="_blank">${esc(k.kenh_ten)}</a></h3>
+              <div style="display:flex;gap:6px;align-items:center">
+                <span class="badge" style="background:#f3e5f5;color:#6a1b9a">💾 Đã lưu Plugin: <b>${esc(k.plugin_id||k.kenh_ten)}</b></span>
+                <button class="purple" style="font-size:12px;padding:4px 10px" onclick="moModalPluginTheoKenh(${idx})">⚙️ Chỉnh sửa Plugin &amp; Viết lại</button>
+              </div>
+            </div>
+            <div class="sub" style="margin-top:4px">Nhập: <code>${esc(k.kenh_input)}</code> · Đã quét <b>${k.tong_video_quet}</b> video · View TB: <b>${so(k.view_tb)}</b></div>
+            <div class="spy-stat-badges">
+              <span class="badge viral">🔥 Video Top: ${so(v.view)} views (${v.he_so_viral||1}x TB)</span>
+              <span class="badge">${so(k.sub)} sub</span>
+              <span class="badge">👍 ${so(v.like)} likes</span>
+              <span class="badge">💬 ${so(v.binh_luan)} bình luận</span>
+            </div>
+            <div style="margin-top:6px;font-size:13.5px;font-weight:600">
+              <a href="${esc(v.url||('https://youtu.be/'+v.id))}" target="_blank">🎬 ${esc(v.tieu_de)}</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="sub-tabs">
+          <button class="sub-tab-btn on" onclick="chuyenSubTab(${idx},0)">🎣 Kịch Bản &amp; Hook</button>
+          <button class="sub-tab-btn" onclick="chuyenSubTab(${idx},1)">🎨 Visual DNA &amp; Màu</button>
+          <button class="sub-tab-btn" onclick="chuyenSubTab(${idx},2)">🎵 Âm Thanh &amp; SFX</button>
+          <button class="sub-tab-btn" onclick="chuyenSubTab(${idx},3)">💡 6 Đề Tài Viral Mới</button>
+          <button class="sub-tab-btn" onclick="chuyenSubTab(${idx},4)">🎬 Siêu Kịch Bản Vượt Trội</button>
+        </div>
+
+        <!-- Sub 0: Kịch bản -->
+        <div class="sub-pane on" id="sub_${idx}_0">
+          <div style="font-weight:700;margin-bottom:4px">🎯 Hook 30 giây đầu của đối thủ:</div>
+          <div class="prompt-box" style="background:#fff3e0;border-color:#ffe0b2;color:#e65100;font-weight:500">${esc(k.giai_ma_kich_ban?.hook_30s||'')}</div>
+          
+          <div style="margin-top:12px">
+            <p><b>🎭 Ngôi kể &amp; Tâm lý:</b> ${esc(k.giai_ma_kich_ban?.ngoi_ke||'')}</p>
+            <p><b>📈 Cung nhịp cảm xúc:</b> ${esc(k.giai_ma_kich_ban?.nhip_cam_xuc||'')}</p>
+            <p style="color:var(--ok)"><b>⚡ Tử huyệt của đối thủ &amp; Cơ hội vượt mặt:</b> ${esc(k.giai_ma_kich_ban?.tu_huyet_doi_thu||'')}</p>
+          </div>
+
+          <div style="margin-top:12px">
+            <b>📝 Master Prompt viết kịch bản (Cho AI):</b>
+            <div class="prompt-box">
+              <button class="copy-btn p" onclick="copy(this.nextElementSibling.textContent)">📋 Copy</button>
+              <div>${esc(k.master_prompts?.script_prompt||'')}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub 1: Visual -->
+        <div class="sub-pane" id="sub_${idx}_1">
+          <b>🎨 Bảng mã màu chủ đạo (Click vào ô màu để copy HEX):</b>
+          <div class="color-swatch-group">${swatches}</div>
+          <p><b>🖌️ Trường phái mỹ thuật:</b> ${esc(k.visual_dna?.art_style||'')}</p>
+
+          <div style="margin-top:10px">
+            <b>🖼️ Master Prompt tạo ảnh AI nhân vật (Midjourney / Flux / Google Flow):</b>
+            <div class="prompt-box">
+              <button class="copy-btn p" onclick="copy(this.nextElementSibling.textContent)">📋 Copy</button>
+              <div>${esc(k.visual_dna?.prompt_tao_anh||'')}</div>
+            </div>
+          </div>
+
+          <div style="margin-top:10px">
+            <span class="sub">Prompt phủ định (Negative Prompt):</span>
+            <div class="prompt-box" style="font-size:12px;color:var(--mut)">
+              <button class="copy-btn p" onclick="copy(this.nextElementSibling.textContent)">📋 Copy</button>
+              <div>${esc(k.visual_dna?.negative_prompt||'')}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub 2: Âm thanh -->
+        <div class="sub-pane" id="sub_${idx}_2">
+          <p><b>🎼 Thể loại nhạc nền:</b> ${esc(k.am_thanh?.the_loai||'')} (Nhịp độ: <b>${esc(k.am_thanh?.bpm||'')}</b>)</p>
+          <p><b>🔊 Bản đồ tiếng động then chốt (SFX):</b> ${(k.am_thanh?.sfx||[]).map(s=>`<code>${esc(s)}</code>`).join(' · ')}</p>
+
+          <div style="margin-top:10px">
+            <b>🎹 Prompt tạo nhạc AI (Suno / Udio):</b>
+            <div class="prompt-box">
+              <button class="copy-btn p" onclick="copy(this.nextElementSibling.textContent)">📋 Copy</button>
+              <div>${esc(k.am_thanh?.prompt_suno||'')}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sub 3: Đề tài viral -->
+        <div class="sub-pane" id="sub_${idx}_3">
+          <b>💡 6 Hướng phát triển đề tài tiếp nối (Đón đầu làn sóng thuật toán YouTube):</b>
+          <div class="topic-grid">${topics}</div>
+        </div>
+
+        <!-- Sub 4: Siêu kịch bản -->
+        <div class="sub-pane" id="sub_${idx}_4">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <b>🎬 Kịch bản phân cảnh hoàn chỉnh (01-PHIM) vượt trội hơn đối thủ:</b>
+            <div class="row">
+              <button class="p" onclick="copy($('#kb_${idx}').textContent)">📋 Copy kịch bản</button>
+              <button class="purple" onclick="luuKichBan('${esc(k.kenh_ten)}', $('#kb_${idx}').textContent)">💾 Lưu vào kich_ban/*.txt</button>
+            </div>
+          </div>
+          <div class="prompt-box" id="kb_${idx}" style="max-height:420px;overflow:auto;font-family:monospace;font-size:12.5px">${esc(k.super_script||'')}</div>
+        </div>
+
+      </div>
+    `;
+  }).join('');
+}
+
+function chuyenSubTab(cardIdx, subIdx){
+  const card=$('#card_'+cardIdx);
+  if(!card) return;
+  card.querySelectorAll('.sub-tab-btn').forEach((b,i)=>b.classList.toggle('on', i===subIdx));
+  card.querySelectorAll('.sub-pane').forEach((p,i)=>p.classList.toggle('on', i===subIdx));
+}
+
+async function luuKichBan(tenKenh, noiDung){
+  const ten=prompt('Đặt tên dự án kịch bản (không dấu):', 'kich_ban_' + tenKenh.toLowerCase().replace(/[^a-z0-9]+/g, '_'));
+  if(!ten) return;
+  try{
+    const r=await post('/api/doi_thu/luu_kich_ban', {ten:ten, noi_dung:noiDung});
+    tb('Đã lưu kịch bản thành công vào: ' + r.tep);
+  }catch(e){
+    alert('Lỗi lưu kịch bản: ' + e.message);
+  }
+}
+
+// ================= QUẢN LÝ PLUGIN KÊNH & VIẾT LẠI KỊCH BẢN =================
+let DS_PLUGINS = [];
+let KQX_SPY = [];
+let HIEN_TAI_PLUGIN = null;
+
+async function taiDanhSachPlugin(){
+  try{
+    const r = await api('/api/doi_thu/plugins');
+    DS_PLUGINS = r.plugins || [];
+    veDanhSachPlugin(DS_PLUGINS);
+  }catch(e){
+    const el = $('#plugin_list');
+    if(el) el.innerHTML = `<div class="sub" style="color:var(--er)">Lỗi nạp danh sách plugin: ${esc(e.message)}</div>`;
+  }
+}
+
+function veDanhSachPlugin(ds){
+  const el = $('#plugin_list');
+  const dem = $('#so_luong_plugin');
+  if(dem) dem.textContent = `${ds.length} plugin`;
+  if(!el) return;
+  if(!ds.length){
+    el.innerHTML = `<div class="sub" style="padding:14px 0;grid-column:1/-1">Chưa có bộ plugin kênh nào được lưu. Hãy phân tích kênh đối thủ ở khung bên dưới để tự động đóng gói Plugin!</div>`;
+    return;
+  }
+  el.innerHTML = ds.map((p, idx)=>`
+    <div class="plugin-card" onclick="moModalPluginTheoId('${esc(p.id)}')">
+      <div class="plugin-card-header">
+        <img class="plugin-thumb" src="${esc(p.thumb||'')}" alt="Thumb" loading="lazy" onerror="this.src=''">
+        <div class="plugin-card-info">
+          <div class="plugin-card-title">${esc(p.kenh_ten)}</div>
+          <div class="sub" style="font-size:11.5px">Quét: <b>${esc(p.ngay_tao||'')}</b> · ${so(p.sub)} sub</div>
+        </div>
+      </div>
+      <div class="plugin-tag-group">
+        <span class="badge" title="Prompt tạo nhân vật đồng nhất">👤 Nhân vật</span>
+        <span class="badge" title="Bối cảnh & Art style">🎨 Bối cảnh</span>
+        <span class="badge" title="Cung nhịp & phong cách viết">📝 Kịch bản</span>
+        <span class="badge" title="Âm nhạc & SFX">🎵 Âm thanh</span>
+      </div>
+      <div class="plugin-card-actions">
+        <button class="p" style="color:var(--er);padding:3px 8px;font-size:12px" title="Xóa plugin" onclick="xoaPlugin('${esc(p.id)}', event)">🗑️ Xóa</button>
+        <button class="purple" style="padding:4px 10px;font-size:12px" onclick="moModalPluginTheoId('${esc(p.id)}');event.stopPropagation()">⚙️ Mở &amp; Viết lại</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function moModalPluginTheoId(id){
+  const p = DS_PLUGINS.find(x => x.id === id);
+  if(p) moModalPlugin(p);
+  else alert('Không tìm thấy plugin ' + id);
+}
+
+function moModalPluginTheoKenh(idx){
+  const k = KQX_SPY[idx];
+  if(!k) return;
+  const p = DS_PLUGINS.find(x => x.id === k.plugin_id) || {
+    id: k.plugin_id || ('kenh_' + idx),
+    kenh_ten: k.kenh_ten,
+    kenh_url: k.kenh_url,
+    thumb: k.video_viral?.anh || '',
+    sub: k.sub,
+    view_tb: k.view_tb,
+    ngay_tao: 'Vừa quét',
+    nhan_vat: {
+      prompt_nhan_vat: k.visual_dna?.prompt_tao_anh || k.master_prompts?.image_prompt || '',
+      negative_prompt: k.visual_dna?.negative_prompt || '',
+      dac_diem: 'Nhân vật biếm họa 2D dark gritty'
+    },
+    boi_canh: {
+      art_style: k.visual_dna?.art_style || '',
+      bang_mau: k.bang_mau || [],
+      khong_gian: ''
+    },
+    kich_ban: {
+      ngoi_ke: k.giai_ma_kich_ban?.ngoi_ke || "Ngôi thứ hai ('Bạn')",
+      nhip_cam_xuc: k.giai_ma_kich_ban?.nhip_cam_xuc || '',
+      prompt_viet: k.master_prompts?.script_prompt || '',
+      hook_mau: k.giai_ma_kich_ban?.hook_30s || ''
+    },
+    am_thanh: {
+      the_loai: k.am_thanh?.the_loai || '',
+      bpm: k.am_thanh?.bpm || '',
+      sfx: k.am_thanh?.sfx || [],
+      prompt_suno: k.am_thanh?.prompt_suno || ''
+    }
+  };
+  moModalPlugin(p);
+}
+
+function moModalPlugin(pl){
+  HIEN_TAI_PLUGIN = JSON.parse(JSON.stringify(pl));
+  $('#mpl_ten').textContent = pl.kenh_ten || 'Plugin kênh';
+  $('#mpl_sub').textContent = `ID: ${pl.id} · Cập nhật: ${pl.ngay_tao || '—'} · Sub: ${so(pl.sub)}`;
+  $('#mpl_thumb').src = pl.thumb || '';
+  
+  const cs = pl.chi_so_kich_ban || {so_tu_tb: 480, thoi_luong_tb_phut: 3.0, toc_do_wpm: 160, thoi_luong_tb_giay: 180};
+  const soTu = cs.so_tu_tb || 480;
+  const phut = cs.thoi_luong_tb_phut || (soTu / 160).toFixed(1);
+  const wpm = cs.toc_do_wpm || 160;
+
+  $('#mpl_stats_badge').textContent = `📊 ~${soTu} từ/kịch bản (${phut} phút)`;
+  $('#mpl_new_wpm_badge').textContent = `Tốc độ đọc: ~${wpm} từ/phút · TB ${phut} phút`;
+  $('#mpl_so_tu_moi').value = soTu;
+  $('#mpl_so_tu_lai').value = soTu;
+  $('#mpl_tg_moi').textContent = `~${phut} phút`;
+  
+  // Render quick topics
+  const topics = pl.de_tai_viral || [];
+  const qList = $('#mpl_quick_topics_list');
+  if(topics.length){
+    qList.innerHTML = topics.map(t=>`
+      <button class="p" type="button" style="font-size:11.5px;padding:4px 9px;border-radius:6px;text-align:left;background:var(--card)" onclick="dienDeTaiMoi('${esc(t.tieu_de).replace(/'/g, "\\'")}')">
+        💡 <b>${esc(t.loai)}:</b> ${esc(t.tieu_de)}
+      </button>
+    `).join('');
+    $('#mpl_box_quick_topics').style.display = 'block';
+  } else {
+    $('#mpl_box_quick_topics').style.display = 'none';
+  }
+
+  // Framework description
+  const ctk = pl.cach_trien_khai || {};
+  $('#mpl_mach_truyen_desc').innerHTML = `<b>Cách triển khai đặc trưng:</b> ${esc(ctk.cau_truc_mach_truyen || '6 nhịp kinh điển (Hook -> Cám dỗ -> Trượt dốc -> Đổ vỡ -> Thức tỉnh -> Bài học)')}`;
+
+  // Fill tab Edit
+  $('#mpl_prompt_nhan_vat').value = pl.nhan_vat?.prompt_nhan_vat || '';
+  $('#mpl_negative_prompt').value = pl.nhan_vat?.negative_prompt || '';
+  $('#mpl_art_style').value = pl.boi_canh?.art_style || '';
+  $('#mpl_bang_mau').value = (pl.boi_canh?.bang_mau || []).join(', ');
+  $('#mpl_ngoi_ke').value = pl.kich_ban?.ngoi_ke || '';
+  $('#mpl_nhip_cam_xuc').value = pl.kich_ban?.nhip_cam_xuc || '';
+  $('#mpl_prompt_viet').value = pl.kich_ban?.prompt_viet || '';
+  $('#mpl_edit_so_tu_tb').value = soTu;
+  $('#mpl_edit_thoi_luong_giay').value = cs.thoi_luong_tb_giay || 180;
+  $('#mpl_edit_wpm').value = wpm;
+  $('#mpl_am_thanh_the_loai').value = pl.am_thanh?.the_loai || '';
+  $('#mpl_am_thanh_bpm').value = pl.am_thanh?.bpm || '';
+  $('#mpl_am_thanh_sfx').value = (pl.am_thanh?.sfx || []).join(', ');
+  $('#mpl_prompt_suno').value = pl.am_thanh?.prompt_suno || '';
+
+  // Reset tab Rewrite & New
+  $('#tt_viet_lai').textContent = '';
+  $('#tt_viet_lai').classList.remove('hien');
+  $('#box_kq_viet_lai').style.display = 'none';
+  $('#mpl_kb_ra').value = '';
+
+  $('#tt_viet_moi').textContent = '';
+  $('#tt_viet_moi').classList.remove('hien');
+  $('#box_dan_bai').style.display = 'none';
+  $('#mpl_dan_bai_text').value = '';
+  $('#box_kq_viet_moi').style.display = 'none';
+  $('#mpl_kb_moi_ra').value = '';
+
+  capNhatUocTinhThoiLuong();
+  chuyenMplTab('new');
+  $('#modal_plugin').style.display = 'flex';
+}
+
+function capNhatUocTinhThoiLuong(){
+  const soTu = +$('#mpl_so_tu_moi').value || 500;
+  const wpm = HIEN_TAI_PLUGIN?.chi_so_kich_ban?.toc_do_wpm || 160;
+  const phut = (soTu / wpm).toFixed(1);
+  $('#mpl_tg_moi').textContent = `~${phut} phút`;
+}
+
+function dongModalPlugin(){
+  $('#modal_plugin').style.display = 'none';
+}
+
+function chuyenMplTab(tab){
+  $('#btn_mpl_tab_new').classList.toggle('on', tab==='new');
+  $('#btn_mpl_tab_rewrite').classList.toggle('on', tab==='rewrite');
+  $('#btn_mpl_tab_edit').classList.toggle('on', tab==='edit');
+  $('#mpl_pane_new').style.display = tab==='new' ? 'block' : 'none';
+  $('#mpl_pane_rewrite').style.display = tab==='rewrite' ? 'block' : 'none';
+  $('#mpl_pane_edit').style.display = tab==='edit' ? 'block' : 'none';
+}
+
+function dienDeTaiMoi(tieuDe){
+  $('#mpl_tieu_de_moi').value = tieuDe;
+  tb('Đã chọn đề tài: ' + tieuDe.slice(0, 35) + '…');
+}
+
+async function chayLapDanBai(){
+  const tieuDe = $('#mpl_tieu_de_moi').value.trim();
+  if(!tieuDe){
+    alert('Vui lòng nhập tiêu đề hoặc ý tưởng kịch bản mới.');
+    $('#mpl_tieu_de_moi').focus();
+    return;
+  }
+  const soTu = +$('#mpl_so_tu_moi').value || HIEN_TAI_PLUGIN?.chi_so_kich_ban?.so_tu_tb || 500;
+  const nut1 = $('#nut_chay_lap_dan_bai');
+  const nutMoi = $('#nut_chay_viet_moi');
+  const tt = $('#tt_viet_moi');
+  nut1.disabled = true;
+  nutMoi.disabled = true;
+  tt.classList.add('hien');
+  tt.textContent = `Đang phân tích phong cách đối thủ & lên dàn bài chuẩn ${soTu} từ…`;
+  $('#box_dan_bai').style.display = 'none';
+
+  try{
+    const r = await post('/api/doi_thu/plugin/lap_dan_bai', {
+      tieu_de: tieuDe,
+      plugin: HIEN_TAI_PLUGIN,
+      so_tu: soTu
+    });
+    await cho(r.job, tt, kq=>{
+      tt.textContent = `✅ Đã lập xong dàn bài gồm ${kq.so_phan} phần! Bạn có thể xem/chỉnh sửa nội dung từng phần bên dưới, sau đó bấm "Bước 2: Viết Kịch Bản Từng Phần".`;
+      $('#box_dan_bai').style.display = 'block';
+      $('#mpl_dan_bai_text').value = kq.dan_bai_text || '';
+      $('#box_dan_bai').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+    });
+  }catch(e){
+    tt.textContent = 'Lỗi lập dàn bài: ' + e.message;
+  }finally{
+    nut1.disabled = false;
+    nutMoi.disabled = false;
+  }
+}
+
+async function chayVietTheoDanBai(){
+  const tieuDe = $('#mpl_tieu_de_moi').value.trim();
+  const danBai = $('#mpl_dan_bai_text').value.trim();
+  if(!danBai){
+    alert('Chưa có dàn bài. Vui lòng bấm "Bước 1: Lập Dàn Bài" trước hoặc nhập dàn bài.');
+    return;
+  }
+  const soTu = +$('#mpl_so_tu_moi').value || HIEN_TAI_PLUGIN?.chi_so_kich_ban?.so_tu_tb || 500;
+  const nut2 = $('#nut_chay_viet_theo_dan_bai');
+  const nutMoi = $('#nut_chay_viet_moi');
+  const tt = $('#tt_viet_moi');
+  nut2.disabled = true;
+  nutMoi.disabled = true;
+  tt.classList.add('hien');
+  tt.textContent = 'Đang xử lý viết từng phần theo phong cách đối thủ…';
+  $('#box_kq_viet_moi').style.display = 'none';
+
+  try{
+    const r = await post('/api/doi_thu/plugin/viet_theo_dan_bai', {
+      tieu_de: tieuDe,
+      dan_bai: danBai,
+      plugin: HIEN_TAI_PLUGIN,
+      so_tu: soTu
+    });
+    await cho(r.job, tt, kq=>{
+      tt.textContent = '✅ Đã hoàn thành viết kịch bản hoàn chỉnh thuần đọc!';
+      $('#box_kq_viet_moi').style.display = 'block';
+      $('#mpl_kb_moi_ra').value = kq;
+      const count = kq.split(/\s+/).filter(Boolean).length;
+      $('#mpl_dem_tu_moi').textContent = `${count} từ (Mục tiêu: ~${soTu})`;
+      $('#box_kq_viet_moi').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+    });
+  }catch(e){
+    tt.textContent = 'Lỗi viết kịch bản: ' + e.message;
+  }finally{
+    nut2.disabled = false;
+    nutMoi.disabled = false;
+  }
+}
+
+async function chayVietMoiKichBan(){
+  const tieuDe = $('#mpl_tieu_de_moi').value.trim();
+  if(!tieuDe){
+    alert('Vui lòng nhập tiêu đề hoặc ý tưởng kịch bản mới.');
+    $('#mpl_tieu_de_moi').focus();
+    return;
+  }
+  const soTu = +$('#mpl_so_tu_moi').value || HIEN_TAI_PLUGIN?.chi_so_kich_ban?.so_tu_tb || 500;
+  const nut1 = $('#nut_chay_lap_dan_bai');
+  const nutMoi = $('#nut_chay_viet_moi');
+  const tt = $('#tt_viet_moi');
+  if(nut1) nut1.disabled = true;
+  nutMoi.disabled = true;
+  tt.classList.add('hien');
+  tt.textContent = `Đang tự động lập dàn bài & chấp bút từng phần chuẩn ${soTu} từ theo kênh đối thủ…`;
+  $('#box_kq_viet_moi').style.display = 'none';
+
+  try{
+    const r = await post('/api/doi_thu/plugin/viet_moi', {
+      tieu_de: tieuDe,
+      plugin: HIEN_TAI_PLUGIN,
+      so_tu: soTu
+    });
+    await cho(r.job, tt, kq=>{
+      tt.textContent = '✅ Đã hoàn thành kịch bản thuần đọc trọn gói!';
+      $('#box_kq_viet_moi').style.display = 'block';
+      $('#mpl_kb_moi_ra').value = kq;
+      const count = kq.split(/\s+/).filter(Boolean).length;
+      $('#mpl_dem_tu_moi').textContent = `${count} từ (Mục tiêu: ~${soTu})`;
+      $('#box_kq_viet_moi').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+    });
+  }catch(e){
+    tt.textContent = 'Lỗi: ' + e.message;
+  }finally{
+    if(nut1) nut1.disabled = false;
+    nutMoi.disabled = false;
+  }
+}
+
+async function luuKichBanMoi(){
+  const noiDung = $('#mpl_kb_moi_ra').value.trim();
+  if(!noiDung){
+    alert('Chưa có kịch bản mới để lưu.');
+    return;
+  }
+  const tieuDe = ($('#mpl_tieu_de_moi').value.trim() || 'kb_moi').toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 30);
+  const macDinh = 'kb_moi_' + tieuDe + '_' + Date.now().toString().slice(-4);
+  const ten = prompt('Đặt tên file kịch bản mới (không dấu):', macDinh);
+  if(!ten) return;
+  try{
+    const r = await post('/api/doi_thu/luu_kich_ban', {ten: ten, noi_dung: noiDung});
+    tb('Đã lưu kịch bản vào: ' + r.tep);
+  }catch(e){
+    alert('Lỗi lưu kịch bản: ' + e.message);
+  }
+}
+
+async function luuModalPlugin(){
+  if(!HIEN_TAI_PLUGIN) return;
+  const soTuMoi = +$('#mpl_edit_so_tu_tb').value || 480;
+  const giayMoi = +$('#mpl_edit_thoi_luong_giay').value || 180;
+  const wpmMoi = +$('#mpl_edit_wpm').value || 160;
+
+  const pl = {
+    ...HIEN_TAI_PLUGIN,
+    chi_so_kich_ban: {
+      ...(HIEN_TAI_PLUGIN.chi_so_kich_ban||{}),
+      so_tu_tb: soTuMoi,
+      thoi_luong_tb_giay: giayMoi,
+      thoi_luong_tb_phut: round(giayMoi / 60, 1),
+      toc_do_wpm: wpmMoi
+    },
+    nhan_vat: {
+      ...(HIEN_TAI_PLUGIN.nhan_vat||{}),
+      prompt_nhan_vat: $('#mpl_prompt_nhan_vat').value.trim(),
+      negative_prompt: $('#mpl_negative_prompt').value.trim()
+    },
+    boi_canh: {
+      ...(HIEN_TAI_PLUGIN.boi_canh||{}),
+      art_style: $('#mpl_art_style').value.trim(),
+      bang_mau: $('#mpl_bang_mau').value.split(',').map(s=>s.trim()).filter(Boolean)
+    },
+    kich_ban: {
+      ...(HIEN_TAI_PLUGIN.kich_ban||{}),
+      ngoi_ke: $('#mpl_ngoi_ke').value.trim(),
+      nhip_cam_xuc: $('#mpl_nhip_cam_xuc').value.trim(),
+      prompt_viet: $('#mpl_prompt_viet').value.trim()
+    },
+    am_thanh: {
+      ...(HIEN_TAI_PLUGIN.am_thanh||{}),
+      the_loai: $('#mpl_am_thanh_the_loai').value.trim(),
+      bpm: $('#mpl_am_thanh_bpm').value.trim(),
+      sfx: $('#mpl_am_thanh_sfx').value.split(',').map(s=>s.trim()).filter(Boolean),
+      prompt_suno: $('#mpl_prompt_suno').value.trim()
+    }
+  };
+
+  try{
+    await post('/api/doi_thu/plugin/luu', pl);
+    HIEN_TAI_PLUGIN = pl;
+    tb('Đã lưu cập nhật bộ Plugin thành công!');
+    await taiDanhSachPlugin();
+  }catch(e){
+    alert('Lỗi lưu plugin: ' + e.message);
+  }
+}
+
+async function xoaPlugin(id, e){
+  if(e) e.stopPropagation();
+  if(!confirm(`Bạn có chắc chắn muốn xóa bộ Plugin [${id}] này không?`)) return;
+  try{
+    await post('/api/doi_thu/plugin/xoa', {id: id});
+    tb(`Đã xóa bộ Plugin ${id}`);
+    await taiDanhSachPlugin();
+    if(HIEN_TAI_PLUGIN?.id === id) dongModalPlugin();
+  }catch(e){
+    alert('Lỗi xóa plugin: ' + e.message);
+  }
+}
+
+async function chayVietLaiKichBan(){
+  const kb_goc = $('#mpl_kb_goc').value.trim();
+  if(!kb_goc){
+    alert('Vui lòng dán kịch bản gốc bạn muốn viết lại vào ô nhập.');
+    return;
+  }
+  const soTu = +$('#mpl_so_tu_lai').value || HIEN_TAI_PLUGIN?.chi_so_kich_ban?.so_tu_tb || 500;
+  const nut = $('#nut_chay_viet_lai');
+  const tt = $('#tt_viet_lai');
+  nut.disabled = true;
+  tt.classList.add('hien');
+  tt.textContent = 'Đang phân tích cốt lõi kịch bản & chuyển thể thuần đọc chuẩn số từ…';
+  $('#box_kq_viet_lai').style.display = 'none';
+
+  try{
+    const r = await post('/api/doi_thu/plugin/viet_lai', {
+      kich_ban_goc: kb_goc,
+      plugin: HIEN_TAI_PLUGIN,
+      so_tu: soTu
+    });
+    await cho(r.job, tt, kq=>{
+      tt.textContent = '✅ Đã hoàn thành viết lại kịch bản thuần đọc!';
+      $('#box_kq_viet_lai').style.display = 'block';
+      $('#mpl_kb_ra').value = kq;
+      const count = kq.split(/\s+/).filter(Boolean).length;
+      $('#mpl_dem_tu_lai').textContent = `${count} từ (Mục tiêu: ~${soTu})`;
+      $('#box_kq_viet_lai').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+    });
+  }catch(e){
+    tt.textContent = 'Lỗi: ' + e.message;
+  }finally{
+    nut.disabled = false;
+  }
+}
+
+async function luuKichBanChuyenThe(){
+  const noiDung = $('#mpl_kb_ra').value.trim();
+  if(!noiDung){
+    alert('Chưa có kịch bản chuyển thể để lưu.');
+    return;
+  }
+  const tenKenh = (HIEN_TAI_PLUGIN?.kenh_ten || 'chuyen_the').toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  const macDinh = 'kb_' + tenKenh + '_' + Date.now().toString().slice(-4);
+  const ten = prompt('Đặt tên file kịch bản mới (không dấu):', macDinh);
+  if(!ten) return;
+  try{
+    const r = await post('/api/doi_thu/luu_kich_ban', {ten: ten, noi_dung: noiDung});
+    tb('Đã lưu kịch bản vào: ' + r.tep);
+  }catch(e){
+    alert('Lỗi lưu kịch bản: ' + e.message);
+  }
+}
+
+// Tự động tải danh sách plugin khi mở trang
+taiDanhSachPlugin();
+
+// ================= GIỮ NGUYÊN CODE CŨ: TAB 1 & TAB 2 =================
 function bang(ds,cot,id){
   const th=cot.map((c,k)=>`<th data-k="${k}">${c[0]}</th>`).join('');
   const tr=ds.map(x=>'<tr>'+cot.map(c=>`<td class="${c[2]||''}">${c[1](x)}</td>`).join('')+'</tr>').join('');
@@ -82,6 +1082,7 @@ function choSapXep(id,ds,cot,ve){const t=$('#'+id);if(!t)return;t.querySelectorA
 function bieu(gt,nhan,mau){const max=Math.max(1,...gt.map(g=>g.so));
   return `<div><div class="bieu" style="grid-template-columns:repeat(${gt.length},1fr)">${gt.map((g,k)=>`<div class="cot" title="${nhan[k]}: ${g.so} video · view TB ${so(g.view_tb)}" style="height:${100*g.so/max}%;${g.so?'':'opacity:.15'}"></div>`).join('')}</div>
   <div class="nhan" style="grid-template-columns:repeat(${gt.length},1fr)">${nhan.map(n=>`<span>${n}</span>`).join('')}</div></div>`}
+
 // 1. giờ đăng
 $('#quet').onclick=async()=>{const ds=$('#kenh').value.split(/\n|,/).map(s=>s.trim()).filter(Boolean);if(!ds.length)return;
   $('#quet').disabled=true;$('#kq1').innerHTML='';
@@ -100,6 +1101,7 @@ $('#quet').onclick=async()=>{const ds=$('#kenh').value.split(/\n|,/).map(s=>s.tr
           <div class="cuon bang"></div>`;ve()})}
     catch(e){box.textContent='Lỗi: '+e.message}}
   $('#quet').disabled=false};
+
 // 2. đột biến
 let kq2=[];
 const cot2=[['Ảnh',x=>x.anh?`<img src="${esc(x.anh)}" style="width:120px;border-radius:4px" loading="lazy">`:''],
@@ -118,12 +1120,12 @@ $('#tim').onclick=async()=>{const tk=$('#tu_khoa').value.split(/\n|,/).map(s=>s.
   $('#tim').disabled=false};
 $('#ai_tk').onclick=async()=>{const k=$('#kenh_tk').value.trim();if(!k)return;$('#ai_tk').disabled=true;
   try{const r=await post('/api/doi_thu/tu_khoa',{kenh:k});await cho(r.job,$('#tt2'),kq=>{
-    $('#tu_khoa').value=kq.tu_khoa_en.join(', ');$('#ngach').innerHTML=`Kênh <b>${esc(kq.kenh)}</b> (${kq.so_video} video) — ngách: <b>${esc(kq.ngach)}</b>. Sửa từ khoá nếu cần rồi bấm Tìm.`;
+    $('#ngach').innerHTML=`Kênh: <b>${esc(kq.kenh)}</b> (${kq.so_video} video) — ngách: <b>${esc(kq.ngach)}</b>. Sửa từ khoá nếu cần rồi bấm Tìm.`;
     $('#tt2').textContent=`AI đề xuất ${kq.tu_khoa_en.length} từ khoá tiếng Anh`})}catch(e){$('#tt2').textContent='Lỗi: '+e.message}
   $('#ai_tk').disabled=false};
 $('#csv2').onclick=()=>{const h=['link','tieu_de','kenh','sub','view','he_so','view_ngay','tuong_tac_pt','dang_vn','tuoi_ngay'];
   const d=kq2.map(x=>['https://youtu.be/'+x.id,x.tieu_de,x.kenh,x.sub,x.view,x.he_so,x.view_ngay,x.tuong_tac,x.gio_vn,x.tuoi_ngay].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['﻿'+[h.join(','),...d].join('\n')],{type:'text/csv'}));a.download='video_dot_bien.csv';a.click()};
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+[h.join(','),...d].join('\n')],{type:'text/csv'}));a.download='video_dot_bien.csv';a.click()};
 </script>
 </body>
 </html>

@@ -1,0 +1,65 @@
+{
+  "id": "lanhvcl",
+  "kenh_ten": "@Lanhvcl",
+  "kenh_url": "https://www.youtube.com/@Lanhvcl",
+  "thumb": "https://i.ytimg.com/vi/sample/hqdefault.jpg",
+  "sub": 142000,
+  "view_tb": 125000,
+  "ngay_tao": "25/10/2026 07:15",
+  "chi_so_kich_ban": {
+    "so_tu_tb": 480,
+    "thoi_luong_tb_giay": 185,
+    "thoi_luong_tb_phut": 3.1,
+    "toc_do_wpm": 155,
+    "so_tu_viral": 465
+  },
+  "cach_trien_khai": {
+    "cau_truc_mach_truyen": "6 nhịp kinh điển: Hook 3s nghẹt thở -> Mồi nhử cám dỗ & lời bao biện -> Cú trượt dốc dopamine -> Điểm rơi đổ vỡ tại điểm 0 -> Khoảnh khắc thức tỉnh trong bẽ bàng -> Đúc kết bài học đường phố.",
+    "so_canh_tb": 24,
+    "nhip_ngat_cau": "Dưới 8 từ mỗi câu, ngắt bằng dấu chấm, lồng tiếng thì thầm nội tâm TEXT_SHADOW"
+  },
+  "de_tai_viral": [
+    {"loai": "Phần tiếp theo", "tieu_de": "Hậu truyện sau khi bạn tưởng mình đã thoát nạn: Cái giá của sự chủ quan"},
+    {"loai": "Góc nhìn đảo ngược", "tieu_de": "Tại sao người cố gắng sống tử tế nhất lại là người bị cướp sạch đầu tiên?"},
+    {"loai": "Mức độ cực hạn", "tieu_de": "Khi cái giá không còn là tiền: Sự thật tàn khốc sau 365 ngày chôn vùi lương tâm"},
+    {"loai": "Đối kháng X vs Y", "tieu_de": "Kẻ cam chịu số phận vs Người bất chấp tất cả: 1 năm sau"},
+    {"loai": "Giải phẫu tâm lý", "tieu_de": "Cơn nghiện ảo giác: Tại sao bạn biết mình sai nhưng vẫn bấm chọn bước tiếp?"}
+  ],
+  "nhan_vat": {
+    "prompt_nhan_vat": "2D minimalist cartoon animation style, webcomic meme caricature illustration, simple clean black outlines, MS Paint stick figure comic aesthetic. Iconic meme character with round white head, deadpan side-eye glance, small beauty mark, thin stick arms and legs, wearing a simple blue flat-color dress/shirt. Standing beside a 2D cartoon Vietnamese police officer in green uniform and peaked cap with red emblem. Flat solid colors, no complex shading, no photorealism, no 3D rendering --ar 16:9 --style raw",
+    "prompt_nhan_vat_dien_anh": "2D stylized graphic novel character, sharp clean ink linework, semi-realistic manhwa illustration. A young Asian person with neat dark hair, sharp clear eyes, calm focused expression, clean handsome facial features, wearing a modern stylish dark hoodie. Atmospheric dark moody cinematic background with dramatic rim light, high contrast, crisp clean look, no dark circles --ar 16:9 --style raw --v 6.1",
+    "negative_prompt": "tired sunken eyes, dark eye bags, haggard, zombie, drug addict, emaciated, messy unkempt hair, dirty clothes, ugly face, distorted facial features, hyper-realistic wrinkles, elderly, deformed limbs, blurry",
+    "dac_diem": "Nhân vật hoạt hình 2D tối giản phong cách meme Lạnh Vcl (đầu tròn trắng, mắt liếc meme hài hước, thân người que váy xanh) HOẶC nhân vật 2D manhwa sắc nét, sáng sủa, không quầng thâm mắt"
+  },
+  "boi_canh": {
+    "art_style": "2D Minimalist Webcomic Meme / Stickman (Phong cách hoạt hình tối giản Lạnh Vcl)",
+    "art_style_dien_anh": "2D Dark Gritty Comic / Graphic Novel (Bối cảnh điện ảnh sắc nét, ánh sáng tương phản)",
+    "bang_mau": [
+      "#faeed9",
+      "#222222",
+      "#d8e1e8",
+      "#2563eb",
+      "#15803d"
+    ],
+    "khong_gian": "Bối cảnh 2D tối giản mảng phẳng (phòng giam số 36, bàn thẩm vấn, phòng trọ) với tông màu be ấm và xám đen"
+  },
+  "kich_ban": {
+    "ngoi_ke": "Ngôi thứ hai (BẠN)",
+    "nhip_cam_xuc": "6 nhịp kinh điển: Khởi đầu bình thường -> Lời cám dỗ thì thầm -> Cú trượt dốc dopamine -> Đổ vỡ tại điểm 0 -> Thức tỉnh trong đau đớn -> Bài học đường phố",
+    "hook_mau": "Bạn biết rõ ngày mai sẽ phải trả giá. Nhưng đêm nay là của mày. Cứ hưởng thụ đi.",
+    "prompt_viet": "Đóng vai biên kịch triệu view phong cách kênh @Lanhvcl. Viết kịch bản tự sự ngôi thứ hai ('Bạn'). Câu văn ngắn dưới 8 từ, ngắt nhịp liên tục bằng dấu chấm. Giọng văn trầm, trần trụi, chân thực đến gai người, kết hợp tuyến giọng cám dỗ thì thầm. Mọi diễn biến tâm lý phải gắn liền với hành động vật lý cụ thể.",
+    "super_script": ""
+  },
+  "am_thanh": {
+    "the_loai": "Dark Tension Ambient Drone & Sparse Felt Piano",
+    "bpm": "64 BPM",
+    "sfx": [
+      "Tiếng quẹt màn hình điện thoại",
+      "Tiếng chuông tin nhắn Facebook",
+      "Tiếng tích tắc đồng hồ kim",
+      "Tiếng thở dài",
+      "Khoảng lặng 0-dB Silence Drop"
+    ],
+    "prompt_suno": "Dark ambient tension drone, subtle low sub-bass pulse, felt upright piano sparse notes, mechanical clock ticking, sudden drop to total silence at dramatic reveals."
+  }
+}

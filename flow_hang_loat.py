@@ -226,7 +226,7 @@ class FlowBatchRunner:
         tài khoản Gemini cookie dùng được; tối đa 8."""
         try:
             if flow_ve.co_ho_so():
-                return max(1, min(8, flow_ve.so_ho_so_dung_duoc()))
+                return flow_ve.so_luong_ve()       # 25/10: mỗi hồ sơ nhiều lượt cùng lúc
             import chinh_sua.anh_ve as av
             return max(1, min(8, av.so_luong_ve()))
         except Exception:                                    # noqa: BLE001

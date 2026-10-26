@@ -1,0 +1,378 @@
+{
+ "id": "minh_nhan_vat_chinh",
+ "ten": "Minh (nhân vật chính)",
+ "mo_ta": "nhân vật chính 'bạn', 28 tuổi, sống tử tế nhưng hay bị lợi dụng",
+ "hinh": {
+  "toc": "rua",
+  "mau_toc": "#1c1c1c",
+  "mau_da": "#fbfaf5",
+  "ao": "phong",
+  "mau_ao": "#6f8ea8",
+  "mau_quan": "#2b3046",
+  "mau_giay": "#1a1a1a"
+ },
+ "bien_the": [
+  {
+   "id": "cuoi_173507_1",
+   "tu_the": "cuoi",
+   "ten": "Cười vui",
+   "mo_ta_en": "Pose: standing relaxed, one hand raised waving. Expression: happy open smile.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\cuoi_173507_1.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\cuoi_173507_1_trong.png",
+   "tt": "duyet",
+   "luc": 1792924558.0486653
+  },
+  {
+   "id": "cuoi_173507_2",
+   "tu_the": "cuoi",
+   "ten": "Cười vui",
+   "mo_ta_en": "Pose: standing relaxed, one hand raised waving. Expression: happy open smile.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\cuoi_173507_2.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\cuoi_173507_2_trong.png",
+   "tt": "cho",
+   "luc": 1792924562.106419
+  },
+  {
+   "id": "dung_binh_thuong_173507_1",
+   "tu_the": "dung_binh_thuong",
+   "ten": "Đứng bình thường",
+   "mo_ta_en": "Pose: standing still, arms down. Expression: neutral deadpan.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\dung_binh_thuong_173507_1.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\dung_binh_thuong_173507_1_trong.png",
+   "tt": "duyet",
+   "luc": 1792924562.2709758
+  },
+  {
+   "id": "dung_binh_thuong_173507_2",
+   "tu_the": "dung_binh_thuong",
+   "ten": "Đứng bình thường",
+   "mo_ta_en": "Pose: standing still, arms down. Expression: neutral deadpan.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\dung_binh_thuong_173507_2.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\dung_binh_thuong_173507_2_trong.png",
+   "tt": "cho",
+   "luc": 1792924566.007383
+  },
+  {
+   "id": "khoanh_tay_173507_1",
+   "tu_the": "khoanh_tay",
+   "ten": "Khoanh tay",
+   "mo_ta_en": "Pose: arms crossed over the chest. Expression: unimpressed deadpan.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\khoanh_tay_173507_1.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\khoanh_tay_173507_1_trong.png",
+   "tt": "duyet",
+   "luc": 1792924564.419635
+  },
+  {
+   "id": "khoanh_tay_173507_2",
+   "tu_the": "khoanh_tay",
+   "ten": "Khoanh tay",
+   "mo_ta_en": "Pose: arms crossed over the chest. Expression: unimpressed deadpan.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\khoanh_tay_173507_2.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\khoanh_tay_173507_2_trong.png",
+   "tt": "cho",
+   "luc": 1792924568.3060036
+  },
+  {
+   "id": "gian_chi_tay_173507_1",
+   "tu_the": "gian_chi_tay",
+   "ten": "Giận chỉ tay",
+   "mo_ta_en": "Pose: pointing forward angrily with one arm stretched out, other hand on hip. Expression: angry frown.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\gian_chi_tay_173507_1.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\gian_chi_tay_173507_1_trong.png",
+   "tt": "duyet",
+   "luc": 1792924566.3589213
+  },
+  {
+   "id": "gian_chi_tay_173507_2",
+   "tu_the": "gian_chi_tay",
+   "ten": "Giận chỉ tay",
+   "mo_ta_en": "Pose: pointing forward angrily with one arm stretched out, other hand on hip. Expression: angry frown.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\gian_chi_tay_173507_2.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\gian_chi_tay_173507_2_trong.png",
+   "tt": "cho",
+   "luc": 1792924569.8782215
+  },
+  {
+   "id": "cui_chao_173507_1",
+   "tu_the": "cui_chao",
+   "ten": "Cúi chào lễ phép",
+   "mo_ta_en": "Pose: bowing politely from the waist, hands together in front. Expression: polite small smile.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\cui_chao_173507_1.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\cui_chao_173507_1_trong.png",
+   "tt": "duyet",
+   "luc": 1792924570.8620408
+  },
+  {
+   "id": "cui_chao_173507_2",
+   "tu_the": "cui_chao",
+   "ten": "Cúi chào lễ phép",
+   "mo_ta_en": "Pose: bowing politely from the waist, hands together in front. Expression: polite small smile.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\cui_chao_173507_2.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\cui_chao_173507_2_trong.png",
+   "tt": "cho",
+   "luc": 1792924575.7994788
+  },
+  {
+   "id": "cuoi_meo_173507_1",
+   "tu_the": "cuoi_meo",
+   "ten": "Cười méo gượng",
+   "mo_ta_en": "Pose: standing stiffly, hands clasped in front. Expression: forced awkward crooked smile, a sweat drop.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\cuoi_meo_173507_1.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\cuoi_meo_173507_1_trong.png",
+   "tt": "duyet",
+   "luc": 1792924575.1487844
+  },
+  {
+   "id": "cuoi_meo_173507_2",
+   "tu_the": "cuoi_meo",
+   "ten": "Cười méo gượng",
+   "mo_ta_en": "Pose: standing stiffly, hands clasped in front. Expression: forced awkward crooked smile, a sweat drop.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\cuoi_meo_173507_2.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\cuoi_meo_173507_2_trong.png",
+   "tt": "cho",
+   "luc": 1792924580.866233
+  },
+  {
+   "id": "nhun_vai_173507_1",
+   "tu_the": "nhun_vai",
+   "ten": "Nhún vai",
+   "mo_ta_en": "Pose: shrugging with both palms up. Expression: helpless half smile.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\nhun_vai_173507_1.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\nhun_vai_173507_1_trong.png",
+   "tt": "duyet",
+   "luc": 1792924576.5493422
+  },
+  {
+   "id": "nhun_vai_173507_2",
+   "tu_the": "nhun_vai",
+   "ten": "Nhún vai",
+   "mo_ta_en": "Pose: shrugging with both palms up. Expression: helpless half smile.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\nhun_vai_173507_2.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\nhun_vai_173507_2_trong.png",
+   "tt": "cho",
+   "luc": 1792924581.001404
+  },
+  {
+   "id": "chay_173507_1",
+   "tu_the": "chay",
+   "ten": "Chạy vội",
+   "mo_ta_en": "Pose: running fast to the right, leaning forward. Expression: worried.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\chay_173507_1.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\chay_173507_1_trong.png",
+   "tt": "duyet",
+   "luc": 1792924575.9830933
+  },
+  {
+   "id": "chay_173507_2",
+   "tu_the": "chay",
+   "ten": "Chạy vội",
+   "mo_ta_en": "Pose: running fast to the right, leaning forward. Expression: worried.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\chay_173507_2.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\chay_173507_2_trong.png",
+   "tt": "cho",
+   "luc": 1792924581.4038131
+  },
+  {
+   "id": "soc_173507_1",
+   "tu_the": "soc",
+   "ten": "Sốc",
+   "mo_ta_en": "Pose: leaning back, both hands up in shock. Expression: wide round eyes, open mouth.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\soc_173507_1.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\soc_173507_1_trong.png",
+   "tt": "duyet",
+   "luc": 1792924584.9539402
+  },
+  {
+   "id": "soc_173507_2",
+   "tu_the": "soc",
+   "ten": "Sốc",
+   "mo_ta_en": "Pose: leaning back, both hands up in shock. Expression: wide round eyes, open mouth.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\soc_173507_2.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\soc_173507_2_trong.png",
+   "tt": "cho",
+   "luc": 1792924589.7410526
+  },
+  {
+   "id": "dua_do_173507_1",
+   "tu_the": "dua_do",
+   "ten": "Đưa đồ cho người khác",
+   "mo_ta_en": "Pose: both arms stretched forward handing over a small box. Expression: reluctant.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\dua_do_173507_1.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\dua_do_173507_1_trong.png",
+   "tt": "duyet",
+   "luc": 1792924585.5552354
+  },
+  {
+   "id": "dua_do_173507_2",
+   "tu_the": "dua_do",
+   "ten": "Đưa đồ cho người khác",
+   "mo_ta_en": "Pose: both arms stretched forward handing over a small box. Expression: reluctant.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\dua_do_173507_2.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\dua_do_173507_2_trong.png",
+   "tt": "cho",
+   "luc": 1792924590.0085983
+  },
+  {
+   "id": "om_dau_173507_1",
+   "tu_the": "om_dau",
+   "ten": "Ôm đầu căng thẳng",
+   "mo_ta_en": "Pose: both hands gripping the head. Expression: stressed, worried, sweat drops.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\om_dau_173507_1.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\om_dau_173507_1_trong.png",
+   "tt": "duyet",
+   "luc": 1792924589.7567732
+  },
+  {
+   "id": "om_dau_173507_2",
+   "tu_the": "om_dau",
+   "ten": "Ôm đầu căng thẳng",
+   "mo_ta_en": "Pose: both hands gripping the head. Expression: stressed, worried, sweat drops.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\om_dau_173507_2.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\om_dau_173507_2_trong.png",
+   "tt": "cho",
+   "luc": 1792924593.5426414
+  },
+  {
+   "id": "ngoi_buon_173507_1",
+   "tu_the": "ngoi_buon",
+   "ten": "Ngồi buồn",
+   "mo_ta_en": "Pose: sitting on a small plastic stool, elbows on knees, head down. Expression: sad. Draw the stool too.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\ngoi_buon_173507_1.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\ngoi_buon_173507_1_trong.png",
+   "tt": "duyet",
+   "luc": 1792924591.6100905
+  },
+  {
+   "id": "ngoi_buon_173507_2",
+   "tu_the": "ngoi_buon",
+   "ten": "Ngồi buồn",
+   "mo_ta_en": "Pose: sitting on a small plastic stool, elbows on knees, head down. Expression: sad. Draw the stool too.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\ngoi_buon_173507_2.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\ngoi_buon_173507_2_trong.png",
+   "tt": "cho",
+   "luc": 1792924594.5937407
+  },
+  {
+   "id": "di_bo_173507_1",
+   "tu_the": "di_bo",
+   "ten": "Đi bộ",
+   "mo_ta_en": "Pose: walking to the right, mid-stride, arms swinging. Expression: neutral.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\di_bo_173507_1.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\di_bo_173507_1_trong.png",
+   "tt": "duyet",
+   "luc": 1792924593.0930667
+  },
+  {
+   "id": "di_bo_173507_2",
+   "tu_the": "di_bo",
+   "ten": "Đi bộ",
+   "mo_ta_en": "Pose: walking to the right, mid-stride, arms swinging. Expression: neutral.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\di_bo_173507_2.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\di_bo_173507_2_trong.png",
+   "tt": "cho",
+   "luc": 1792924594.9510646
+  },
+  {
+   "id": "quay_lung_173507_1",
+   "tu_the": "quay_lung",
+   "ten": "Quay lưng",
+   "mo_ta_en": "Pose: standing seen from behind (back view), head slightly down. Show the back of the hair, no face.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\quay_lung_173507_1.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\quay_lung_173507_1_trong.png",
+   "tt": "duyet",
+   "luc": 1792924809.8334348
+  },
+  {
+   "id": "quay_lung_173507_2",
+   "tu_the": "quay_lung",
+   "ten": "Quay lưng",
+   "mo_ta_en": "Pose: standing seen from behind (back view), head slightly down. Show the back of the hair, no face.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\quay_lung_173507_2.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\quay_lung_173507_2_trong.png",
+   "tt": "cho",
+   "luc": 1792924811.2116053
+  },
+  {
+   "id": "cui_dau_buon_173507_1",
+   "tu_the": "cui_dau_buon",
+   "ten": "Cúi đầu buồn",
+   "mo_ta_en": "Pose: head bowed low, shoulders slumped, arms hanging. Expression: sad, small frown.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\cui_dau_buon_173507_1.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\cui_dau_buon_173507_1_trong.png",
+   "tt": "duyet",
+   "luc": 1792924817.500469
+  },
+  {
+   "id": "cui_dau_buon_173507_2",
+   "tu_the": "cui_dau_buon",
+   "ten": "Cúi đầu buồn",
+   "mo_ta_en": "Pose: head bowed low, shoulders slumped, arms hanging. Expression: sad, small frown.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\cui_dau_buon_173507_2.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\cui_dau_buon_173507_2_trong.png",
+   "tt": "cho",
+   "luc": 1792924820.0518506
+  },
+  {
+   "id": "om_mat_khoc_173507_1",
+   "tu_the": "om_mat_khoc",
+   "ten": "Ôm mặt khóc",
+   "mo_ta_en": "Pose: both hands covering the face, body hunched. Expression: crying with tears.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\om_mat_khoc_173507_1.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\om_mat_khoc_173507_1_trong.png",
+   "tt": "duyet",
+   "luc": 1792924819.8198662
+  },
+  {
+   "id": "om_mat_khoc_173507_2",
+   "tu_the": "om_mat_khoc",
+   "ten": "Ôm mặt khóc",
+   "mo_ta_en": "Pose: both hands covering the face, body hunched. Expression: crying with tears.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\om_mat_khoc_173507_2.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\om_mat_khoc_173507_2_trong.png",
+   "tt": "cho",
+   "luc": 1792924822.2768137
+  },
+  {
+   "id": "cam_dien_thoai_173507_1",
+   "tu_the": "cam_dien_thoai",
+   "ten": "Cầm điện thoại",
+   "mo_ta_en": "Pose: holding a smartphone in front of the chest, looking down at it. Expression: neutral.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\cam_dien_thoai_173507_1.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\cam_dien_thoai_173507_1_trong.png",
+   "tt": "duyet",
+   "luc": 1792924822.3982306
+  },
+  {
+   "id": "cam_dien_thoai_173507_2",
+   "tu_the": "cam_dien_thoai",
+   "ten": "Cầm điện thoại",
+   "mo_ta_en": "Pose: holding a smartphone in front of the chest, looking down at it. Expression: neutral.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\cam_dien_thoai_173507_2.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\cam_dien_thoai_173507_2_trong.png",
+   "tt": "cho",
+   "luc": 1792924823.646404
+  },
+  {
+   "id": "dung_liec_173507_1",
+   "tu_the": "dung_liec",
+   "ten": "Đứng liếc mắt",
+   "mo_ta_en": "Pose: standing, arms down. Expression: bored deadpan side-eye glance to the side.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\dung_liec_173507_1.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\dung_liec_173507_1_trong.png",
+   "tt": "duyet",
+   "luc": 1792925126.9384015
+  },
+  {
+   "id": "dung_liec_173507_2",
+   "tu_the": "dung_liec",
+   "ten": "Đứng liếc mắt",
+   "mo_ta_en": "Pose: standing, arms down. Expression: bored deadpan side-eye glance to the side.",
+   "file": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\dung_liec_173507_2.png",
+   "trong": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\bt\\dung_liec_173507_2_trong.png",
+   "tt": "cho",
+   "luc": 1792925128.1813757
+  }
+ ],
+ "tao": 1792924498.3627002,
+ "phoi": "D:\\CapCutTTS\\bán-content\\kho_nhan_vat\\minh_nhan_vat_chinh\\phoi.png"
+}

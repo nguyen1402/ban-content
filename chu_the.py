@@ -312,6 +312,9 @@ def luu(du_an, ds, gan_tay=None, them=None, tk=None):
         da_goi_y = {k: {x["vi"] for x in vv if isinstance(x, dict) and x.get("goi_y")} for k, vv in tkc.items()}
         tkc = {k: [dict({"vi": c, "en": chuan_tk(dich.get(c, c))}, **({"goi_y": True} if c in da_goi_y.get(k, ()) else {}))
                    for c in v] for k, v in moi.items()}
+    con = {str(x.get("ten") or "").strip() for x in ds or [] if isinstance(x, dict)}
+    gt = {k: [t for t in v if t in con] for k, v in gt.items()}  # 25/10: gán tay trỏ chủ thể đã xoá -> bỏ (câu tự dò lại)
+    gt = {k: v for k, v in gt.items() if v}
     tt_cu = {x.get("ten"): x.get("trang_thai") or [] for x in cu.get("chu_the") or []}
     pv_cu = {x.get("ten"): x.get("pham_vi") for x in cu.get("chu_the") or [] if x.get("pham_vi")}
     ds = [dict(x, trang_thai=x.get("trang_thai") or tt_cu.get(str(x.get("ten") or "").strip(), []),
@@ -482,6 +485,36 @@ def gan_canh(canh, ds, tay=None):
     return ra
 
 
+def _doi_so_doan(du_an, cu, moi):
+    """25/10 user ("xoá chủ thể AI gợi ý rồi bấm lưu thì các phần dùng chủ thể ấy sẽ thế nào?"): chia lại đoạn ĐÁNH SỐ LẠI
+    từ 1, mà video trong kho gắn SỐ đoạn (m["chu_de"]) lúc tìm / tải -> xoá một chủ thể là video của nó bị tính cho chủ
+    thể KHÁC mang số đó (băm cảnh, cắt sát theo mô tả sai, máy tưởng đoạn mới đã đủ video). Dò lại theo TÊN chủ thể:
+    video của chủ thể còn -> số đoạn mới; của chủ thể đã xoá -> bỏ gắn (vẫn trong kho, dùng tay được; máy không tự lấy)."""
+    ten_cu = {d.get("id"): d.get("doi_tuong") or d.get("ten") for d in cu if d.get("id") is not None}
+    so_moi = {}
+    for d in moi:                                            # tên chủ thể -> đoạn giữ kho của nó (đoạn kể đầu tiên)
+        so_moi.setdefault(d.get("doi_tuong") or d.get("ten"), d.get("kho_cd") or d["id"])
+    if not ten_cu or all(so_moi.get(t) == i for i, t in ten_cu.items()):
+        return
+    import dung_tay
+    kho = doc_json(dung_tay._kho_path(du_an), {}) or {}     # noqa: SLF001
+    doi = bo = 0
+    for m in kho.values():
+        if m.get("chu_de") is None or m.get("chu_de") not in ten_cu:
+            continue
+        ten = ten_cu[m["chu_de"]]
+        moi_id = so_moi.get(ten)
+        if moi_id is None:
+            m["chu_de"], m["chu_the_da_xoa"] = None, ten
+            bo += 1
+        elif moi_id != m["chu_de"]:
+            m["chu_de"] = moi_id
+            doi += 1
+    if doi or bo:
+        dung_tay._ghi_kho(du_an, kho)                        # noqa: SLF001
+        log(f"[chủ thể] chia lại đoạn: {doi} video theo chủ thể sang số đoạn mới, {bo} video của chủ thể đã xoá bỏ gắn")
+
+
 def chia_doan(du_an, hoi_lai=False):
     """Chủ thể -> các đoạn (ghi chu_de.json, cùng khuôn với chu_de.py để máy tìm / tải / ghép dùng lại)."""
     ds = doc(du_an) if not hoi_lai else []
@@ -531,8 +564,9 @@ def chia_doan(du_an, hoi_lai=False):
                      "chi_tim": True, "so_dung": so, "canh_tu": -1, "canh_den": -2, "so_canh": 0, "dai": 0.0,
                      "bat_dau": 0.0, "ket_thuc": 0.0, "bang_chung": "", "tranh": ""})
         dau[k] = n
-    ghi_json(os.path.join(thu_muc_du_an(du_an)[1], "chu_de.json"),
-             {"_hash": _hash(canh), "nguon": "chu_the", "so_chu_de": len(doan), "chu_de": doan})
+    p_cd = os.path.join(thu_muc_du_an(du_an)[1], "chu_de.json")
+    _doi_so_doan(du_an, (doc_json(p_cd, {}) or {}).get("chu_de") or [], doan)
+    ghi_json(p_cd, {"_hash": _hash(canh), "nguon": "chu_the", "so_chu_de": len(doan), "chu_de": doan})
     log(f"[chủ thể] {len(canh)} cảnh -> {len(doan)} đoạn, {len(dau)} chủ thể có cảnh: "
         + ", ".join(f"{ds[k]['ten']} ({sum(1 for v in gan.values() if v == k)} cảnh)" for k in dau))
     return doan

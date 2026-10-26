@@ -44,6 +44,7 @@ class _WS:
         if b" 101 " not in h.split(b"\r\n", 1)[0]:
             raise ConnectionError("DevTools từ chối websocket")
         self.n = 0
+        self.khoa = threading.RLock()        # 25/10: nhiều luồng dùng chung một tab Flow (gửi lệnh / chờ ảnh song song)
 
     def _doc(self, k):
         b = b""
@@ -68,6 +69,10 @@ class _WS:
                 return buf.decode("utf-8", "ignore")
 
     def goi(self, method, **params):
+        with self.khoa:
+            return self._goi(method, params)
+
+    def _goi(self, method, params):
         self.n += 1
         d = json.dumps({"id": self.n, "method": method, "params": params}).encode()
         m = os.urandom(4)

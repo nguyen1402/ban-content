@@ -324,5 +324,5 @@ def _tao_tren(ten, prompt, thu, ten_goc, ti_le, model, phan_giai, do_dai, so, an
                               so_video=int(flow_ve._doc_so().get(ten, {}).get("so_video") or 0) + len(tep))   # noqa: SLF001
             return {"tep": tep, "ho_so": ten, "cai_dat": dong, "diem": ton}
         except Exception:
-            flow_ve.dong(ten)                                     # trang hỏng giữa chừng: lần sau mở lại sạch
+            flow_ve.cuu_phien(ten)                                # trang hỏng giữa chừng: về lại dự án trong cùng cửa sổ
             raise

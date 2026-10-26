@@ -528,9 +528,11 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
                 def bam_stock(v_):
                     kid_, cd_id, x = v_
                     f_ = kho_s[kid_]["file"]
-                    g_, n_ = dung_tay.bam_theo_canh(du_an, kid_, f_, QV, cd_id, {
+                    i_ = next((i for i, c in enumerate(ds_chu_de) if c["id"] == cd_id), None)   # 25/10: chấm với chủ thể của nó
+                    g_, n_ = dung_tay.bam_theo_canh(du_an, kid_, f_, Q_cd[i_] if i_ is not None else QV, cd_id, {
                         "tieu_de": x.get("ten", ""), "kenh": x.get("nguon", ""), "ghi_nguon": gn(x),
-                        "giay_phep": f"stock miễn phí ({x.get('nguon', '')})", "nguon_kho": x.get("nguon", "")})
+                        "giay_phep": f"stock miễn phí ({x.get('nguon', '')})", "nguon_kho": x.get("nguon", "")},
+                        ds_chu_de[i_].get("mo_ta_en") or "" if i_ is not None else "")
                     dung_tay._cap_nhat_kho(du_an, kid_, trang_thai="tach", so_manh=n_)   # noqa: SLF001  clip gốc -> mảnh
                     return cd_id, n_
                 with ThreadPoolExecutor(4) as ex:
@@ -670,7 +672,8 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
             m = kho_.get(k) or {}
             if m.get("trang_thai") != "xong" or m.get("cat_sat") or m.get("chu_de") not in id_cd:
                 continue
-            g_, m_ = dung_tay.cat_sat_khop(du_an, k, Q_cd[id_cd.index(m["chu_de"])])
+            i_ = id_cd.index(m["chu_de"])
+            g_, m_ = dung_tay.cat_sat_khop(du_an, k, Q_cd[i_], ds_chu_de[i_].get("mo_ta_en") or "")
             with khoa_cat:
                 tk_cat["giu"] += g_
                 tk_cat["manh"] += m_
@@ -679,19 +682,26 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
     bam_ca = None
     if getattr(dung_tay, "BAM_CA_VIDEO", False):            # 22/10 user: băm CẢ video theo cảnh quay, chấm với mọi chủ thể
         def bam_ca(vid, f, ds_it):
-            return dung_tay.bam_theo_canh(du_an, vid, f, QV, ds_it[0].get("chu_de_id"), ds_it[0])
+            # 25/10 user (băm đoạn ô tô chìm cho câu "tàu hoả chìm dưới đáy đại dương"): trước đây chấm với mô tả của MỌI
+            # chủ thể (QV) -> mảnh khớp chủ thể / trạng thái khác cũng được giữ và gắn cho chủ thể này. Nay chấm với mô tả
+            # của CHÍNH chủ thể video được tìm cho + chốt vật thể chính
+            cid = ds_it[0].get("chu_de_id")
+            if cid in id_cd:
+                i_ = id_cd.index(cid)
+                return dung_tay.bam_theo_canh(du_an, vid, f, Q_cd[i_], cid, ds_it[0], ds_chu_de[i_].get("mo_ta_en") or "")
+            return dung_tay.bam_theo_canh(du_an, vid, f, QV, cid, ds_it[0])
 
     def cat_sat(chon):
         """18/10: chấm KHUNG THẬT từng khoảng vừa tải với mô tả các cảnh của chủ đề -> cắt sát đoạn khớp."""
         kho_ = dung_tay.doc_kho(du_an)
-        viec = [(k, Q_cd[[c["id"] for c in ds_chu_de].index(m["chu_de"])]) for k, m in kho_.items()
+        viec = [(k, Q_cd[id_cd.index(m["chu_de"])]) for k, m in kho_.items()
                 if m.get("video_goc") in {v["id"] for v, *_ in chon} and m.get("trang_thai") == "xong"
                 and not m.get("cat_sat") and m.get("chu_de") in [c["id"] for c in ds_chu_de]]
         giu, so_manh = 0.0, 0
         for n_, (k, Q) in enumerate(viec):
             _tt(du_an, buoc="cat_sat", xong=n_, tong=len(viec))
             try:
-                g_, m_ = dung_tay.cat_sat_khop(du_an, k, Q)
+                g_, m_ = dung_tay.cat_sat_khop(du_an, k, Q, ds_chu_de[id_cd.index(kho_[k]["chu_de"])].get("mo_ta_en") or "")
                 giu, so_manh = giu + g_, so_manh + m_
             except Exception as e:                           # noqa: BLE001
                 log(f"    ! cắt sát {k}: {str(e)[:100]}")

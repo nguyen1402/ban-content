@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "giao-dien-thu",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "set BC_PORT=8790&& python giao_dien/may_chu.py --khong-mo"],
+      "port": 8790
+    }
+  ]
+}

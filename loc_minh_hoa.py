@@ -33,6 +33,25 @@ KEO_TRUNG_VI = 0.9          # 20/10 user (ảnh tĩnh nutria phóng chậm vẫn
 #                             TRUNG BÌNH 3-7): làm mờ nhẹ rồi lấy TRUNG VỊ sai lệch sau khi bù biến đổi — ảnh tĩnh 0,43-0,84,
 #                             footage chuyển động thật cao hơn; kèm khớp >= KEO_KHOP_TV (phụ đề đổi làm tụt tỉ lệ khớp)
 KEO_KHOP_TV = 0.8
+# 25/10 user ("tự chọn video thì băm kiểu gì cũng được nhưng phải khớp cơ bản những cảnh rõ ràng"): cảnh RÁC của video
+# YouTube — không phải footage minh hoạ. Nhóm "người" chỉ dùng khi chủ thể không phải người.
+RAC = ["a title card with large text", "a black screen with white text", "a subscribe button end screen",
+       "a youtube end screen with video thumbnails", "a channel logo intro animation", "a blank black screen",
+       "a split screen collage of several videos", "a map graphic", "a computer screen recording"]
+RAC_NGUOI = ["a person talking to the camera", "a presenter speaking in a studio", "an interview with a person sitting",
+             "a vlogger talking selfie video"]
+_RAC = {}
+
+
+def diem_rac(e, co_nguoi=True):
+    """(n,) điểm SigLIP cao nhất với các mô tả cảnh rác (co_nguoi: tính cả người nói trước ống kính / phỏng vấn)."""
+    import nhung_siglip
+    k = bool(co_nguoi)
+    if k not in _RAC:
+        _RAC[k] = nhung_siglip.nhung_chu(RAC + (RAC_NGUOI if k else []))
+    return (np.atleast_2d(e) @ _RAC[k].T).max(1)
+
+
 THAT = ["a real photograph of an animal", "a real photograph of an insect", "a real photograph of a bird",
         "a real photograph of people", "a real photograph of an object", "a real photograph of a landscape",
         "an aerial photograph", "a geographic map", "a news photograph"]
@@ -48,6 +67,74 @@ def diem_hoat_hinh(e):
         _V["t"], _V["g"] = nhung_siglip.nhung_chu(THAT), nhung_siglip.nhung_chu(GIA)
     e = np.atleast_2d(e)
     return (e @ _V["g"].T).max(1) - (e @ _V["t"].T).max(1)
+
+
+# 25/10 user ("nói tàu hoả chìm dưới đáy đại dương lại băm lấy đoạn ô tô dưới đáy đại dương"): khớp mô tả cả câu thì BỐI CẢNH
+# (đáy biển) đủ điểm -> thêm CHỐT VẬT THỂ: khung phải giống vật thể chính hơn các vật dễ nhầm
+# nhóm vật + CẶP HAY NHẦM thật (đo 25/10 trên dự án America_DUMPED: tàu thuyền / cá / thợ lặn điểm cao ở MỌI cảnh dưới nước
+# nên không dùng làm vật so — chỉ so những cặp dễ lẫn hình dạng: toa tàu <-> ô tô / xe tải, người <-> thú…)
+NHOM_NHAM = {"ray": ["a train", "a subway car"], "duong_bo": ["a car", "a truck", "a bus"], "thuyen": ["a ship", "a boat"],
+             "bay": ["an airplane"], "nguoi": ["a person", "a scuba diver"], "thu": ["an animal", "a dog", "a bird"],
+             "nha": ["a building"]}
+CAP_NHAM = {"ray": ["duong_bo", "bay"], "duong_bo": ["ray"], "thuyen": ["bay"], "bay": ["thuyen", "duong_bo"],
+            "nguoi": ["thu"], "thu": ["nguoi"], "nha": []}
+VAT_NHAM = [x for n in NHOM_NHAM.values() for x in n]
+NGUONG_VAT_NHAM = 0.04     # vật dễ nhầm phải HIỆN RÕ (điểm SigLIP >= mức này; ô tô chìm đo 0,05-0,08)
+LE_VAT = 0.025             # ... và hơn vật thể chính ít nhất bấy nhiêu (toa tàu bị cần cẩu thả: thua xe 0,024 -> vẫn giữ)
+GIONG_VAT = 0.70           # vật thể chính giống nhóm nào nhất (>= mức này) thì thuộc nhóm đó
+_LUONG = {"thousands", "hundreds", "dozens", "many", "various", "several", "lots", "group", "groups", "pair", "set", "pile"}
+_VAT = {}
+
+
+def vat_chinh(mo_ta_en):
+    """Cụm danh từ ĐẦU của mô tả chủ thể (vật thể lõi): "An old subway car being lifted into the ocean" -> "An old subway car"."""
+    import re
+    tu = str(mo_ta_en or "").replace(",", " ").split()
+    ra = []
+    for w in tu:
+        wl = w.lower().strip(".;:")
+        if wl == "of" and ra and ra[-1].lower() in _LUONG:   # "Thousands of old tires" -> đi tiếp qua "of"
+            ra.append(w)
+            continue
+        if ra and (re.search(r"(ing|ed)$", wl) or wl in ("in", "on", "at", "with", "under", "from", "into", "of", "near",
+                                                        "and", "that", "which", "who", "as", "to", "for", "by", "while")):
+            break
+        ra.append(w.strip(".;:"))
+    return " ".join(ra[:7])
+
+
+def sai_vat(e, mo_ta_en):
+    """(n,) bool — 25/10 user ("nói tàu hoả chìm dưới đáy đại dương lại băm đoạn ô tô dưới đáy đại dương"): khung có vật
+    DỄ NHẦM hiện rõ và khớp hơn hẳn vật thể chính (khớp cả câu thì bối cảnh đáy biển đủ điểm nên ô tô chìm lọt vào chủ thể
+    toa tàu). Vật thể chính không thuộc nhóm nào / không có cặp nhầm -> mọi khung qua chốt."""
+    import nhung_siglip
+    vat = vat_chinh(mo_ta_en)
+    e = np.atleast_2d(e)
+    if not vat:
+        return np.zeros(len(e), bool)
+    if vat not in _VAT:
+        v = nhung_siglip.nhung_chu([f"a photo of {vat.lower()}"])[0]   # chữ thường: SigLIP phân biệt hoa / thường
+        c = nhung_siglip.nhung_chu(VAT_NHAM)
+        giong = c @ v
+        nhom = {k: max(float(giong[VAT_NHAM.index(x)]) for x in ds) for k, ds in NHOM_NHAM.items()}
+        import re
+        vl = " " + re.sub(r"[^a-z ]", " ", vat.lower()) + " "
+        # nhóm của vật thể chính: CỤM TÊN khớp dài nhất trước ("subway cars" -> nhóm ray, dù vector gần "a car" hơn),
+        # không khớp tên nào mới theo độ giống vector
+        khop = [(len(x), k) for k, ds in NHOM_NHAM.items() for x in ds
+                if re.search(r"\b" + re.escape(x.split(" ", 1)[-1]) + r"s?\b", vl)]
+        cua = max(khop)[1] if khop else (max(nhom, key=nhom.get) if max(nhom.values()) >= GIONG_VAT else None)
+        for x in NHOM_NHAM.get(cua, []):                     # gạch cụm của chính nhóm ("subway car" chứa chữ "car")
+            vl = re.sub(r"\b" + re.escape(x.split(" ", 1)[-1]) + r"s?\b", " ", vl)
+        ten_co = {k for k, ds in NHOM_NHAM.items() if k != cua                # "subway cars, ships" -> thuyền cũng đúng
+                  and any(re.search(r"\b" + re.escape(x.split()[-1]) + r"s?\b", vl) for x in ds)}
+        so = [x for k in CAP_NHAM.get(cua, []) if k not in ten_co for x in NHOM_NHAM[k]]
+        _VAT[vat] = (v, nhung_siglip.nhung_chu(so) if so else None)
+    v, c = _VAT[vat]
+    if c is None:
+        return np.zeros(len(e), bool)
+    nham = (e @ c.T).max(1)
+    return (nham >= NGUONG_VAT_NHAM) & (nham - e @ v >= LE_VAT)
 
 
 GAME = ["a video game screenshot", "computer game graphics", "a flight simulator game"]

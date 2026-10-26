@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kho nhân vật — Bản Content</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1c2230;--mut:#667085;--line:#e3e6ec;--ac:#2f6df6;--ac-ink:#fff;--ok:#1a9d5c;--wa:#c27803;--er:#d33a3a}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1218;--card:#171b24;--ink:#e8ecf3;--mut:#93a0b4;--line:#262c39;--ac:#5b8cff;--ac-ink:#0b0f18;--ok:#43c783;--wa:#e0a43a;--er:#ff7070}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Segoe UI",system-ui,sans-serif}
+header{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:10px 20px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+header a{color:var(--ac);text-decoration:none}
+main{max-width:1400px;margin:16px auto;padding:0 16px;display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:900px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+h2{margin:0 0 6px;font-size:17px}
+.sub{color:var(--mut);font-size:13px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+label{font-size:13px;color:var(--mut);display:inline-flex;gap:6px;align-items:center}
+input,textarea,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 9px}
+input[type=color]{padding:1px;width:40px;height:32px}
+textarea{width:100%;resize:vertical}
+button{font:inherit;border:0;border-radius:8px;padding:7px 14px;background:var(--ac);color:var(--ac-ink);cursor:pointer;white-space:nowrap}
+button.p{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button.ok{background:var(--ok);color:#fff}
+button.er{background:var(--er);color:#fff}
+button.nho{padding:3px 9px;font-size:12.5px}
+button:disabled{opacity:.5;cursor:default}
+.ds-nv{display:grid;gap:8px;margin-top:10px}
+.nv{display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:10px;cursor:pointer;background:var(--bg)}
+.nv.chon{border-color:var(--ac);box-shadow:0 0 0 1px var(--ac)}
+.nv img{width:52px;height:52px;object-fit:contain;background:#fff;border-radius:6px}
+.o-co{background:repeating-conic-gradient(#e7e9ee 0 25%,#fff 0 50%) 0 0/18px 18px}
+.thiet-ke{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:14px;align-items:start}
+@media (max-width:700px){.thiet-ke{grid-template-columns:1fr}}
+.thiet-ke img{width:100%;border-radius:10px;border:1px solid var(--line);background:#fff}
+.luoi{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:8px}
+.bt{border:2px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card);display:flex;flex-direction:column}
+.bt.duyet{border-color:var(--ok)}
+.bt.bo{opacity:.45}
+.bt .anh{aspect-ratio:1;display:flex;align-items:center;justify-content:center;padding:6px}
+.bt img{max-width:100%;max-height:100%;object-fit:contain;cursor:zoom-in}
+.bt .chan{display:flex;gap:4px;padding:6px;justify-content:space-between;align-items:center;font-size:12px}
+.nhom{margin-top:14px}
+.nhom h3{margin:0;font-size:14px}
+.tat{display:flex;flex-wrap:wrap;gap:4px 12px;margin:8px 0}
+.tat label{font-size:12.5px;color:var(--ink)}
+.tt{margin-top:10px;padding:8px 10px;border-radius:10px;background:var(--bg);border:1px solid var(--line);font-size:12.5px;max-height:150px;overflow:auto;white-space:pre-wrap;display:none}
+.loc button.chon{background:var(--ac);color:var(--ac-ink)}
+#tb{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:10px;transition:.25s;z-index:20;max-width:90vw}
+#tb.hien{transform:translateX(-50%) translateY(0)}
+#phong{position:fixed;inset:0;background:#000c;display:none;align-items:center;justify-content:center;z-index:30;cursor:zoom-out}
+#phong img{max-width:92vw;max-height:92vh;background:#fff}
+.an{display:none}
+</style>
+</head>
+<body>
+<header>
+  <b>🧍 Kho nhân vật</b><a href="/">← Bản Content</a><a href="/storyboard">🎬 Storyboard</a>
+  <span class="sub">Code vẽ phôi (đầu, thân, quần áo) kiểu MS Paint → Flow vẽ biểu cảm + cử chỉ từ đúng phôi → bạn duyệt một lần → storyboard dán nhân vật đã duyệt vào cảnh.</span>
+</header>
+<main>
+  <section class="card">
+    <div class="row" style="justify-content:space-between"><h2>Nhân vật</h2><button class="nho" id="b_moi">＋ Mới</button></div>
+    <div class="ds-nv" id="ds"></div>
+  </section>
+
+  <section>
+    <div class="card" id="o_tk">
+      <h2 id="tk_tieu">Nhân vật mới</h2>
+      <div class="thiet-ke">
+        <div style="display:grid;gap:10px">
+          <div class="row"><label>Tên <input id="ten" placeholder="VD: Minh (nhân vật chính)" style="width:240px"></label></div>
+          <label style="display:block">Mô tả (để AI biết khi nào dùng nhân vật này)<textarea id="mo_ta" rows="2" placeholder="VD: nhân vật chính 'bạn', 28 tuổi, nhân viên văn phòng nghèo"></textarea></label>
+          <div class="row">
+            <label title="Dáng thân / cỡ đầu / màu da lấy từ phân tích kênh đối thủ (plugin)">Phong cách kênh <select id="pl_kenh"><option value="">— tự chọn —</option></select></label>
+            <span class="sub" id="pl_mo_ta"></span>
+          </div>
+          <div class="row">
+            <label>Thân <select id="than"></select></label>
+            <label>Đầu <select id="dau"></select></label>
+          </div>
+          <div class="row">
+            <label>Kiểu tóc <select id="toc"></select></label>
+            <label>Màu tóc <input type="color" id="mau_toc" value="#1c1c1c"></label>
+            <label>Da <input type="color" id="mau_da" value="#fbfaf5"></label>
+          </div>
+          <div class="row">
+            <label>Áo <select id="ao"></select></label>
+            <label>Màu áo <input type="color" id="mau_ao" value="#6f8ea8"></label>
+            <label>Quần <input type="color" id="mau_quan" value="#2b3046"></label>
+            <label>Giày <input type="color" id="mau_giay" value="#1a1a1a"></label>
+          </div>
+          <div class="row"><button id="b_luu">Lưu nhân vật</button><span class="sub" id="tk_ghi"></span></div>
+        </div>
+        <div><img id="xem_phoi" alt="phôi"><div class="sub" style="text-align:center">Phôi (code vẽ)</div></div>
+      </div>
+    </div>
+
+    <div class="card an" id="o_bt" style="margin-top:16px">
+      <div class="row" style="justify-content:space-between">
+        <h2>Biểu cảm &amp; cử chỉ <span class="sub" id="dem"></span></h2>
+        <div class="row loc" id="loc">
+          <button class="nho p chon" data-loc="">Tất cả</button><button class="nho p" data-loc="cho">Chờ duyệt</button>
+          <button class="nho p" data-loc="duyet">Đã duyệt</button><button class="nho p" data-loc="bo">Đã bỏ</button>
+        </div>
+      </div>
+      <div class="sub">Chọn tư thế cần vẽ (mặc định: các tư thế chưa có bản duyệt). Mỗi tư thế Flow vẽ 2 phương án; duyệt được nhiều phương án — storyboard xoay vòng cho đỡ lặp.</div>
+      <div class="tat" id="tat"></div>
+      <div class="row">
+        <button id="b_ve">🎨 Vẽ các tư thế đã tick</button>
+        <input id="tu_do" placeholder="Tư thế riêng (tiếng Anh hoặc Việt), VD: holding an empty wallet, sad" style="flex:1;min-width:240px">
+        <button class="p" id="b_ve_rieng">Vẽ tư thế riêng</button>
+        <button class="er nho" id="b_xoa">Xoá nhân vật</button>
+      </div>
+      <div class="tt" id="tt"></div>
+      <div id="nhom"></div>
+    </div>
+  </section>
+</main>
+<div id="phong"><img alt=""></div>
+<div id="tb"></div>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function tb(m){const e=$('#tb');e.textContent=m;e.classList.add('hien');clearTimeout(tb.h);tb.h=setTimeout(()=>e.classList.remove('hien'),3200)}
+async function api(p,o){const r=await fetch(p,o);if(!r.ok){let t='';try{t=await r.text()}catch(e){}const m=t.match(/<pre>([\s\S]*?)<\/pre>/i);const div=document.createElement('div');div.innerHTML=m?m[1]:'';throw new Error(((m?div.textContent:t.replace(/<[^>]*>/g,' ')).replace(/\s+/g,' ').trim().slice(0,220))||('mã '+r.status))}return r.json()}
+const post=(p,d)=>api(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d||{})});
+
+let DS=[],TU_THE={},NID='',LOC='',HEN=null;
+const HINH=['than','dau','toc','mau_toc','mau_da','ao','mau_ao','mau_quan','mau_giay'];let PL=[];
+function hinh(){const h={};HINH.forEach(k=>h[k]=$('#'+k).value);return h}
+function nv(){return DS.find(x=>x.id===NID)}
+
+async function tai(){
+  const r=await api('/api/nv/ds');DS=r.ds;TU_THE=r.tu_the;
+  if(!$('#toc').options.length){
+    $('#toc').innerHTML=r.lua_chon.toc.map(t=>`<option>${esc(t)}</option>`).join('');
+    $('#ao').innerHTML=r.lua_chon.ao.map(t=>`<option>${esc(t)}</option>`).join('');
+    $('#than').innerHTML=r.lua_chon.than.map(t=>`<option>${esc(t)}</option>`).join('');
+    $('#dau').innerHTML=r.lua_chon.dau.map(t=>`<option>${esc(t)}</option>`).join('');$('#than').value='gon';$('#dau').value='to';
+    PL=r.plugin||[];$('#pl_kenh').innerHTML='<option value="">— tự chọn —</option>'+PL.map(p=>`<option value="${esc(p.id)}">${esc(p.ten)}</option>`).join('');
+    $('#toc').value='rua';xemPhoi();
+  }
+  veDs();if(NID)veNv();
+  const dang=DS.some(x=>x.tt&&x.tt.dang);clearTimeout(HEN);if(dang)HEN=setTimeout(tai,4000);
+}
+function veDs(){
+  $('#ds').innerHTML=DS.length?DS.map(x=>{const d=(x.bien_the||[]).filter(b=>b.tt==='duyet').length,c=(x.bien_the||[]).filter(b=>b.tt==='cho').length;
+    return `<div class="nv ${x.id===NID?'chon':''}" data-id="${esc(x.id)}"><img src="${esc(x.phoi_url)}" alt=""><div><b>${esc(x.ten)}</b>
+    <div class="sub">${d} đã duyệt · ${c} chờ${x.tt&&x.tt.dang?' · đang vẽ…':''}</div></div></div>`}).join(''):'<div class="sub">Chưa có nhân vật — bấm ＋ Mới.</div>';
+  document.querySelectorAll('.nv').forEach(e=>e.onclick=()=>{NID=e.dataset.id;moNv()});
+}
+function moNv(){
+  const x=nv();if(!x)return;
+  $('#tk_tieu').textContent='Phôi: '+x.ten;$('#ten').value=x.ten;$('#mo_ta').value=x.mo_ta||'';
+  HINH.forEach(k=>{if(x.hinh[k])$('#'+k).value=x.hinh[k]});$('#xem_phoi').src=x.phoi_url;$('#b_luu').textContent='Lưu phôi';
+  const da=new Set((x.bien_the||[]).filter(b=>b.tt==='duyet').map(b=>b.tu_the));
+  $('#tat').innerHTML=Object.entries(TU_THE).map(([k,t])=>`<label><input type="checkbox" value="${k}" ${da.has(k)?'':'checked'}> ${esc(t)}</label>`).join('');
+  $('#o_bt').classList.remove('an');veDs();veNv();
+}
+function veNv(){
+  const x=nv();if(!x)return;
+  const bt=(x.bien_the||[]).filter(b=>!LOC||b.tt===LOC);
+  const d=(x.bien_the||[]).filter(b=>b.tt==='duyet').length;
+  $('#dem').textContent=`· ${d} đã duyệt / ${(x.bien_the||[]).length} phương án`;
+  const tt=$('#tt');const dong=(x.tt&&x.tt.dong)||[];tt.style.display=dong.length?'block':'none';tt.textContent=dong.join('\n');tt.scrollTop=1e9;
+  $('#b_ve').disabled=$('#b_ve_rieng').disabled=!!(x.tt&&x.tt.dang);
+  const nhom={};bt.forEach(b=>(nhom[b.tu_the]=nhom[b.tu_the]||[]).push(b));
+  $('#nhom').innerHTML=Object.entries(nhom).map(([k,ds])=>`<div class="nhom"><h3>${esc(TU_THE[k]||ds[0].ten||k)}</h3><div class="luoi">${
+    ds.map(b=>`<div class="bt ${b.tt}"><div class="anh o-co"><img src="${esc(b.url)}" alt="" data-phong></div><div class="chan">
+      <span class="sub">${b.tt==='duyet'?'✔ đã duyệt':b.tt==='bo'?'đã bỏ':'chờ duyệt'}</span><span>
+      ${b.tt!=='duyet'?`<button class="ok nho" data-bid="${esc(b.id)}" data-tt="duyet">✔ Duyệt</button>`:`<button class="p nho" data-bid="${esc(b.id)}" data-tt="cho">Bỏ duyệt</button>`}
+      ${b.tt!=='bo'?`<button class="p nho" data-bid="${esc(b.id)}" data-tt="bo">✖</button>`:''}</span></div></div>`).join('')}</div></div>`).join('')
+    ||'<div class="sub" style="margin-top:12px">Chưa có phương án nào'+(LOC?' ở mục này':'')+'.</div>';
+  document.querySelectorAll('[data-bid]').forEach(e=>e.onclick=async()=>{try{const r=await post('/api/nv/duyet',{id:NID,bid:e.dataset.bid,tt:e.dataset.tt});
+    DS=DS.map(y=>y.id===r.id?r:y);veNv();veDs()}catch(err){tb('Lỗi: '+err.message)}});
+  document.querySelectorAll('[data-phong]').forEach(e=>e.onclick=()=>{$('#phong img').src=e.src;$('#phong').style.display='flex'});
+}
+let hp=null;function xemPhoi(){clearTimeout(hp);hp=setTimeout(async()=>{try{const r=await post('/api/nv/phoi_thu',{hinh:hinh()});$('#xem_phoi').src=r.url}catch(e){}},250)}
+HINH.forEach(k=>$('#'+k).addEventListener('input',xemPhoi));
+$('#pl_kenh').onchange=()=>{const p=PL.find(x=>x.id===$('#pl_kenh').value);$('#pl_mo_ta').textContent='';if(!p)return;
+  const c=p.con_roi||{};['than','dau','mau_da'].forEach(k=>{if(c[k])$('#'+k).value=c[k]});
+  $('#pl_mo_ta').textContent=[c.tuoi,c.mo_ta_vi].filter(Boolean).join(' — ');xemPhoi()};
+$('#b_moi').onclick=()=>{NID='';$('#tk_tieu').textContent='Nhân vật mới';$('#ten').value='';$('#mo_ta').value='';$('#b_luu').textContent='Lưu nhân vật';$('#o_bt').classList.add('an');veDs();xemPhoi()};
+$('#b_luu').onclick=async()=>{
+  try{
+    if(NID){const r=await post('/api/nv/sua_hinh',{id:NID,hinh:hinh()});DS=DS.map(y=>y.id===r.id?r:y);tb('Đã lưu phôi — nên vẽ lại các tư thế nếu đổi nhiều');veDs();moNv()}
+    else{const r=await post('/api/nv/tao',{ten:$('#ten').value,mo_ta:$('#mo_ta').value,hinh:hinh()});NID=r.id;await tai();moNv();tb('Đã tạo — tick tư thế rồi bấm Vẽ')}
+  }catch(e){tb('Lỗi: '+e.message)}
+};
+$('#b_ve').onclick=async()=>{const khoa=[...document.querySelectorAll('#tat input:checked')].map(e=>e.value);if(!khoa.length)return tb('Chưa tick tư thế nào');
+  try{await post('/api/nv/ve',{id:NID,khoa});tb('Flow đang vẽ '+khoa.length+' tư thế…');tai()}catch(e){tb('Lỗi: '+e.message)}};
+$('#b_ve_rieng').onclick=async()=>{const t=$('#tu_do').value.trim();if(!t)return tb('Nhập mô tả tư thế');
+  try{await post('/api/nv/ve',{id:NID,khoa:['_'],tu_do:t});$('#tu_do').value='';tb('Flow đang vẽ tư thế riêng…');tai()}catch(e){tb('Lỗi: '+e.message)}};
+$('#b_xoa').onclick=async()=>{if(!confirm('Xoá nhân vật này cùng mọi ảnh của nó?'))return;await post('/api/nv/xoa',{id:NID});NID='';$('#o_bt').classList.add('an');tai()};
+document.querySelectorAll('#loc button').forEach(b=>b.onclick=()=>{LOC=b.dataset.loc;document.querySelectorAll('#loc button').forEach(x=>x.classList.toggle('chon',x===b));veNv()});
+$('#phong').onclick=()=>$('#phong').style.display='none';
+tai();
+</script>
+</body>
+</html>

@@ -51,7 +51,13 @@ DIA_DANH_DAU = False        # 14/10 user: KHÔNG ép ảnh địa danh lên đ�
 BO_YOUTUBE_TU_DONG = False  # 12/10 user bỏ video YouTube máy tự tải (logo kênh); 15/10 user dùng lại (Google Videos)
 
 
-def _chi_muc(kho, mo_hinh=None):
+def _bao_tt(du_an, **kw):
+    """26/10 user (bấm ⚡ "nhìn log không thấy chạy gì"): tiến độ khâu chuẩn bị (đọc mảnh lần đầu) cho giao diện."""
+    if du_an and TT.get(du_an, {}).get("dang"):
+        TT[du_an].update(kw)
+
+
+def _chi_muc(kho, mo_hinh=None, du_an=None):
     """[(id, t, e, file, bien, tong, xau)] cho mọi video đã tải xong trong kho (chỉ mục CLIP + điểm đổi cảnh, có cache)."""
     mo_hinh = mo_hinh or MO_HINH_MAC_DINH
     import chon_doan
@@ -62,9 +68,18 @@ def _chi_muc(kho, mo_hinh=None):
         bd = float(m.get("loi_bd") or 0)
         return m["file"], bd, max(float(m.get("loi_kt") or m.get("dai") or 0) - bd, 1.0)
     co = [m for m in kho.values() if m.get("loai") == "video" and m.get("trang_thai") == "xong" and os.path.isfile(m.get("file", ""))]
+    log(f"  [gợi ý] đọc {len(co)} mảnh video trong kho (lần đầu với mảnh mới thì lâu, sau có cache)…")
+    _bao_tt(du_an, buoc="doc_manh", xong=0, tong=len(co))
     hep = dict(zip([id(m) for m in co], sach_hinh.song_song(lambda m: sach_hinh.khung_hep(*_doan(m)), co)))
     sach_hinh.luu_khung_hep()
+    dem = 0
     for kid, m in kho.items():
+        if m.get("loai") == "video" and m.get("trang_thai") == "xong":
+            dem += 1
+            if dem % 10 == 0:
+                _bao_tt(du_an, xong=min(dem, len(co)))
+            if dem % 100 == 0:
+                log(f"  [gợi ý] đã đọc {dem}/{len(co)} mảnh")
         if m.get("loai") != "video" or m.get("trang_thai") != "xong" or not os.path.isfile(m.get("file", "")):
             continue
         if hep.get(id(m)):                                   # 23/10 user: video dọc / 4:3 viền đen trong khung ngang -> bỏ
@@ -636,7 +651,9 @@ def goi_y(du_an, ids=None, chi_canh_trong=True, mo_hinh=None, luu=True):
            and not m.get("cot_loi")                          # ảnh cốt lõi chỉ đặt đúng mốc của nó (ep), không làm ảnh lấp chỗ
            and not (m.get("loai") == "video" and dung_tay.la_kenh_loai(m))}   # 23/10 user: tin tức / trẻ em / hoạt hình / 3D / nhạc
     mo_hinh = mo_hinh or MO_HINH_MAC_DINH
-    vids, anhs = _chi_muc(kho, mo_hinh), _anh(kho, mo_hinh)
+    vids, anhs = _chi_muc(kho, mo_hinh, du_an), _anh(kho, mo_hinh)
+    _bao_tt(du_an, buoc="khop", xong=0, tong=0)
+    log(f"  [gợi ý] khớp {len(vids)} mảnh video + {len(anhs)} ảnh vào giọng đọc…")
     if not vids and not anhs:
         raise ValueError("Kho dự án chưa có video/ảnh nào tải xong — tìm và tải vài video trước")
     dung = dung_tay.doc_dung(du_an)
@@ -785,8 +802,9 @@ def goi_y(du_an, ids=None, chi_canh_trong=True, mo_hinh=None, luu=True):
     return ke_hoach if not luu else n
 
 
-def goi_y_nen(du_an, ids=None, chi_canh_trong=True, ten_nhap=None):
-    """Chạy goi_y trong luồng nền (giao diện hỏi trạng thái qua TT). ten_nhap: xong thì tạo luôn bản nháp CapCut."""
+def goi_y_nen(du_an, ids=None, chi_canh_trong=True, ten_nhap=None, sau=None):
+    """Chạy goi_y trong luồng nền (giao diện hỏi trạng thái qua TT). ten_nhap: xong thì tạo luôn bản nháp CapCut.
+    sau: 26/10 user ("bấm ⚡ xong tự chạy luôn ✨ Hoàn thiện") — hàm gọi khi bản nháp thô xong -> tên bản hoàn chỉnh."""
     with _KHOA:
         if TT.get(du_an, {}).get("dang"):
             raise ValueError("đang gợi ý — chờ xong")
@@ -805,8 +823,14 @@ def goi_y_nen(du_an, ids=None, chi_canh_trong=True, ten_nhap=None):
                 with _KHOA:
                     TT[du_an].update(buoc="nhap")
                 nhap = {"ten": ten_nhap, "so": dung_tay.tao_nhap(du_an, ten_nhap, dd)}
+            ht = ""
+            if sau:
+                try:
+                    ht = sau() or ""
+                except Exception as e:                       # noqa: BLE001
+                    ht = "lỗi: " + str(e)[:200]
             with _KHOA:
-                TT[du_an].update(dang=False, so_canh=n, nhap=nhap)
+                TT[du_an].update(dang=False, so_canh=n, nhap=nhap, hoan_thien=ht)
         except Exception as e:                              # noqa: BLE001
             with _KHOA:
                 TT[du_an].update(dang=False, loi=str(e)[:300])

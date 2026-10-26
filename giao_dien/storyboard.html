@@ -57,38 +57,92 @@ details>summary{cursor:pointer;color:var(--mut);font-size:12.5px}
 #tb{position:fixed;bottom:18px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--ink);color:var(--bg);padding:9px 16px;border-radius:10px;transition:.25s;z-index:20;max-width:90vw}
 #tb.hien{transform:translateX(-50%) translateY(0)}
 .an{display:none}
+.modal-backdrop{position:fixed;top:0;left:0;right:0;bottom:0;background:#0008;z-index:100;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal-box{background:var(--card);border:1px solid var(--line);border-radius:12px;width:100%;max-width:640px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 8px 30px #0004}
+.modal-header{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.modal-body{padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:10px}
+.modal-item{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:.15s}
+.modal-item:hover{border-color:var(--ac);background:var(--card)}
 </style>
 </head>
 <body>
 <header>
   <b>🎬 Storyboard Flow</b><a href="/">← Bản Content</a>
   <label>Storyboard <select id="chon_sb"><option value="">＋ Storyboard mới</option></select></label>
+  <span id="trang_thai_luu" style="font-size:12px;color:var(--ok);font-weight:600;margin-left:4px;transition:.3s"></span>
+  <button type="button" class="p nho" onclick="hienChromeFlow()" style="margin-left:auto;border-color:var(--ok);color:var(--ok);font-weight:600" title="Đưa toàn bộ cửa sổ Chrome Flow đang chạy lên màn hình để can thiệp hoặc đăng nhập">🖥️ Hiện Chrome Flow</button>
   <span class="sub">Kịch bản → assets → scene nối tiếp (nhân vật nhất quán, gắn ảnh tham chiếu) → ảnh Flow 0 điểm → video hook → JSON / CapCut</span>
 </header>
 <main>
 <section class="card">
-  <h2>1. Kịch bản & cài đặt</h2>
-  <div class="row">
-    <label>Tên <input id="ten" placeholder="vd: Chú bé và con rồng" style="width:260px"></label>
-    <button class="p nho" id="nap_tep">📄 Nạp file .txt</button><input type="file" id="tep" accept=".txt" hidden>
+  <h2>1. Kịch bản &amp; Bộ Nhận Diện Thị Giác Đồng Nhất</h2>
+  <div class="row" style="justify-content:space-between">
+    <div class="row">
+      <label>Tên Storyboard <input id="ten" placeholder="vd: Chú bé và con rồng" style="width:240px;font-weight:600"></label>
+      <button class="p nho" id="nap_kb_luu" onclick="moModalChonKichBan()" style="border-color:var(--ac);color:var(--ac);font-weight:600">📂 Nạp kịch bản đã lưu</button>
+      <button class="p nho" id="nap_tep">📄 Nạp file .txt</button><input type="file" id="tep" accept=".txt" hidden>
+    </div>
+    <button type="button" class="p nho" onclick="moModalPluginDoiThu()" style="border-color:var(--ok);color:var(--ok);font-weight:600">⚡ Nạp phong cách &amp; nhân vật từ Plugin Đối Thủ</button>
   </div>
-  <textarea id="kich_ban" style="min-height:170px;margin-top:8px" placeholder="Dán kịch bản vào đây (tiếng Việt hay tiếng Anh đều được)…"></textarea>
-  <div class="row" style="margin-top:8px">
-    <label title="Số ảnh mỗi scene (mặc định 4; mỗi scene còn chỉnh riêng được)">Số ảnh mỗi scene <input type="number" id="so_anh" min="1" max="10" value="4"></label>
-    <label title="0 = để AI tự chia theo nhịp truyện">Số scene <input type="number" id="so_canh" min="0" max="40" value="0"></label>
-    <label>Tỉ lệ <select id="ti_le"><option>16:9</option><option>9:16</option><option>1:1</option><option>4:3</option><option>3:4</option></select></label>
-    <label>Phong cách <select id="phong_cach">
-      <option value="dien_anh">Điện ảnh (ảnh thật)</option><option value="tai_lieu">Tài liệu</option>
-      <option value="hoat_hinh_3d">Hoạt hình 3D</option><option value="anime">Anime</option><option value="minh_hoa">Minh hoạ</option></select></label>
-    <label style="flex:1;min-width:220px">Thêm <input id="phong_cach_them" placeholder="vd: Việt Nam thập niên 1990, tông ấm" style="flex:1"></label>
-    <label title="Bật: ảnh trước của cùng scene gắn làm tham chiếu cho ảnh sau (liền mạch hơn nhưng CHẬM — vẽ lần lượt trong scene). Tắt: mọi ảnh vẽ song song, nhân vật vẫn giữ nhờ ảnh asset."><input type="checkbox" id="noi_tiep"> Nối tiếp ảnh trước (chậm)</label>
+  
+  <textarea id="kich_ban" style="min-height:150px;margin-top:8px" placeholder="Dán nội dung kịch bản của bạn vào đây (tiếng Việt hay tiếng Anh đều được, chuẩn văn đọc hoặc phân cảnh)…"></textarea>
+
+  <!-- BỘ NHẬN DIỆN THỊ GIÁC & NHÂN VẬT ĐỒNG NHẤT -->
+  <div style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:10px">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <b style="color:var(--ac)">🎨 Bộ Nhận Diện Thị Giác &amp; Nhân Vật Đồng Nhất (Đồng nhất trong MỌI câu lệnh tạo ảnh)</b>
+      <span class="sub" style="font-size:12px">Mỗi câu lệnh AI sinh ra sẽ được gài chặt phong cách ảnh &amp; diện mạo nhân vật</span>
+    </div>
+    
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <!-- Cột 1: Phong cách ảnh -->
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <label><b>🖼️ Phong cách ảnh (Art Style):</b></label>
+          <select id="phong_cach" style="font-size:12.5px" onchange="doiPhongCachMacDinh()">
+            <option value="lanh_vcl_meme">🎭 Hoạt hình Meme 2D / Stickman (Kênh Lạnh Vcl)</option>
+            <option value="manhwa_clean">✨ 2D Manhwa Sắc Nét / Gọn Gàng (Bối cảnh tối, nhân vật đẹp không quầng thâm)</option>
+            <option value="dark_gritty">🦇 Biếm họa 2D Dark Gritty (Graphic Novel u tối)</option>
+            <option value="dien_anh">🎬 Điện ảnh chân thực (Cinematic 35mm)</option>
+            <option value="hoat_hinh_3d">🎨 Hoạt hình 3D Pixar</option>
+            <option value="anime">⛩️ Anime / Manga</option>
+            <option value="minh_hoa">🖌️ Tranh minh họa (Digital Art)</option>
+            <option value="tai_lieu">🎞️ Phim tài liệu (Candid)</option>
+            <option value="cyberpunk">🌌 Cyberpunk Neon</option>
+            <option value="tu_do">✍️ Tự định nghĩa phong cách</option>
+          </select>
+        </div>
+        <textarea id="phong_cach_them" rows="3" style="font-size:12.5px" placeholder="Chi tiết phong cách ảnh: ánh sáng, tone màu, trường phái vẽ... (VD: 2D minimalist cartoon animation, webcomic meme style...)"></textarea>
+      </div>
+
+      <!-- Cột 2: Nhân vật đồng nhất -->
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <label><b>👤 Mô tả nhân vật đồng nhất (Character DNA):</b></label>
+          <span class="sub" style="font-size:11.5px">Khóa diện mạo NV1 mọi cảnh</span>
+        </div>
+        <textarea id="nhan_vat_dong_nhat" rows="3" style="font-size:12.5px" placeholder="Nhập ngoại hình cố định: tuổi, kiểu tóc, trang phục, màu áo, nét mặt đặc trưng... (VD: Chàng trai 25 tuổi, tóc đen gọn gàng, mắt sắc nét sáng sủa, mặc áo hoodie xám phong cách hiện đại...)"></textarea>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:10px;align-items:center">
+      <label title="Số ảnh mỗi scene (mặc định 4; mỗi scene còn chỉnh riêng được)">Số ảnh/scene <input type="number" id="so_anh" min="1" max="10" value="4"></label>
+      <label title="0 = để AI tự chia theo nhịp kịch bản">Số scene <input type="number" id="so_canh" min="0" max="40" value="0"></label>
+      <label>Tỉ lệ <select id="ti_le"><option>16:9</option><option>9:16</option><option>1:1</option><option>4:3</option><option>3:4</option></select></label>
+      <label title="Chế độ chia cảnh: Tự động theo nhịp cảnh hoặc Đồng bộ bám sát từng câu thoại (1 câu nói = 1 mô tả ảnh riêng)">Phân cảnh <select id="che_do_canh" style="font-weight:600"><option value="tu_dong">📜 Tự động (nhịp cảnh)</option><option value="theo_thoai">💬 Đồng bộ theo từng câu thoại (1 câu = 1 ảnh riêng)</option></select></label>
+      <label title="Khóa chặt bối cảnh khi các câu thoại ở cùng địa điểm, giữ nguyên phông nền 100%, chỉ đổi góc máy & cử chỉ nhân vật"><input type="checkbox" id="khoa_boi_canh" checked> 🔒 Khóa bối cảnh đồng nhất</label>
+      <label title="Nhân vật KHÔNG do AI vẽ mỗi cảnh: dán con rối đã duyệt trong Kho nhân vật (vai phụ: con rối code) vào ảnh bối cảnh — giữ đúng nét MS Paint, cảnh rộng / trung / cận mặt không cần gọi Flow"><input type="checkbox" id="con_roi"> 🧍 Nhân vật con rối</label>
+      <span id="o_kho_nv" class="sub" style="display:none">Kho: <span id="ds_kho_nv"></span> <a href="/nhan_vat" target="_blank">mở kho</a></span>
+      <label title="Bật: ảnh trước của cùng scene gắn làm tham chiếu cho ảnh sau (liền mạch hơn nhưng CHẬM — vẽ lần lượt trong scene). Tắt: mọi ảnh vẽ song song, nhân vật vẫn giữ nhờ ảnh asset."><input type="checkbox" id="noi_tiep"> Nối tiếp ảnh trước (chậm)</label>
+    </div>
   </div>
-  <div class="buoc">
-    <button id="b_assets">① Phân tích assets</button>
+
+  <div class="buoc" style="margin-top:14px">
+    <button id="b_assets">① Phân tích Assets &amp; Khóa DNA</button>
     <button id="b_ve_assets" class="p">🎨 Vẽ ảnh assets</button>
-    <button id="b_canh">② Tạo scene</button>
+    <button id="b_canh">② Tạo Scenes &amp; Câu lệnh đồng nhất</button>
     <button id="b_ve_canh" class="p">🎨 Vẽ ảnh mọi scene</button>
-    <button id="b_tat_ca" class="ok" title="Assets → vẽ assets → scene → vẽ ảnh scene (bỏ qua phần đã có)">⚡ Chạy tất cả</button>
+    <button id="b_tat_ca" class="ok" title="Assets → vẽ assets → scene → vẽ ảnh scene (bỏ qua phần đã có)">⚡ Chạy tất cả trọn gói</button>
     <button id="b_dung" class="er an">■ Dừng</button>
   </div>
   <div class="tt" id="tt"><b id="tt_chu"></b><pre id="tt_log"></pre></div>
@@ -128,6 +182,33 @@ details>summary{cursor:pointer;color:var(--mut);font-size:12.5px}
   <p class="sub" id="x_kq"></p>
 </section>
 </main>
+
+<!-- Modal Chọn Kịch Bản Đã Lưu -->
+<div id="modal_chon_kb" class="modal-backdrop" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 style="margin:0">📂 Chọn Kịch Bản Đã Lưu Trong Dự Án</h3>
+      <button class="p nho" onclick="$('#modal_chon_kb').style.display='none'">✕</button>
+    </div>
+    <div class="modal-body" id="ds_modal_kb">
+      <span class="sub">Đang tải danh sách kịch bản...</span>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Chọn Plugin Kênh Đối Thủ -->
+<div id="modal_chon_plugin" class="modal-backdrop" style="display:none">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 style="margin:0">⚡ Nạp Phong Cách &amp; Nhân Vật Từ Plugin Đối Thủ</h3>
+      <button class="p nho" onclick="$('#modal_chon_plugin').style.display='none'">✕</button>
+    </div>
+    <div class="modal-body" id="ds_modal_plugin">
+      <span class="sub">Đang tải danh sách plugin...</span>
+    </div>
+  </div>
+</div>
+
 <div id="tb"></div>
 <script>
 const $=s=>document.querySelector(s);
@@ -137,21 +218,211 @@ async function api(p,o){const r=await fetch(p,o);if(!r.ok){let t='';try{t=await 
 const post=(p,d)=>api(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
 
 let SID=new URLSearchParams(location.search).get('id')||'';
+if (!SID) {
+  try {
+    const cu = localStorage.getItem('sb_lan_cuoi') || '';
+    if (cu) {
+      SID = cu;
+      history.replaceState(null, '', '?id=' + encodeURIComponent(SID));
+    }
+  } catch(e) {}
+}
 let D=null, hen=null, models=[];
 const anhVideo={};                                   // scene id -> id ảnh làm khung đầu video
 function mDaChon(){try{return localStorage.getItem('sb_model')||''}catch(e){return ''}}
 
-function caiDat(){return{so_anh:+$('#so_anh').value||4,so_canh:+$('#so_canh').value||0,ti_le:$('#ti_le').value,
-  phong_cach:$('#phong_cach').value,phong_cach_them:$('#phong_cach_them').value,noi_tiep:$('#noi_tiep').checked,giay_anh:+$('#x_giay').value||3}}
+function hienLuu(m){
+  const e=$('#trang_thai_luu');if(!e)return;
+  e.textContent=m;clearTimeout(window._hLuuMsg);
+  window._hLuuMsg=setTimeout(()=>{if(e)e.textContent=''},4500);
+}
+
+function caiDat(){return{
+  so_anh:+$('#so_anh').value||4,
+  so_canh:+$('#so_canh').value||0,
+  ti_le:$('#ti_le').value,
+  phong_cach:$('#phong_cach').value,
+  phong_cach_them:$('#phong_cach_them').value.trim(),
+  nhan_vat_dong_nhat:$('#nhan_vat_dong_nhat').value.trim(),
+  plugin_id:window._PLUGIN_ID||'',
+  noi_tiep:$('#noi_tiep').checked,
+  giay_anh:+$('#x_giay').value||3,
+  khoa_boi_canh:$('#khoa_boi_canh').checked,
+  che_do_canh:$('#che_do_canh').value||'tu_dong',
+  con_roi:$('#con_roi').checked,
+  kho_nv:[...document.querySelectorAll('#ds_kho_nv input:checked')].map(e=>e.value)
+}}
+// 25/10: chế độ con rối — danh sách nhân vật trong kho (kèm số tư thế đã duyệt) để tick
+async function veKhoNv(chon){
+  const o=$('#o_kho_nv');o.style.display=$('#con_roi').checked?'inline':'none';
+  if(!$('#con_roi').checked)return;
+  try{const r=await api('/api/nv/ds');const da=new Set(chon||[...document.querySelectorAll('#ds_kho_nv input:checked')].map(e=>e.value));
+    $('#ds_kho_nv').innerHTML=r.ds.length?r.ds.map(n=>{const d=(n.bien_the||[]).filter(b=>b.tt==='duyet').length;
+      return `<label style="margin-right:8px"><input type="checkbox" value="${esc(n.id)}" ${da.has(n.id)?'checked':''}> ${esc(n.ten)} (${d} tư thế)</label>`}).join('')
+      :'chưa có nhân vật —';}catch(e){}
+}
+$('#con_roi').onchange=()=>veKhoNv();
+if($('#che_do_canh')){$('#che_do_canh').onchange=()=>{if($('#che_do_canh').value==='theo_thoai')$('#so_anh').value=1}}
 
 async function veDs(){let d;try{d=await api('/api/sb/ds')}catch(e){return}
   $('#chon_sb').innerHTML='<option value="">＋ Storyboard mới</option>'+d.ds.map(x=>`<option value="${esc(x.id)}">${esc(x.ten)} · ${x.so_canh} scene</option>`).join('');
-  $('#chon_sb').value=SID}
-$('#chon_sb').onchange=e=>{SID=e.target.value;history.replaceState(null,'',SID?'?id='+encodeURIComponent(SID):'/storyboard');if(SID)tai();else moi()};
-function moi(){D=null;$('#ten').value='';$('#kich_ban').value='';['#the_assets','#the_canh','#the_xuat'].forEach(s=>$(s).classList.add('an'));$('#tt').style.display='none'}
+  $('#chon_sb').value=SID;
+}
+$('#chon_sb').onchange=e=>{
+  SID=e.target.value;
+  try{
+    if(SID)localStorage.setItem('sb_lan_cuoi',SID);
+    else localStorage.removeItem('sb_lan_cuoi');
+  }catch(err){}
+  history.replaceState(null,'',SID?'?id='+encodeURIComponent(SID):'/storyboard');
+  if(SID)tai();else moi();
+};
+function moi(){
+  D=null;window._PLUGIN_ID='';$('#ten').value='';$('#kich_ban').value='';$('#phong_cach_them').value='';$('#nhan_vat_dong_nhat').value='';
+  ['#the_assets','#the_canh','#the_xuat'].forEach(s=>$(s).classList.add('an'));$('#tt').style.display='none';
+  try{
+    const d=JSON.parse(localStorage.getItem('sb_draft_moi')||'{}');
+    if(d.kich_ban){
+      $('#ten').value=d.ten||'';$('#kich_ban').value=d.kich_ban||'';
+      if(d.cai_dat){
+        if(d.cai_dat.phong_cach)$('#phong_cach').value=d.cai_dat.phong_cach;
+        if(d.cai_dat.phong_cach_them)$('#phong_cach_them').value=d.cai_dat.phong_cach_them;
+        if(d.cai_dat.nhan_vat_dong_nhat)$('#nhan_vat_dong_nhat').value=d.cai_dat.nhan_vat_dong_nhat;
+        window._PLUGIN_ID=d.cai_dat.plugin_id||'';
+      }
+      tb('Đã phục hồi bản thảo chưa lưu');
+    }
+  }catch(e){}
+}
 
 $('#nap_tep').onclick=()=>$('#tep').click();
 $('#tep').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=v=>{$('#kich_ban').value=v.target.result;if(!$('#ten').value)$('#ten').value=f.name.replace(/\.txt$/i,'');luuDau()};r.readAsText(f,'utf-8');e.target.value=''};
+
+async function hienChromeFlow(){
+  try {
+    const r = await post('/api/flow/hien_tat_ca', {});
+    tb(`Đã đưa ${r.so_cua_so || 0} cửa sổ Chrome Flow lên màn hình!`);
+  } catch(e) {
+    tb('Lỗi: ' + e.message);
+  }
+}
+
+async function moModalChonKichBan(){
+  const m = $('#modal_chon_kb');
+  const body = $('#ds_modal_kb');
+  m.style.display = 'flex';
+  body.innerHTML = '<span class="sub">Đang tải danh sách kịch bản...</span>';
+  try {
+    const r = await api('/api/kich_ban/ds');
+    if (!r.kich_ban || !r.kich_ban.length) {
+      body.innerHTML = '<p class="sub">Chưa có kịch bản nào được lưu trong thư mục kich_ban/. Hãy viết kịch bản ở tab Tình Báo Đối Thủ hoặc dán trực tiếp.</p>';
+      return;
+    }
+    body.innerHTML = r.kich_ban.map(kb => {
+      const d = new Date(kb.mtime * 1000).toLocaleString('vi-VN');
+      const kbTen = kb.ten.replace(/\.txt$/i, '');
+      return `
+        <div class="modal-item" onclick="chonKichBan('${esc(kb.ten)}')">
+          <div>
+            <b>📝 ${esc(kbTen)}</b>
+            <div class="sub">Cập nhật: ${d} · ${(kb.size/1024).toFixed(1)} KB</div>
+          </div>
+          <button class="p nho">Chọn kịch bản này →</button>
+        </div>
+      `;
+    }).join('');
+  } catch (e) {
+    body.innerHTML = '<span class="loi">Lỗi: ' + e.message + '</span>';
+  }
+}
+
+async function chonKichBan(ten){
+  try {
+    const r = await api('/api/kich_ban/doc?ten=' + encodeURIComponent(ten));
+    $('#kich_ban').value = r.noi_dung || '';
+    if (!$('#ten').value || $('#ten').value === 'storyboard') {
+      $('#ten').value = ten.replace(/\.txt$/i, '');
+    }
+    $('#modal_chon_kb').style.display = 'none';
+    luuDau();
+    tb('Đã nạp kịch bản: ' + ten);
+  } catch (e) {
+    alert('Lỗi đọc kịch bản: ' + e.message);
+  }
+}
+
+async function moModalPluginDoiThu(){
+  const m = $('#modal_chon_plugin');
+  const body = $('#ds_modal_plugin');
+  m.style.display = 'flex';
+  body.innerHTML = '<span class="sub">Đang tải danh sách plugin đối thủ...</span>';
+  try {
+    const r = await api('/api/doi_thu/plugins');
+    if (!r.plugins || !r.plugins.length) {
+      body.innerHTML = '<p class="sub">Chưa có bộ plugin nào. Hãy phân tích kênh đối thủ ở tab Tình Báo Đối Thủ để lưu plugin!</p>';
+      return;
+    }
+    window._DS_PLUGINS = r.plugins;
+    body.innerHTML = r.plugins.map((pl, idx) => `
+      <div class="modal-item" onclick="chonPluginDoiThu(${idx})">
+        <div style="display:flex;align-items:center;gap:10px">
+          <img src="${pl.thumb||''}" style="width:40px;height:40px;border-radius:50%;object-fit:cover" onerror="this.style.display='none'">
+          <div>
+            <b>📺 ${esc(pl.kenh_ten||'Plugin')}</b>
+            <div class="sub">ID: ${esc(pl.id)} · Style: ${esc((pl.boi_canh?.art_style||'Mặc định').slice(0, 45))}…</div>
+          </div>
+        </div>
+        <button class="p nho">Nạp DNA này →</button>
+      </div>
+    `).join('');
+  } catch (e) {
+    body.innerHTML = '<span class="loi">Lỗi: ' + e.message + '</span>';
+  }
+}
+
+function chonPluginDoiThu(idx){
+  const pl = (window._DS_PLUGINS || [])[idx];
+  if (!pl) return;
+  const art = pl.boi_canh?.art_style || '';
+  const bangMau = (pl.boi_canh?.bang_mau || []).join(', ');
+  const nv = pl.nhan_vat?.prompt_nhan_vat || '';
+  
+  if (art) {
+    $('#phong_cach').value = 'tu_do';   // phong cách lấy từ ADN kênh, không chồng preset khác lên
+
+    $('#phong_cach_them').value = art + (bangMau ? `. Color palette: ${bangMau}` : '');
+  }
+  // 25/10: KHÔNG chép nhân vật của kênh gốc (đó là nhân vật của họ) — chỉ lấy phong cách; nhân vật do AI tạo từ kịch bản
+  // theo đúng nét vẽ của kênh (khung hình thật của kênh gắn làm tham chiếu phong cách)
+  window._PLUGIN_ID = pl.id || '';     // chia cảnh theo thư viện minh hoạ của kênh
+  $('#modal_chon_plugin').style.display = 'none';
+  luuDau();
+  tb('Đã nạp phong cách ảnh & nhân vật từ plugin ' + (pl.kenh_ten || pl.id));
+}
+
+function doiPhongCachMacDinh(){
+  const pc = $('#phong_cach').value;
+  if (pc === 'lanh_vcl_meme') {
+    $('#phong_cach_them').value = '';   // preset đã đủ (mặt meme, nền phẳng); nhịp cảnh do bước chia cảnh lo
+    if (!$('#nhan_vat_dong_nhat').value) {
+      $('#nhan_vat_dong_nhat').value = 'Chibi young man with an oversized round head on a small thin body, white meme face with tiny black dot eyes and a deadpan side-eye look, messy short black hair with a fringe, plain gray-blue t-shirt, dark navy trousers, black slip-on shoes';
+    }
+  } else if (pc === 'manhwa_clean') {
+    $('#phong_cach_them').value = 'clean modern 2D graphic novel illustration, semi-realistic manhwa art style, sharp stylish aesthetics, dark moody atmospheric background with subtle rim lighting, crisp ink outlines, no dark eye bags';
+    if (!$('#nhan_vat_dong_nhat').value) {
+      $('#nhan_vat_dong_nhat').value = 'A young Asian person with neat dark haircut, sharp clear eyes, calm confident expression, handsome clean facial features, stylish modern dark streetwear hoodie, athletic build, clear skin, no eye bags, no tired haggard look';
+    }
+  } else if (pc === 'dark_gritty' && !$('#phong_cach_them').value) {
+    $('#phong_cach_them').value = '2D dark gritty comic graphic novel art style, deep high-contrast shadows, chiaroscuro dramatic lighting, muted desaturated tones with intense accent colors, sharp ink line art';
+  } else if (pc === 'anime' && !$('#phong_cach_them').value) {
+    $('#phong_cach_them').value = 'anime film key frame, clean expressive line art, cel shading, vibrant cinematic anime aesthetic, detailed painted background';
+  } else if (pc === 'hoat_hinh_3d' && !$('#phong_cach_them').value) {
+    $('#phong_cach_them').value = 'high-quality 3D animated film still (Pixar/Dreamworks style), soft global illumination, expressive stylized characters, rich textures';
+  } else if (pc === 'cyberpunk' && !$('#phong_cach_them').value) {
+    $('#phong_cach_them').value = 'cyberpunk cinematic aesthetic, neon blue and magenta lighting, atmospheric volumetric fog, futuristic urban tech mood';
+  }
+  luuDau();
+}
 
 // lưu kịch bản + cài đặt (tạo storyboard nếu chưa có)
 async function damBao(){
@@ -159,8 +430,37 @@ async function damBao(){
   if(!SID){const r=await post('/api/sb/tao',{ten:$('#ten').value.trim()||'storyboard',kich_ban:kb,cai_dat:caiDat()});SID=r.id;history.replaceState(null,'','?id='+encodeURIComponent(SID));veDs()}
   else await post('/api/sb/sua',{id:SID,ten:$('#ten').value.trim(),kich_ban:kb,cai_dat:caiDat()});
 }
-let hLuu=null;function luuDau(){if(!SID)return;clearTimeout(hLuu);hLuu=setTimeout(()=>post('/api/sb/sua',{id:SID,ten:$('#ten').value.trim(),kich_ban:$('#kich_ban').value,cai_dat:caiDat()}).catch(()=>{}),600)}
-['#ten','#kich_ban','#so_anh','#so_canh','#ti_le','#phong_cach','#phong_cach_them','#noi_tiep','#x_giay'].forEach(s=>$(s).addEventListener('change',luuDau));
+let hLuu=null;
+function luuDau(){
+  clearTimeout(hLuu);
+  hLuu=setTimeout(async()=>{
+    const kb=$('#kich_ban').value.trim();
+    const ten=$('#ten').value.trim();
+    if(!SID){
+      try{
+        localStorage.setItem('sb_draft_moi',JSON.stringify({ten,kich_ban:$('#kich_ban').value,cai_dat:caiDat()}));
+      }catch(e){}
+      if(kb){
+        try{
+          const r=await post('/api/sb/tao',{ten:ten||'storyboard',kich_ban:kb,cai_dat:caiDat()});
+          SID=r.id;
+          try{localStorage.setItem('sb_lan_cuoi',SID)}catch(e){}
+          history.replaceState(null,'','?id='+encodeURIComponent(SID));
+          await veDs();
+          hienLuu('✔ Tự động tạo & lưu');
+        }catch(e){}
+      }
+      return;
+    }
+    try{
+      await post('/api/sb/sua',{id:SID,ten:ten,kich_ban:$('#kich_ban').value,cai_dat:caiDat()});
+      hienLuu('✔ Đã lưu ' + new Date().toLocaleTimeString('vi-VN'));
+    }catch(e){}
+  },600);
+}
+['#ten','#kich_ban','#so_anh','#so_canh','#ti_le','#phong_cach','#phong_cach_them','#nhan_vat_dong_nhat','#noi_tiep','#x_giay','#khoa_boi_canh','#che_do_canh'].forEach(s=>{
+  const el=$(s);if(el){el.addEventListener('change',luuDau);if(s==='#ten'||s==='#kich_ban')el.addEventListener('input',luuDau)}
+});
 
 async function viec(v,them={}){try{await damBao();await post('/api/sb/viec',Object.assign({id:SID,viec:v},them));tb('Đã bắt đầu…');tai()}catch(e){tb('Lỗi: '+e.message)}}
 $('#b_assets').onclick=()=>{if(D&&D.sb.assets.length&&!confirm('Phân tích lại assets? (asset có mô tả không đổi giữ nguyên ảnh)'))return;viec('assets')};
@@ -175,8 +475,16 @@ async function tai(){
   let d;try{d=await api('/api/sb?id='+encodeURIComponent(SID))}catch(e){tb('Lỗi: '+e.message);return}
   const dau=!D||D.sb.id!==d.sb.id;D=d;models=d.model||[];
   if(dau){const s=d.sb,c=s.cai_dat;$('#ten').value=s.ten;$('#kich_ban').value=s.kich_ban;$('#so_anh').value=c.so_anh;$('#so_canh').value=c.so_canh;
-    $('#ti_le').value=c.ti_le;$('#phong_cach').value=c.phong_cach;$('#phong_cach_them').value=c.phong_cach_them||'';$('#noi_tiep').checked=c.noi_tiep===true;
-    $('#x_giay').value=c.giay_anh||3;$('#x_ten').placeholder='SB_'+s.id}
+    $('#ti_le').value=c.ti_le;$('#phong_cach').value=c.phong_cach||'dien_anh';$('#phong_cach_them').value=c.phong_cach_them||'';
+    $('#nhan_vat_dong_nhat').value=c.nhan_vat_dong_nhat||'';$('#noi_tiep').checked=c.noi_tiep===true;
+    if($('#khoa_boi_canh'))$('#khoa_boi_canh').checked=c.khoa_boi_canh!==false;
+    if($('#che_do_canh'))$('#che_do_canh').value=c.che_do_canh||'tu_dong';
+    $('#con_roi').checked=c.con_roi===true;veKhoNv(c.kho_nv||[]);
+    $('#x_giay').value=c.giay_anh||3;$('#x_ten').placeholder='SB_'+s.id;
+    try{localStorage.setItem('sb_lan_cuoi',SID)}catch(e){}
+    hienLuu('✔ Đã nạp ' + s.ten);
+  }
+
   veTT();
   const dangGo=document.activeElement&&/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)&&document.activeElement.closest('#the_assets,#the_canh');
   if(!dangGo){veAssets();veCanh()}
@@ -214,8 +522,96 @@ function veAssets(){const s=D.sb;$('#the_assets').classList.toggle('an',!s.asset
     <div class="than"><div class="row" style="justify-content:space-between"><input data-a="${esc(a.id)}" data-k="ten" value="${esc(a.ten)}" style="flex:1;font-weight:600">
       <button class="p nho" data-ve-asset="${esc(a.id)}" title="Vẽ lại ảnh asset này">↻</button></div>
       <span class="sub">${esc(a.mo_ta_vi)}</span>
+      ${a.loai==='nhan_vat'?`
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin:4px 0">
+          <button type="button" class="p nho" onclick="apDungModelSheet('${esc(a.id)}','tat_ca')" style="border-color:var(--ac);color:var(--ac);font-size:11px;padding:2px 6px;font-weight:600">🎭 Bật Model Sheet (Đủ 4 góc &amp; Đa sắc thái)</button>
+          <button type="button" class="p nho" onclick="apDungModelSheet('${esc(a.id)}','tuoi_vui')" style="border-color:var(--ok);color:var(--ok);font-size:11px;padding:2px 5px">😊 Tươi cười &amp; Vui vẻ</button>
+          <button type="button" class="p nho" onclick="apDungModelSheet('${esc(a.id)}','binh_than')" style="border-color:var(--wa);color:var(--wa);font-size:11px;padding:2px 5px">😌 Điềm tĩnh &amp; Trầm tư</button>
+          <button type="button" class="p nho" onclick="apDungModelSheet('${esc(a.id)}','kich_tinh')" style="border-color:var(--er);color:var(--er);font-size:11px;padding:2px 5px">⚡ Kịch tính &amp; Cảm xúc</button>
+        </div>`:''}
       <details><summary>Mô tả ngoại hình cố định (EN)</summary><textarea data-a="${esc(a.id)}" data-k="mo_ta_en">${esc(a.mo_ta_en)}</textarea></details>
       ${a.loi?`<span class="loi">${esc(a.loi)}</span>`:''}</div></div>`}).join('')}
+
+function apDungModelSheet(aId, loai){
+  const ta = document.querySelector(`textarea[data-a="${aId}"][data-k="mo_ta_en"]`);
+  if (!ta) return;
+  let text = '';
+  if (loai === 'tuoi_vui') {
+    text = 'Character turnaround model sheet: full-body front view, three-quarter angle, side profile, and back rear view. Inset close-up headshots showing bright expressive emotions: warm friendly smile, joyful beaming laughter, curious inquisitive gaze, and confident proud grin.';
+  } else if (loai === 'binh_than') {
+    text = 'Character turnaround model sheet: full-body front view, three-quarter angle, side profile, and back rear view. Inset close-up headshots showing calm serene emotions: peaceful neutral calm face, deep thoughtful pensive gaze, quiet composure, and gentle slight smile.';
+  } else if (loai === 'kich_tinh') {
+    text = 'Character turnaround model sheet: full-body front view, three-quarter angle, side profile, and back rear view. Inset close-up headshots showing dramatic intense emotions: intense serious glare, angry clenching jaw, shocked wide-eyed horror, and cynical deadpan smirk.';
+  } else {
+    // Đầy đủ toàn diện mọi sắc thái
+    text = 'Character turnaround model sheet with multiple viewpoints: full-body front view, three-quarter angle, side profile, and back rear view. Inset close-up headshots displaying diverse facial expressions: neutral calm composed, warm pleasant smile, joyful happy laughter, surprised wide-eyed look, intense serious face, and subtle confident smirk.';
+  }
+  ta.value = (ta.value.trim() ? ta.value.trim() + '. ' : '') + text;
+  ta.dispatchEvent(new Event('change'));
+  tb('Đã kích hoạt Model Sheet cho ' + aId + ' — bấm ↻ để vẽ lại asset');
+}
+
+function themTagPrompt(cId, aId, tag){
+  const ta = document.querySelector(`textarea[data-c="${cId}"][data-anh="${aId}"]`);
+  if (!ta) return;
+  ta.value = (ta.value.trim() ? ta.value.trim() + ', ' : '') + tag;
+  ta.dispatchEvent(new Event('change'));
+  tb('Đã thêm: ' + tag.slice(0, 35) + '…');
+}
+
+function renderTagPalette(cId, aId){
+  return `
+    <div style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 8px;margin:6px 0;font-size:11.5px">
+      <!-- 1. Góc máy & Cự ly -->
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:6px">
+        <b style="color:var(--ac);min-width:65px">📐 Góc máy:</b>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'front view centered framing')" style="font-size:11px;padding:1px 6px">Thẳng</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'three-quarter cinematic angle')" style="font-size:11px;padding:1px 6px">Nghiêng 3/4</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'side profile silhouette view')" style="font-size:11px;padding:1px 6px">Nhìn ngang</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'over-the-shoulder view from behind')" style="font-size:11px;padding:1px 6px">Sau lưng/Qua vai</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'dramatic close-up face portrait')" style="font-size:11px;padding:1px 6px">🔍 Cận mặt</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'cinematic medium shot from waist up')" style="font-size:11px;padding:1px 6px">🧍 Trung cảnh</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'wide establishing environmental shot')" style="font-size:11px;padding:1px 6px">🏞️ Toàn cảnh</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'dynamic low-angle hero shot looking up')" style="font-size:11px;padding:1px 6px">Góc thấp ⬆</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'high-angle perspective shot looking down')" style="font-size:11px;padding:1px 6px">Góc cao ⬇</button>
+      </div>
+
+      <!-- 2. Sắc thái Tươi vui & Bình thản -->
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:6px">
+        <b style="color:var(--ok);min-width:65px">😊 Vui &amp; Tĩnh:</b>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'warm pleasant smiling friendly expression')" style="font-size:11px;padding:1px 6px">😊 Tươi cười</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'joyful happy cheerful beaming face')" style="font-size:11px;padding:1px 6px">😄 Vui vẻ</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'laughing animatedly with ecstatic joy')" style="font-size:11px;padding:1px 6px">😆 Cười lớn</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'calm composed peaceful serene expression, tranquil neutral face')" style="font-size:11px;padding:1px 6px">😌 Bình thản</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'confident self-assured grin, proud poised look')" style="font-size:11px;padding:1px 6px">😎 Tự tin</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'thoughtful pensive reflective gaze, deep in thought')" style="font-size:11px;padding:1px 6px">🤔 Trầm ngâm</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'curious inquisitive arched eyebrow skeptical look')" style="font-size:11px;padding:1px 6px">🧐 Tò mò</button>
+      </div>
+
+      <!-- 3. Sắc thái Cảm xúc & Kịch tính -->
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:6px">
+        <b style="color:var(--er);min-width:65px">⚡ Cảm xúc:</b>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'intense focused serious face, stoic firm look')" style="font-size:11px;padding:1px 6px">😐 Nghiêm túc</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'angry irritated clenching jaw, sharp frustrated frown')" style="font-size:11px;padding:1px 6px">😠 Tức giận</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'furious enraged shouting hostile glare')" style="font-size:11px;padding:1px 6px">😡 Căm phẫn</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'anxious worried uneasy nervous face, biting lip')" style="font-size:11px;padding:1px 6px">😰 Lo lắng</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'shocked wide-eyed terrified face, gasping in horror')" style="font-size:11px;padding:1px 6px">😱 Sốc/Sợ</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'sorrowful melancholy sad teary eyes, heartbreak look')" style="font-size:11px;padding:1px 6px">😢 Buồn bã</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'cynical deadpan smirk side-glance, sarcastic subtle grin')" style="font-size:11px;padding:1px 6px">😏 Liếc xéo/Meme</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'cunning sly devious secretive smirk, whispering conspiratorially')" style="font-size:11px;padding:1px 6px">🤫 Gian xảo</button>
+      </div>
+
+      <!-- 4. Khóa bối cảnh & Động tác Mid-motion -->
+      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">
+        <b style="color:var(--wa);min-width:65px">🔒 &amp; Cử chỉ:</b>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'Locked identical continuous background setting as previous frame, exact same room layout, walls and lighting, unchanged environment, only character action and camera framing change')" style="border-color:var(--wa);color:var(--wa);font-weight:600;font-size:11px;padding:1px 7px">🔒 Khóa bối cảnh cũ</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'expressive hand gesture while speaking conversationally')" style="font-size:11px;padding:1px 6px">👋 Cử chỉ nói chuyện</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'firm crossed arms pose, resolute stance')" style="font-size:11px;padding:1px 6px">✋ Khoanh tay</button>
+        <button type="button" class="p nho" onclick="themTagPrompt(${cId},${aId},'walking forward mid-stride with active dynamic body motion')" style="font-size:11px;padding:1px 6px">🚶 Đang bước đi</button>
+      </div>
+    </div>
+  `;
+}
 
 function tenAsset(id){const a=D.sb.assets.find(x=>x.id===id);return a?a.ten:id}
 function chipAsset(id){const a=D.sb.assets.find(x=>x.id===id);const l=LOAI[(a||{}).loai]||['nv'];return `<span class="chip ${l[0]}">${esc(id)} ${esc(tenAsset(id))}</span>`}
@@ -233,7 +629,10 @@ function veCanh(){const s=D.sb;$('#the_canh').classList.toggle('an',!s.canh.leng
     <div class="dai">${c.anh.map(a=>`<div class="o">${khung(a,ti,'Ảnh '+a.id,'c|'+c.id+'|'+a.id)}
       <div class="than"><span>${esc(a.mo_ta_vi)}</span>
         <div>${(a.nhan_vat||[]).map(chipAsset).join('')}</div>
-        <details><summary>Câu lệnh (EN)</summary><textarea data-c="${c.id}" data-anh="${a.id}">${esc(a.prompt_en)}</textarea></details>
+        <details><summary>🎨 Câu lệnh (EN) &amp; Chọn góc / biểu cảm / khóa bối cảnh</summary>
+          ${renderTagPalette(c.id, a.id)}
+          <textarea data-c="${c.id}" data-anh="${a.id}">${esc(a.prompt_en)}</textarea>
+        </details>
         <div class="row"><button class="p nho" data-ve-anh="${c.id}|${a.id}">↻ Vẽ lại</button>
           <label title="Ảnh làm khung đầu cho video của scene"><input type="radio" name="va_${c.id}" value="${a.id}" ${a.id===vAnh?'checked':''} data-va="${c.id}"> khung đầu video</label></div>
         ${a.loi?`<span class="loi">${esc(a.loi)}</span>`:''}</div></div>`).join('')||'<span class="sub">Chưa có câu lệnh ảnh — bấm ↻ Làm lại scene</span>'}</div>
@@ -283,7 +682,27 @@ $('#x_capcut').onclick=async()=>{try{const r=await post('/api/sb/capcut',{id:SID
 $('#x_thu').onclick=()=>post('/api/sb/mo_thu_muc',{id:SID});
 $('#x_xoa').onclick=async()=>{if(!confirm('Xoá storyboard này cùng toàn bộ ảnh / video của nó?'))return;await post('/api/sb/xoa',{id:SID});SID='';history.replaceState(null,'','/storyboard');moi();veDs()};
 
-veDs().then(()=>{if(SID)tai()});
+veDs().then(async()=>{
+  if(SID){
+    $('#chon_sb').value=SID;
+    tai();
+  } else {
+    try {
+      const d = await api('/api/sb/ds');
+      if (d.ds && d.ds.length) {
+        SID = d.ds[0].id;
+        try{localStorage.setItem('sb_lan_cuoi',SID)}catch(e){}
+        history.replaceState(null,'','?id='+encodeURIComponent(SID));
+        $('#chon_sb').value=SID;
+        tai();
+      } else {
+        moi();
+      }
+    } catch(e) {
+      moi();
+    }
+  }
+});
 </script>
 </body>
 </html>

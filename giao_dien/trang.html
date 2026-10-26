@@ -55,10 +55,10 @@ dialog::backdrop{background:#000a}dialog video{width:100%;display:block;border-r
   <select id="duan" class="grow" style="max-width:340px"></select>
   <button class="p" id="moi">+ Dự án mới</button>
   <button class="p" id="mothumuc">Mở thư mục kết quả</button>
-  <span class="sub" style="margin:0" id="trangthai_dau"></span>
   <button class="p" id="nutck" title="Tài khoản Gemini / ChatGPT (cookie) — kho riêng của bán-content">🍪 Cookie</button>
-  <a class="p" href="/doi_thu" target="_blank" title="Quét giờ đăng của kênh đối thủ + tìm video đột biến của kênh ít sub cùng ngách" style="padding:6px 12px;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:var(--ink)">📈 Đối thủ</a>
+  <a class="p" href="/doi_thu#spy" target="_blank" title="Tình báo danh sách kênh đối thủ, giải mã kịch bản, visual, âm thanh và sinh kịch bản viral" style="padding:6px 12px;border:1px solid #8e24aa;border-radius:8px;text-decoration:none;color:#8e24aa;font-weight:600">🕵️ Tình báo đối thủ</a>
   <button class="p" id="nutflow" title="Hồ sơ Chrome để vẽ ảnh bằng Google Flow (Nano Banana, 0 điểm)">🎨 Hồ sơ Flow</button>
+  <a class="p" href="/nhan_vat" target="_blank" title="Phôi nhân vật vẽ bằng code kiểu MS Paint → Flow vẽ biểu cảm / cử chỉ → duyệt → storyboard dán vào cảnh" style="padding:6px 12px;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:var(--ink)">🧍 Kho nhân vật</a>
   <a class="p" href="/storyboard" target="_blank" title="Nhập kịch bản → AI lập assets + scene nối tiếp (nhân vật nhất quán) → vẽ ảnh Flow → video hook → JSON / bản nháp CapCut" style="padding:6px 12px;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:var(--ink)">🎬 Storyboard Flow</a>
 </header>
 <main>
@@ -74,8 +74,12 @@ dialog::backdrop{background:#000a}dialog video{width:100%;display:block;border-r
   </section>
   <section class="card" id="flowk" style="display:none">
     <h2>🎨 Google Flow — vẽ ảnh 0 điểm <span class="sub" style="margin:0;font-weight:400">— mỗi hồ sơ là một Chrome riêng; bước vẽ ảnh mở ẩn, tạo xong tự tắt</span></h2>
-    <p class="sub">Bấm <b>＋ Hồ sơ Chrome Flow</b>, đặt tên → cửa sổ Chrome mới mở ở flow.google.com → <b>đăng nhập tài khoản Google (gói Pro)</b> → đóng cửa sổ đó. Bấm <b>Thử</b> để kiểm tra. Có nhiều hồ sơ thì xoay vòng khi một tài khoản hết lượt. Không có hồ sơ nào / Flow lỗi → tự dùng Gemini (cookie, tốn điểm).</p>
-    <div class="row"><input type="text" id="flowten" placeholder="Tên hồ sơ, vd flow1" style="max-width:220px"><button id="flowtao">＋ Hồ sơ Chrome Flow</button></div>
+    <div class="row" style="gap:8px">
+      <input type="text" id="flowten" placeholder="Tên hồ sơ, vd flow1" style="max-width:220px">
+      <button id="flowtao">＋ Hồ sơ Chrome Flow</button>
+      <button type="button" class="p" id="flow_btn_hien_all" style="border-color:var(--ok);color:var(--ok);font-weight:600" title="Đưa toàn bộ cửa sổ Chrome của Flow ra giữa màn hình để quan sát hoặc thao tác trực tiếp">🖥️ Hiện các cửa sổ Chrome lên màn hình</button>
+      <button type="button" class="p" id="flow_btn_dong_all" style="border-color:var(--er);color:var(--er)" title="Đóng toàn bộ Chrome Flow đang chạy ngầm">✕ Đóng hết Chrome Flow</button>
+    </div>
     <div id="flowds" style="margin-top:8px"></div>
 
     <div id="flow_hang_loat_sec" style="margin-top:18px;border-top:1px solid var(--line);padding-top:14px">
@@ -261,6 +265,13 @@ $('#flowtao').onclick=async()=>{const ten=$('#flowten').value.trim();if(!ten)ret
 $('#flowds').onclick=async e=>{const b=e.target.closest('[data-fl]');if(!b)return;const [vc,ten]=b.dataset.fl.split('|');
   if(vc==='xoa'&&!confirm('Xoá hồ sơ Chrome Flow "'+ten+'" (cả phiên đăng nhập trong đó)?'))return;
   try{await post('/api/flow/'+vc,{ten});if(vc==='mo')tb('Đã mở Chrome của hồ sơ — đăng nhập xong thì đóng cửa sổ');veFlow()}catch(er){tb('Lỗi: '+er.message)}};
+$('#flow_btn_hien_all').onclick=async()=>{
+  try{const r=await post('/api/flow/hien_tat_ca',{});tb(`Đã đưa ${r.so_cua_so||0} cửa sổ Chrome lên màn hình!`);}catch(e){tb('Lỗi: '+e.message);}
+};
+$('#flow_btn_dong_all').onclick=async()=>{
+  if(!confirm('Đóng toàn bộ các cửa sổ Chrome Flow đang chạy ngầm?'))return;
+  try{await post('/api/flow/dong_tat_ca',{});tb('Đã đóng tất cả Chrome Flow');veFlow();}catch(e){tb('Lỗi: '+e.message);}
+};
 
 // 🖼️ Tạo hàng loạt ảnh bằng Flow
 function demCauFlow(){

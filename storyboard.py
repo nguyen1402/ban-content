@@ -27,12 +27,19 @@ SO_ANH_MAC_DINH = 4
 TI_LE = ("16:9", "9:16", "1:1", "4:3", "3:4")
 KICH_THUOC = {"16:9": (1920, 1080), "9:16": (1080, 1920), "1:1": (1080, 1080), "4:3": (1440, 1080), "3:4": (1080, 1440)}
 PHONG_CACH = {
-    "dien_anh": "cinematic photorealistic film still, natural light, shallow depth of field, rich but natural color grade",
-    "tai_lieu": "documentary photograph, real-life candid moment, natural available light, true-to-life colors",
-    "hoat_hinh_3d": "high-quality 3D animated film still (Pixar-like), soft global illumination, expressive stylized characters",
-    "anime": "anime film key frame, clean line art, cel shading, detailed painted background",
-    "minh_hoa": "detailed digital illustration, painterly storybook style, soft textured brushwork",
+    # 25/10 xem khung hình thật của kênh Lạnh Vcl: vẽ tay kiểu MS Paint, đầu to thân nhỏ, mặt meme trắng, nền tường một màu
+    "lanh_vcl_meme": "crude hand-drawn 2D cartoon in MS Paint style, thick slightly uneven black outlines, flat solid fill colors with zero shading and no gradients, plain single-color walls and a flat floor plane, simple flat furniture drawn in basic perspective, chibi characters with oversized round heads on small thin bodies, blank white meme faces drawn with almost nothing: two tiny black dot eyes (or two flat lines for a bored side-eye), a single short line mouth, no nose, no eyelashes, no irises, no eye highlights, no blush (NOT anime, NOT manga, NOT webtoon faces), a deadpan side-eye look, characters told apart by hair color and outfit color, occasional realistic photo cut-out objects pasted onto the cartoon scene like a collage, amateur YouTube storytelling animation look, no 3D, no realistic rendering of people",
+    "manhwa_clean": "clean modern 2D graphic novel illustration, semi-realistic manhwa art style, sharp stylish character with neat hair and clear eyes, cinematic atmospheric lighting, crisp ink outlines, clean aesthetics without dark eye bags or tired look",
+    "dien_anh": "cinematic photorealistic film still, natural light, shallow depth of field, rich natural color grade, 35mm photography",
+    "dark_gritty": "2D dark gritty comic graphic novel art style, deep high-contrast shadows, chiaroscuro dramatic lighting, muted desaturated tones with intense accent colors, sharp ink line art",
+    "hoat_hinh_3d": "high-quality 3D animated film still (Pixar/Dreamworks style), soft global illumination, expressive stylized characters, rich textures",
+    "anime": "anime film key frame, clean expressive line art, cel shading, detailed painted background, vibrant cinematic anime aesthetic",
+    "minh_hoa": "detailed digital illustration, painterly storybook style, soft textured brushwork, rich atmospheric mood",
+    "tai_lieu": "documentary photograph, real-life candid moment, natural available light, authentic true-to-life colors",
+    "cyberpunk": "cyberpunk cinematic aesthetic, neon blue and magenta lighting, atmospheric volumetric fog, futuristic urban tech mood",
+    "tu_do": "custom artistic style, consistent rendering technique and lighting mood",
 }
+
 
 _KHOA = threading.RLock()
 _SB = {}                     # id -> dict storyboard (bản trong bộ nhớ, ghi đĩa sau mỗi thay đổi)
@@ -105,11 +112,19 @@ def _cai_dat(c):
             "so_canh": max(0, min(40, int(c.get("so_canh") or 0))),
             "ti_le": c.get("ti_le") if c.get("ti_le") in TI_LE else "16:9",
             "phong_cach": c.get("phong_cach") if c.get("phong_cach") in PHONG_CACH else "dien_anh",
-            "phong_cach_them": str(c.get("phong_cach_them") or "").strip()[:300],
+            "phong_cach_them": str(c.get("phong_cach_them") or "").strip()[:800],
+            "nhan_vat_dong_nhat": str(c.get("nhan_vat_dong_nhat") or "").strip()[:1000],
             # 23/10 user "quá chậm": nối tiếp bắt vẽ LẦN LƯỢT trong scene (~90 s/ảnh, chỉ 1 hồ sơ/scene) -> mặc định TẮT,
             # mọi ảnh vẽ song song; nhân vật vẫn giữ nhờ ảnh asset tham chiếu + mô tả cố định
             "noi_tiep": c.get("noi_tiep") is True,
-            "giay_anh": max(0.5, min(20.0, float(c.get("giay_anh") or 3)))}
+            "giay_anh": max(0.5, min(20.0, float(c.get("giay_anh") or 3))),
+            "khoa_boi_canh": c.get("khoa_boi_canh", True) is not False,
+            "che_do_canh": c.get("che_do_canh") if c.get("che_do_canh") in ("tu_dong", "theo_thoai") else "tu_dong",
+            "plugin_id": str(c.get("plugin_id") or "").strip()[:80],   # plugin kênh: chia cảnh theo cách kênh minh hoạ
+            # 25/10 user: nhân vật KHÔNG để AI vẽ mỗi cảnh -> dán con rối (kho nhân vật đã duyệt / con rối code) vào nền
+            "con_roi": c.get("con_roi") is True,
+            "kho_nv": [str(x) for x in (c.get("kho_nv") or []) if str(x).strip()][:8]}
+
 
 
 def sua(sid, d):
@@ -230,12 +245,13 @@ _P_ASSET = """You are the pre-production designer of an AI-generated film. Read 
 and build the ASSET BIBLE that every image of the storyboard will reuse, so that characters stay 100% IDENTICAL from the
 first frame to the last.
 
-Global look chosen by the user: {phong_cach}
+Global visual art style chosen by the user: {phong_cach}
+{user_nv_rule}
 
 Return:
   "phong_cach_chung": ONE English sentence fixing the visual style for EVERY image (medium, lens/film look, color grade,
-     lighting mood, era look if the story is set in the past). Respect the user's look above.
-  "assets": every RECURRING CHARACTER (named or not: "the mother", "the soldier"…, also animals/creatures that act), every
+     lighting mood, art style). Respect the user's chosen style above.
+  "assets": every RECURRING CHARACTER (named or not: "the protagonist", "the mother"…, also animals/creatures that act), every
      main LOCATION, and only the PROPS that matter to the plot (a letter, a car, a sword…). Each item:
      - "id": "NV1","NV2"… for characters, "BC1"… for locations, "DC1"… for props
      - "loai": "nhan_vat" | "boi_canh" | "dao_cu"
@@ -249,11 +265,69 @@ Return:
          Locations (50-80 words): place type, era, architecture/nature, materials, colors, key landmarks/objects that
          make it recognizable, default time of day and weather.
          Props (25-50 words): shape, size, material, color, wear and tear.
-Keep the cast small and essential (usually 1-6 characters, 1-6 locations, 0-5 props).
+CAST THE WHOLE WORLD OF THE SCRIPT, not only the protagonist. The script is often a NARRATION (second person "bạn", an
+essay, a life lesson) with few named people — you must still cast every kind of person it mentions or implies (the boss,
+coworkers, friends who take advantage, family members, a partner, strangers, "thiên hạ" / the crowd, a rich man, a
+beggar…) as supporting characters NV2, NV3… (a recurring group may be ONE asset, e.g. "nhóm đồng nghiệp"), and one LOCATION
+for EVERY distinct real-life situation the narration evokes (office, crowded bus, family dinner table, rainy street,
+café, hospital corridor, rooftop at night…) — never a single empty room for the whole film.
+Supporting characters use the same art style but must be instantly distinguishable from NV1 and from each other
+(different hair, build, outfit colors, accessories).
+SETTING: when the script is Vietnamese and does not say otherwise, the story happens in present-day VIETNAM — Vietnamese
+tube houses, narrow alleys, motorbikes, plastic stools, street food stalls, Vietnamese apartments, offices and buses;
+never American or European streets and buildings.
+Usually 3-8 characters and 2-8 props. LOCATIONS: a narration needs about ONE location per 3-4 sentences (20 sentences ->
+at least 5 locations, e.g. bedroom, apartment corridor, bus, office, street, family table) because every abstract line
+will be illustrated by an everyday example situation somewhere else.
 Only JSON: {{"phong_cach_chung": "...", "assets": [{{"id": "NV1", "loai": "nhan_vat", "ten": "...", "mo_ta_vi": "...", "mo_ta_en": "..."}}]}}
 
 SCRIPT:
 {kb}"""
+
+
+# bảng màu vai phụ con rối code (khi AI không chọn) — tóc / áo / quần khác hẳn nhau
+_BANG_VAI_PHU = [
+    {"toc": "hoi", "mau_toc": "#8a5a2b", "ao": "so_mi", "mau_ao": "#f2d24b", "mau_quan": "#3b3b3b"},
+    {"toc": "dau_dinh", "mau_toc": "#c0392b", "ao": "phong", "mau_ao": "#3fae5a", "mau_quan": "#1f2a5a"},
+    {"toc": "mai_dai", "mau_toc": "#2b1d14", "ao": "ba_lo", "mau_ao": "#f4a6c0", "mau_quan": "#222222"},
+    {"toc": "ngan", "mau_toc": "#555555", "ao": "khoac", "mau_ao": "#e67e22", "mau_quan": "#4a3b2a"},
+    {"toc": "buoc", "mau_toc": "#d4a017", "ao": "phong", "mau_ao": "#9b59b6", "mau_quan": "#2b2b2b"},
+]
+
+
+def _kieu_nv_kenh(cd):
+    """Dáng thân / cỡ đầu / màu da nhân vật của kênh gốc (plugin) -> áp cho mọi con rối code của storyboard."""
+    pid = cd.get("plugin_id")
+    if not pid:
+        return {}
+    import json
+    try:
+        cr = json.load(open(os.path.join(ROOT, "plugins_doi_thu", f"{pid}.json"), encoding="utf-8"))["nhan_vat"].get("con_roi") or {}
+    except (OSError, ValueError, KeyError, TypeError):
+        return {}
+    return {k: cr[k] for k in ("than", "dau", "mau_da") if cr.get(k)}
+
+
+def _luat_con_roi_asset(cd):
+    """Chế độ con rối: AI gán vai trong kịch bản cho nhân vật trong kho (đã duyệt) hoặc chọn thông số con rối code."""
+    if not cd.get("con_roi"):
+        return ""
+    import con_roi
+    import kho_nhan_vat
+    kho = []
+    for nid in cd.get("kho_nv") or []:
+        try:
+            n = kho_nhan_vat.doc(nid)
+            kho.append(f'- "{nid}": {n["ten"]} — {n.get("mo_ta") or ""}')
+        except ValueError:
+            continue
+    return ("\n\nPUPPET MODE: characters are NOT drawn by the image generator — they are hand-drawn puppets pasted onto the "
+            "backgrounds. For every character asset (loai nhan_vat) add:\n"
+            + ('  "kho": the id of the puppet below that plays this role (the protagonist MUST use one of them), or "" if none fits:\n'
+               + "\n".join(kho) + "\n" if kho else "")
+            + f'  "hinh": for roles without a puppet, its look as {{"toc": one of {list(con_roi.TOC)}, "mau_toc": "#hex", '
+            f'"ao": one of {list(con_roi.AO)}, "mau_ao": "#hex", "mau_quan": "#hex"}} — colors clearly different from the '
+            "other characters.\nLocations (BC…) are EMPTY places with no people, drawn in the channel's crude style.")
 
 
 def lap_assets(sid, bao):
@@ -262,13 +336,43 @@ def lap_assets(sid, bao):
     if not kb:
         raise ValueError("chưa nhập kịch bản")
     cd = sb["cai_dat"]
-    pc = PHONG_CACH[cd["phong_cach"]] + ((". " + cd["phong_cach_them"]) if cd.get("phong_cach_them") else "")
-    bao("AI đang đọc kịch bản và lập danh sách assets (nhân vật, bối cảnh, đạo cụ)…")
+    pc = PHONG_CACH.get(cd.get("phong_cach")) or PHONG_CACH["dien_anh"]
+    if cd.get("phong_cach_them"):
+        pc = pc + ". " + cd["phong_cach_them"]
+
+    user_nv = str(cd.get("nhan_vat_dong_nhat") or "").strip()
+    if user_nv:
+        user_nv_rule = f"""
+CRITICAL MANDATORY INSTRUCTION FOR MAIN CHARACTER (NV1):
+The user has specified an exact fixed character appearance:
+"{user_nv}"
+You MUST adopt this EXACT character identity for the protagonist (NV1) in "mo_ta_en" (enrich with concrete physical details: age, hairstyle, face, specific clothing and colors), ensuring NV1 represents this exact character throughout."""
+    else:
+        user_nv_rule = ""
+
+    bao("AI đang đọc kịch bản và lập danh sách assets đồng nhất (nhân vật, phong cách, bối cảnh)…")
     j = None
+    # 25/10 (thử 20 câu Lạnh Vcl, 2 lần): AI chỉ lập 2 bối cảnh dù được dặn 5+ -> cả phim dồn vào một phòng. Đếm số câu,
+    # thiếu bối cảnh thì hỏi lại kèm lời nhắc cụ thể
+    from tach_canh import tach_cau
+    can_bc = max(2, min(12, len(tach_cau(kb)) // 4))
+    nhac, tot = "", None
+    them_roi = _luat_con_roi_asset(cd)
     for _ in range(3):
-        j = rut_json(hoi_llm(_P_ASSET.format(phong_cach=pc, kb=kb[:24000]), timeout=300) or "")
-        if isinstance(j, dict) and j.get("assets"):
+        prompt_txt = _P_ASSET.format(phong_cach=pc, user_nv_rule=user_nv_rule, kb=kb[:24000]) + them_roi + nhac
+        j = rut_json(hoi_llm(prompt_txt, timeout=300) or "")
+        if not (isinstance(j, dict) and j.get("assets")):
+            continue
+        so_bc = sum(1 for a in j["assets"] if isinstance(a, dict) and (a.get("loai") == "boi_canh"
+                                                                     or str(a.get("id", "")).upper().startswith("BC")))
+        if tot is None or so_bc > tot[0]:
+            tot = (so_bc, j)
+        if so_bc >= can_bc:
             break
+        bao(f"  AI chỉ lập {so_bc} bối cảnh (cần ≥ {can_bc}) — hỏi lại…")
+        nhac = (f"\n\nYOUR PREVIOUS ANSWER HAD ONLY {so_bc} LOCATIONS. This script has {len(tach_cau(kb))} sentences: return AT "
+                f"LEAST {can_bc} distinct everyday locations (BC…) where its example situations happen.")
+    j = tot[1] if tot else j
     if not isinstance(j, dict) or not j.get("assets"):
         raise ValueError("AI không trả danh sách assets (thử lại)")
     cu = {a["id"]: a for a in sb.get("assets") or []}
@@ -281,39 +385,80 @@ def lap_assets(sid, bao):
             "boi_canh" if aid.startswith("BC") else "dao_cu" if aid.startswith("DC") else "nhan_vat")
         x = {"id": aid, "loai": loai, "ten": str(a.get("ten") or aid).strip(), "mo_ta_vi": str(a.get("mo_ta_vi") or "").strip(),
              "mo_ta_en": str(a["mo_ta_en"]).strip(), "bien_the": [], "chon": 0, "tt": "cho", "loi": ""}
+        if cd.get("con_roi") and loai == "nhan_vat":
+            kho = str(a.get("kho") or "").strip()
+            x["kho"] = kho if kho in (cd.get("kho_nv") or []) else ""
+            hinh = a.get("hinh") if isinstance(a.get("hinh"), dict) and a["hinh"].get("mau_ao") else {}
+            if not x["kho"] and not hinh:                    # AI không chọn màu: gán bảng màu riêng, khác nhân vật khác
+                hinh = dict(_BANG_VAI_PHU[sum(1 for y in ra if y["loai"] == "nhan_vat") % len(_BANG_VAI_PHU)])
+            x["hinh"] = dict(hinh, **_kieu_nv_kenh(cd))
         c = cu.get(aid)
         if c and c.get("mo_ta_en") == x["mo_ta_en"]:            # mô tả không đổi -> giữ ảnh đã vẽ
             x.update(bien_the=c.get("bien_the") or [], chon=c.get("chon") or 0, tt=c.get("tt") or "cho")
         ra.append(x)
     with _KHOA:
-        sb["phong_cach_chung"] = str(j.get("phong_cach_chung") or pc).strip()
+        # 25/10 (thử Lạnh Vcl): AI viết lại phong cách thành một câu ngắn và LÀM RƠI chi tiết (mặt meme -> mặt truyện tranh)
+        # -> người dùng đã chọn preset / tự nhập phong cách thì giữ NGUYÊN VĂN; chỉ preset mặc định mới dùng câu của AI
+        tu_chon = cd.get("phong_cach") not in (None, "", "dien_anh", "tu_do") or cd.get("phong_cach_them")
+        sb["phong_cach_chung"] = (pc if tu_chon else str(j.get("phong_cach_chung") or pc)).strip().rstrip(".") + "."
         sb["assets"] = ra
     luu(sid)
     bao(f"Có {len(ra)} assets: " + ", ".join(f"{a['id']} {a['ten']}" for a in ra))
 
 
+
 # --------------------------------------------------------------------------- AI: scene
 _P_DAN_Y = """You are the director of an AI-generated film. Split the SCRIPT into SCENES that follow each other in story
 order and together cover the WHOLE script (no gap, no overlap, no invented events). {so_canh}
-A new scene starts when the place, the time or the dramatic beat changes.
+A new scene starts when the place, the time, or a dramatic dialogue beat changes.
+
+CONTINUITY & BACKGROUND LOCK:
+Consecutive beats that REALLY stay in the same situation keep the SAME 'boi_canh' (BC...) — background identical, only
+camera framing and actions change. But as soon as a line evokes ANOTHER situation (an example, a memory, a consequence,
+"people out there", work, family, money…), switch to the location where that situation actually happens. A narration
+must travel through the places of the story, not stay in one room.
+
+SHOW WHAT IS SAID: every scene must make its line understandable with the sound OFF. Turn abstract or inner lines into
+a concrete, filmable moment with OTHER PEOPLE and OBJECTS: "you always give way to others" -> the protagonist steps aside
+on a crowded bus while others push past; "they only call you when they need money" -> a friend grinning, hand out, the
+protagonist opening a thin wallet; "you smile to please everyone" -> a forced smile at a noisy table of relatives.
+Use a clear VISUAL METAPHOR when the line has no literal action.
+
+VISUAL RHYTHM (like a YouTube storytelling channel — cut often, show examples):
+- Never more than 3 scenes in a row in the same location; never 2 face close-ups in a row.
+- An ABSTRACT line (a belief, a feeling, a moral, "that is a sweet trap") is NEVER the protagonist making a face: cut to a
+  concrete EVERYDAY EXAMPLE of it in its own place with other people, to a close-up INSERT of a meaningful object, or to
+  a visual METAPHOR.
+- Mix the frame types: "rong" (wide situation shot with the people involved), "trung" (medium, two people interacting),
+  "can_mat" (face close-up, only for a strong reaction), "can_do_vat" (insert: hands, wallet, shoes, door, food…),
+  "man_hinh" (a phone / laptop / TV screen held by a hand: messages, calls, social media, bank balance),
+  "an_du" (visual metaphor), "ngoai_canh" (exterior of a new place).
+{minh_hoa}
+{che_do_thoai_rule}
 
 ASSET BIBLE (use these ids only):
 {assets}
+{continuity_context}
 
 For each scene:
-  - "id": 1, 2, 3…
+  - "id": 1, 2, 3… (sequential index)
   - "tieu_de": short Vietnamese title
   - "loi": the exact part of the script this scene covers (copy it, keep the original language)
   - "tom_tat_vi": 1-2 Vietnamese sentences: what happens visually
-  - "boi_canh": the location id (BC…) or "" if none fits
-  - "nhan_vat": ids of the characters who appear (NV…), and props (DC…) that matter
-  - "noi_tiep": one English sentence: how this scene picks up from the end of the previous one (continuity: who is where,
-    what they carry, time of day, weather). For scene 1: how the film opens.
+  - "boi_canh": the location id (BC…), or "" for a one-off place / an insert (then describe the place in "dan_dung_en")
+  - "khung": the frame type, one of rong | trung | can_mat | can_do_vat | man_hinh | an_du | ngoai_canh
+  - "nhan_vat": ids of ALL characters who appear (protagonist AND supporting characters / crowd NV…), and props (DC…).
+    Every person visible in the frame MUST be a bible character listed here — never invent a new person (a metaphor
+    showing "you" lists NV1); a frame with no id listed shows NO people at all
+  - "dan_dung_en": STAGING, 2-3 English sentences: the concrete moment that shows this line — exact spot in the location,
+    what the supporting characters / crowd are doing and how they relate to the protagonist, the key props, foreground /
+    background elements, and the visual metaphor if the line is abstract
+  - "noi_tiep": one English sentence: how this scene picks up from the previous one (continuity: location, characters, time of day).
   - "video_prompt_en": an 8-second AI video prompt (Google Veo) used as a HOOK for this scene, 50-90 words: starts from the
     first image of the scene, the characters (by name) DOING a clear fluid action with natural body motion and facial
     expression, one cinematic camera move (slow push-in, tracking, crane, handheld follow…), atmosphere, the dramatic beat.
     No text, no captions, no logos.
-Only JSON: [{{"id": 1, "tieu_de": "...", "loi": "...", "tom_tat_vi": "...", "boi_canh": "BC1", "nhan_vat": ["NV1"], "noi_tiep": "...", "video_prompt_en": "..."}}]
+Only JSON: [{{"id": 1, "tieu_de": "...", "loi": "...", "tom_tat_vi": "...", "boi_canh": "BC1", "khung": "rong", "nhan_vat": ["NV1", "NV2"], "dan_dung_en": "...", "noi_tiep": "...", "video_prompt_en": "..."}}]
 
 SCRIPT:
 {kb}"""
@@ -321,25 +466,35 @@ SCRIPT:
 _P_ANH = """You are the storyboard artist of an AI-generated film. Write the IMAGE PROMPTS (Google Flow / Nano Banana) for
 the scenes below. The images of one scene are consecutive frames of ONE continuous action, like a real storyboard.
 
-GLOBAL STYLE (same for every image): {pc}
+GLOBAL STYLE (MUST BE ENFORCED IN EVERY SINGLE PROMPT): {pc}
 ASSET BIBLE (characters must look EXACTLY like this in every image — same face, age, hair, build, outfit and colors —
 whatever the location, time or weather; change clothes ONLY if the script explicitly says so):
 {assets}
 
-RULES for every image prompt ("prompt_en", 45-90 English words):
-  1. Continuity: frame k starts where frame k-1 ended (same place, light, props in hand, wounds, dirt, wet clothes…);
-     the first frame of a scene follows the scene's "noi_tiep". The action PROGRESSES from frame to frame.
-  2. Vary the shot like a film editor: establishing wide -> medium -> close-up / over-the-shoulder / low angle / insert
-     detail -> reaction… Never two identical framings in a row.
-  3. Name the characters exactly as in the bible (e.g. "Minh (NV1)") and restate their 2-3 most recognizable features
-     (hair, outfit colors) in the prompt.
-  4. NOT STIFF: every frame is a moment CAUGHT MID-ACTION — a specific verb (running, grabbing, turning, shouting,
-     kneeling, pushing a door…), weight shift and natural asymmetric pose, hands doing something, a clear facial
-     expression matching the emotion, eyes looking at what they interact with (never at the camera), motion cues (hair or
-     cloth moving, dust, splashes, slight motion blur). Never "standing and looking at the camera", never posed or
-     mannequin-like, never a frozen neutral face.
-  5. Describe the setting with the location's key landmarks so the place stays recognizable.
-  6. No text, no captions, no subtitles, no logos, no watermarks, no split panels.
+RULES for every image prompt ("prompt_en", 70-120 English words):
+  0. SHOW WHAT THE LINE SAYS (most important): a viewer with the sound OFF must understand the scene's line from the
+     image alone. Build the frame from the scene's "Staging": a concrete setting with at least 3 specific details
+     (furniture, signs, weather, objects, light sources), the SUPPORTING CHARACTERS / crowd doing something that relates
+     to the protagonist (talking, laughing at, ignoring, taking, pushing, hugging…), meaningful props, and a visual
+     metaphor for abstract lines. Compose in depth: foreground element, subject in midground, story detail in background.
+     NEVER a lone character on a plain or empty background showing only a facial expression; even a line about
+     loneliness shows it through a meaningful place (a crowd walking past, an empty chair at a full table…).
+  1. UNIFIED ART STYLE: the image style is prepended automatically — do not spend words repeating it.
+  2. CHARACTERS: call them by name + id exactly as in the bible (e.g. "Minh (NV1)") with at most 2 recognizable features;
+     their full appearance is appended automatically — spend the words on place, action, other people and props.
+  3. BACKGROUND CONTINUITY: frames of the same location keep the same recognizable layout and landmarks; only camera
+     angle, framing and acting change. A different location = a different, clearly described place.
+     FRAME TYPE: when a scene gives a "Frame type", compose exactly that frame (an insert shows the object big in frame,
+     an exterior shows the building / storefront, a wide shot shows the whole situation with the other people).
+  4. VARY THE SHOT LIKE A CINEMATOGRAPHER: For dialogue and continuous scenes, rotate camera framing logically:
+     - Establishing wide shot (sets the scene and characters in space)
+     - Medium waist-up shot (character speaking, expressive hands and body posture)
+     - Dynamic close-up shot (emotional facial expression matching the dialogue: warm smiling, joyful laughter, calm serenity, shocked wide eyes, intense anger, thoughtful reflection)
+     - Over-the-shoulder / Reaction shot (listener's reaction or side profile).
+     Never two identical framings in a row.
+  5. NOT STIFF: every frame is a moment CAUGHT MID-ACTION — dynamic gesture matching the dialogue, natural asymmetric posture, hands busy, eyes focused on what they interact with. Never posed, never stiff, never looking directly into the camera lens.
+  6. Describe the setting with the location's key landmarks so the place stays recognizable.
+  7. No text, no captions, no subtitles, no logos, no watermarks, no split panels.
 Also for each frame:
   - "mo_ta_vi": one short Vietnamese sentence for the editor
   - "nhan_vat": ids of the characters / props VISIBLE in this frame (empty list if none)
@@ -350,9 +505,79 @@ SCENES:
 {ds}"""
 
 
+_KHUNG = {"rong": "wide situation shot showing the place and everyone involved",
+          "trung": "medium shot of two or more people interacting",
+          "can_mat": "big centered face close-up of the reacting character",
+          "can_do_vat": "close-up insert of the key object (hands, wallet, phone screen held by a hand, shoes…), little or no face",
+          "man_hinh": "close-up of a phone / laptop screen held by a hand",
+          "an_du": "visual metaphor image",
+          "ngoai_canh": "exterior establishing shot of the new place (storefront, building, street)"}
+
+
 def _bible(sb, chi=None):
     return "\n".join(f"- {a['id']} ({a['loai']}) {a['ten']}: {a['mo_ta_en']}" for a in sb.get("assets") or []
                      if chi is None or a["id"] in chi)
+
+
+def _chia_doan_kich_ban(kb, max_chars=3200):
+    """Chia kịch bản dài thành các đoạn hợp lý theo đoạn văn hoặc câu để AI xử lý tuần tự không bị nuốt chữ."""
+    kb = str(kb or "").strip()
+    if len(kb) <= max_chars:
+        return [kb]
+    doan = [d.strip() for d in re.split(r"\n\s*\n", kb) if d.strip()]
+    if len(doan) <= 1:
+        doan = [d.strip() for d in kb.split("\n") if d.strip()]
+    if len(doan) <= 1:
+        from tach_canh import tach_cau
+        doan = tach_cau(kb)
+
+    chunks, hien_tai, dai = [], [], 0
+    for d in doan:
+        if dai + len(d) > max_chars and hien_tai:
+            chunks.append("\n\n".join(hien_tai))
+            hien_tai, dai = [d], len(d)
+        else:
+            hien_tai.append(d)
+            dai += len(d)
+    if hien_tai:
+        chunks.append("\n\n".join(hien_tai))
+    return chunks
+
+
+def _minh_hoa_kenh(sb):
+    """Khối "kênh gốc minh hoạ thế nào" từ plugin kênh (thư viện học ở bước phân tích kênh) -> ví dụ mẫu cho bước chia cảnh."""
+    pid = (sb.get("cai_dat") or {}).get("plugin_id")
+    if not pid:
+        return ""
+    import json
+    try:
+        mh = json.load(open(os.path.join(ROOT, "plugins_doi_thu", f"{pid}.json"), encoding="utf-8")).get("minh_hoa") or {}
+    except (OSError, ValueError):
+        return ""
+    vi_du = [x for x in mh.get("vi_du") or [] if x.get("cach_en")]
+    if not vi_du and not mh.get("quy_tac"):
+        return ""
+    return ("\nHOW THE ORIGINAL CHANNEL ILLUSTRATES ITS NARRATION (learned from its real video frames) — illustrate the same "
+            "kinds of lines the same way:\n" + "\n".join(f"- {q}" for q in mh.get("quy_tac") or [])
+            + ("\nExamples (line -> frame type -> what the channel drew):\n"
+               + "\n".join(f"- «{x['cau']}» -> {x.get('khung')} -> {x['cach_en']}" for x in vi_du[:30]) if vi_du else "") + "\n")
+
+
+def _kiem_nhip(ds):
+    """Lỗi nhịp hình của danh sách scene AI trả: >3 scene liền cùng bối cảnh, 2 cận mặt liền nhau -> [mô tả lỗi]."""
+    loi, i = [], 0
+    while i < len(ds):
+        k = i
+        bc = str(ds[i].get("boi_canh") or "")
+        while k + 1 < len(ds) and bc and str(ds[k + 1].get("boi_canh") or "") == bc:
+            k += 1
+        if bc and k - i + 1 > 3:
+            loi.append(f"scenes {ds[i].get('id')}-{ds[k].get('id')} are {k - i + 1} in a row in {bc} (max 3)")
+        i = k + 1
+    for a, b in zip(ds, ds[1:]):
+        if a.get("khung") == "can_mat" and b.get("khung") == "can_mat":
+            loi.append(f"scenes {a.get('id')} and {b.get('id')} are two face close-ups in a row")
+    return loi
 
 
 def lap_canh(sid, bao):
@@ -363,35 +588,150 @@ def lap_canh(sid, bao):
     kb = (sb.get("kich_ban") or "").strip()
     cd = sb["cai_dat"]
     n = cd["so_canh"]
-    bao("AI đang chia kịch bản thành các scene nối tiếp…")
-    j = None
-    for _ in range(3):
-        j = rut_json(hoi_llm(_P_DAN_Y.format(
-            so_canh=f"Make EXACTLY {n} scenes." if n else "Choose the number of scenes yourself (usually 3-12, one per story beat).",
-            assets=_bible(sb), kb=kb[:24000]), timeout=300) or "")
-        if isinstance(j, list) and j:
-            break
-    if not isinstance(j, list) or not j:
-        raise ValueError("AI không chia được scene (thử lại)")
+    che_do = cd.get("che_do_canh", "tu_dong")
+
+    che_do_thoai_rule = ""
+    if che_do == "theo_thoai":
+        che_do_thoai_rule = """CRITICAL DIALOGUE-DRIVEN RULE (1 SPOKEN SENTENCE = 1 SCENE WITH DEDICATED IMAGE DESCRIPTION):
+Break down the script closely so that EVERY SINGLE SPOKEN SENTENCE or dialogue line becomes its own separate scene.
+- MANDATORY: Do NOT merge multiple sentences into one scene. If the script has N sentences, output N scenes in exact order, with 'loi' being that exact sentence text.
+- For each scene, create a distinct visual frame tailored specifically to what is spoken in that sentence.
+- Identify the specific speaker character (NV...) and their conversational facial expression (warm smiling, joyful laughing, calm tranquil, serious, angry, shocked, thoughtful, anxious...).
+- A facial expression alone is NOT a scene: every sentence gets its own concrete situation in "dan_dung_en" (place, other people, props or a visual metaphor) that illustrates exactly what the sentence says.
+- Keep the same 'boi_canh' only while the sentences stay in the same situation (vary the shot: wide, medium, close-up, over-the-shoulder); change location when the sentence talks about another situation."""
+
+    chunks = _chia_doan_kich_ban(kb, max_chars=3200)
+    if len(chunks) > 1:
+        bao(f"Kịch bản dài ({len(kb)} ký tự) — chia thành {len(chunks)} phần để AI mô tả chi tiết, giữ nguyên mọi câu thoại…")
+    else:
+        bao("AI đang chia kịch bản thành các scene nối tiếp" + (" (đồng bộ theo từng câu thoại)" if che_do == "theo_thoai" else "") + "…")
+
     ids = {a["id"] for a in sb["assets"]}
-    canh = []
-    for i, c in enumerate(x for x in j if isinstance(x, dict)):
-        canh.append({"id": i + 1, "tieu_de": str(c.get("tieu_de") or f"Scene {i + 1}").strip(),
-                     "loi": str(c.get("loi") or "").strip(), "tom_tat_vi": str(c.get("tom_tat_vi") or "").strip(),
-                     "boi_canh": c.get("boi_canh") if c.get("boi_canh") in ids else "",
-                     "nhan_vat": [x for x in (c.get("nhan_vat") or []) if x in ids],
-                     "noi_tiep": str(c.get("noi_tiep") or "").strip(),
-                     "video_prompt_en": str(c.get("video_prompt_en") or "").strip(),
-                     "so_anh": cd["so_anh"], "anh": [], "video": {}})
+    canh_tat_ca = []
+
+    for idx, chunk_txt in enumerate(chunks):
+        if _da_dung(sid):
+            return
+        if len(chunks) > 1:
+            bao(f"Đang xử lý phần {idx + 1}/{len(chunks)} của kịch bản…")
+
+        continuity_ctx = ""
+        if canh_tat_ca:
+            prev = canh_tat_ca[-1]
+            continuity_ctx = (f"PREVIOUS SCENE CONTEXT: Scene {len(canh_tat_ca)} ended in location '{prev.get('boi_canh')}' "
+                              f"with characters {prev.get('nhan_vat')}. What happened: {prev.get('tom_tat_vi')}. "
+                              f"Continue seamlessly from this state.")
+
+        so_canh_prompt = ""
+        if n:
+            so_canh_prompt = f"Make around {max(1, n // len(chunks))} scenes for this part."
+        else:
+            so_canh_prompt = ("Create one scene per key dialogue beat/spoken sentence." if che_do == "theo_thoai"
+                              else "Choose the number of scenes yourself (usually 3-12, one per story beat).")
+
+        prompt_txt = _P_DAN_Y.format(
+            so_canh=so_canh_prompt,
+            che_do_thoai_rule=che_do_thoai_rule,
+            minh_hoa=_minh_hoa_kenh(sb),
+            assets=_bible(sb),
+            continuity_context=continuity_ctx,
+            kb=chunk_txt
+        )
+
+        j = None
+        nhac, tot = "", None
+        for _ in range(3):
+            j = rut_json(hoi_llm(prompt_txt + nhac, timeout=300) or "")
+            if not (isinstance(j, list) and j):
+                continue
+            loi_nhip = _kiem_nhip([x for x in j if isinstance(x, dict)])
+            if tot is None or len(loi_nhip) < len(tot[0]):
+                tot = (loi_nhip, j)
+            if not loi_nhip:
+                break
+            bao(f"  Nhịp cảnh chưa đạt ({'; '.join(loi_nhip)[:160]}) — hỏi lại…")
+            nhac = ("\n\nYOUR PREVIOUS SPLIT BROKE THE VISUAL RHYTHM: " + "; ".join(loi_nhip) + ". Redo it: move abstract lines "
+                    "to everyday example situations in OTHER locations, object inserts or metaphors.")
+        j = tot[1] if tot else j
+        if not isinstance(j, list) or not j:
+            if len(chunks) == 1:
+                raise ValueError("AI không chia được scene (thử lại)")
+            bao(f"  ! phần {idx + 1} AI không trả scene, bỏ qua phần này")
+            continue
+
+        for c in (x for x in j if isinstance(x, dict)):
+            new_id = len(canh_tat_ca) + 1
+            canh_tat_ca.append({
+                "id": new_id,
+                "tieu_de": str(c.get("tieu_de") or f"Scene {new_id}").strip(),
+                "loi": str(c.get("loi") or "").strip(),
+                "tom_tat_vi": str(c.get("tom_tat_vi") or "").strip(),
+                "boi_canh": c.get("boi_canh") if c.get("boi_canh") in ids else "",
+                "nhan_vat": [x for x in (c.get("nhan_vat") or []) if x in ids],
+                "noi_tiep": str(c.get("noi_tiep") or "").strip(),
+                "dan_dung_en": str(c.get("dan_dung_en") or "").strip(),
+                "khung": str(c.get("khung") or "").strip(),
+                "video_prompt_en": str(c.get("video_prompt_en") or "").strip(),
+                "so_anh": 1 if che_do == "theo_thoai" else cd["so_anh"], "anh": [], "video": {}
+            })
+
+    if not canh_tat_ca:
+        raise ValueError("AI không tạo được scene nào từ kịch bản (thử lại)")
+
     with _KHOA:
-        sb["canh"] = canh
+        sb["canh"] = canh_tat_ca
     luu(sid)
-    bao(f"Có {len(canh)} scene — đang viết câu lệnh {cd['so_anh']} ảnh mỗi scene…")
-    lap_anh_canh(sid, [c["id"] for c in canh], bao)
+    bao(f"Có {len(canh_tat_ca)} scene — đang viết câu lệnh {cd['so_anh']} ảnh mỗi scene…")
+    lap_anh_canh(sid, [c["id"] for c in canh_tat_ca], bao)
 
 
-def lap_anh_canh(sid, ids, bao):
-    """AI viết câu lệnh ảnh cho các scene `ids` (lô 4 scene, hỏi song song)."""
+def _tu_the_cho(sb, a):
+    """Tư thế được phép của một nhân vật: con rối kho -> chỉ tư thế ĐÃ DUYỆT; con rối code -> mọi tư thế."""
+    import kho_nhan_vat
+    if a.get("kho"):
+        da = list(kho_nhan_vat.tu_the_da_duyet(a["kho"]))
+        if da:
+            return da
+    return list(kho_nhan_vat.TU_THE)
+
+
+def _luat_con_roi_anh(sb):
+    if not (sb.get("cai_dat") or {}).get("con_roi"):
+        return ""
+    import kho_nhan_vat
+    dong = [f'  {a["id"]} ({a["ten"]}): ' + ", ".join(f'{k} ({kho_nhan_vat.TU_THE[k][0]})' for k in _tu_the_cho(sb, a)
+                                                    if k in kho_nhan_vat.TU_THE)
+            for a in sb.get("assets") or [] if a["loai"] == "nhan_vat"]
+    return ("\n\nPUPPET MODE — characters are hand-drawn puppets pasted in by code, NOT drawn by the image generator:\n"
+            "- Wide / medium / face close-up frames of a location: the location image is reused as the background; "
+            "\"prompt_en\" is only a short note. Object inserts, screens, metaphors and exteriors are drawn by the image "
+            "generator: their \"prompt_en\" must contain NO people at all (hands only as plain black silhouettes).\n"
+            "- Add \"dat\" to every frame that shows characters: [{\"nv\": \"NV1\", \"tu_the\": <pose key>, \"x\": 0.15-0.85}] "
+            "(x = horizontal position; people facing each other stand apart). A face close-up has exactly one character.\n"
+            "Allowed pose keys per character (choose the one that best acts out the line):\n" + "\n".join(dong)
+            + "\nJSON per frame: {\"prompt_en\": \"...\", \"mo_ta_vi\": \"...\", \"nhan_vat\": [\"NV1\"], \"dat\": [{\"nv\": \"NV1\", "
+            "\"tu_the\": \"cui_dau_buon\", \"x\": 0.5}]}")
+
+
+def _doc_dat(sb, dat):
+    if not (sb.get("cai_dat") or {}).get("con_roi") or not isinstance(dat, list):
+        return []
+    import kho_nhan_vat
+    ra = []
+    for d in dat:
+        if not isinstance(d, dict) or not _asset(sb, str(d.get("nv") or "")):
+            continue
+        tt = str(d.get("tu_the") or "")
+        try:
+            x = min(0.88, max(0.12, float(d.get("x"))))
+        except (TypeError, ValueError):
+            x = None
+        ra.append({"nv": str(d["nv"]), "tu_the": tt if tt in kho_nhan_vat.TU_THE else "dung_binh_thuong", "x": x})
+    return ra
+
+
+def lap_anh_canh(sid, ids, bao, _lan=0):
+    """AI viết câu lệnh ảnh cho các scene `ids` (lô 4 scene, hỏi song song); scene AI bỏ sót thì hỏi lại một lượt."""
     sb = doc(sid)
     canh = [c for c in sb["canh"] if c["id"] in ids]
     lo = [canh[i:i + 4] for i in range(0, len(canh), 4)]
@@ -401,11 +741,15 @@ def lap_anh_canh(sid, ids, bao):
         t = truoc.get(c["id"])
         return (f"Scene {c['id']} — {c['so_anh']} frames. Location: {c['boi_canh'] or 'see script'}. "
                 f"Cast: {', '.join(c['nhan_vat']) or 'none'}.\n  Continuity: {c['noi_tiep']}\n"
-                f"  What happens: {c['tom_tat_vi']}\n  Script part: {c['loi'][:1500]}"
+                f"  What happens: {c['tom_tat_vi']}\n"
+                + (f"  Frame type: {_KHUNG.get(c.get('khung'), c.get('khung'))}\n" if c.get("khung") else "")
+                + (f"  Staging: {c['dan_dung_en']}\n" if c.get("dan_dung_en") else "")
+                + f"  Script part: {c['loi'][:1500]}"
                 + (f"\n  (Previous scene {t['id']} ended with: {t['tom_tat_vi']})" if t else ""))
     prompts = [_P_ANH.format(pc=sb.get("phong_cach_chung") or "", assets=_bible(sb), ds="\n\n".join(mo_ta(c) for c in l))
-               for l in lo]
+               + _luat_con_roi_anh(sb) for l in lo]
     kq = hoi_nhieu(prompts, timeout=300)
+    thieu = []
     for k, l in enumerate(lo):
         j = rut_json(kq[k] or "")
         if not isinstance(j, list):                          # lô hỏng -> hỏi lại một lần
@@ -420,13 +764,21 @@ def lap_anh_canh(sid, ids, bao):
             for c in l:
                 ds_anh = [a for a in theo.get(c["id"], []) if isinstance(a, dict) and str(a.get("prompt_en") or "").strip()]
                 if not ds_anh:
-                    bao(f"  ! scene {c['id']}: AI không trả câu lệnh ảnh")
+                    if _lan:
+                        bao(f"  ! scene {c['id']}: AI không trả câu lệnh ảnh")
+                    else:
+                        thieu.append(c["id"])
                     continue
                 c["anh"] = [{"id": i + 1, "prompt_en": str(a["prompt_en"]).strip(), "mo_ta_vi": str(a.get("mo_ta_vi") or "").strip(),
                              "nhan_vat": [x for x in (a.get("nhan_vat") or []) if _asset(sb, x)] or list(c["nhan_vat"]),
+                             "dat": _doc_dat(sb, a.get("dat")),
                              "bien_the": [], "chon": 0, "tt": "cho", "loi": ""}
                             for i, a in enumerate(ds_anh[:c["so_anh"]])]
         luu(sid)
+    if thieu:
+        bao(f"  AI bỏ sót câu lệnh ảnh của {len(thieu)} scene — hỏi lại…")
+        lap_anh_canh(sid, thieu, bao, _lan=1)
+        return
     bao("Đã có câu lệnh ảnh: " + ", ".join(f"scene {c['id']} ({len(c['anh'])} ảnh)" for c in canh))
 
 
@@ -437,41 +789,116 @@ _KHONG_DO = ("Natural candid moment caught mid-motion: dynamic body language, we
 
 
 def _cau_asset(sb, a):
+    # 25/10 user (thử kênh Lạnh Vcl): PHONG CÁCH ĐỨNG ĐẦU và nhắc "vẽ đúng phong cách này" — câu lệnh cũ ("animation production
+    # model sheet", "studio light", 4 góc + 6 biểu cảm) kéo ảnh tham chiếu thành tranh hoạt hình bóng bẩy khác hẳn ảnh cảnh,
+    # rồi ảnh cảnh bắt chước theo tham chiếu -> lệch phong cách kênh
     pc = sb.get("phong_cach_chung") or ""
+    giu = ("drawn EXACTLY in the art style above (same line work, same flat colors, same proportions and the same level of "
+           "detail — do not make it more polished, more detailed or more realistic)")
     if a["loai"] == "nhan_vat":
-        return (f"Character reference sheet of {a['ten']}: {a['mo_ta_en']} Two views side by side on one image: on the "
-                f"left a full-body view in a relaxed natural three-quarter stance, on the right a close-up portrait of the "
-                f"face with a natural expression. Plain seamless light-grey studio background, soft even lighting, the "
-                f"whole outfit clearly visible. {pc}. No text, no labels, no logos.")
+        return (f"{pc}\nCharacter reference sheet of {a['ten']}, {giu}: {a['mo_ta_en']}\n"
+                f"On one plain white sheet, left to right: full body front view, full body three-quarter view, full body side "
+                f"view, then two big head close-ups (the signature expression, and one strong emotion). Identical face, hair, "
+                f"outfit and colors in every view. Plain white background, no scenery. No text, no labels, no logos, no watermark.")
     if a["loai"] == "boi_canh":
-        return (f"Establishing wide shot of {a['ten']}: {a['mo_ta_en']} No people. {pc}. No text, no logos, no watermark.")
-    return (f"Prop reference photo of {a['ten']}: {a['mo_ta_en']} Isolated, centered, on a plain neutral background, soft "
-            f"studio light. {pc}. No text, no logos.")
+        return (f"{pc}\nEstablishing wide shot of the empty location {a['ten']}, {giu}: {a['mo_ta_en']} "
+                f"No people. No text, no logos, no watermark.")
+    return (f"{pc}\nProp reference of {a['ten']}, {giu}: {a['mo_ta_en']} Isolated, centered, on a plain white background. "
+            f"No text, no logos.")
+
+
+def _khung_anh(c, a):
+    """Loại khung của ẢNH: scene một ảnh / ảnh đầu của scene theo loại khung AI định; ảnh sau để tự do."""
+    k = str(c.get("khung") or "")
+    return k if k in _KHUNG and (len(c.get("anh") or []) <= 1 or a.get("id") == 1) else ""
+
+
+def _lenh_khung(khung, so_nguoi):
+    """25/10 user ("tự động hoàn toàn", không duyệt tay): khuôn câu lệnh CỐ ĐỊNH theo loại khung đứng đầu câu lệnh — lượt
+    thử 4 có ảnh định cận đồ vật ra cảnh nhìn lưng, ảnh cảnh rộng nhân vật bé xíu giữa nền trống."""
+    if khung == "rong":
+        return ("FRAMING (mandatory): wide shot of the whole situation; the main character fills at least a quarter of the "
+                "frame height" + ("; every person involved is clearly visible and interacting." if so_nguoi >= 2 else "."))
+    return {"trung": "FRAMING (mandatory): medium shot, waist-up, of the people interacting; faces, hands and gestures "
+                     "clearly visible.",
+            "can_mat": "FRAMING (mandatory): big close-up of ONE face filling most of the frame; the background barely visible.",
+            "can_do_vat": "FRAMING (mandatory): extreme close-up insert — the key object fills most of the frame; at most hands "
+                          "or a sleeve are visible, no face.",
+            "man_hinh": "FRAMING (mandatory): close-up of a smartphone or laptop screen filling most of the frame, held by a "
+                        "plain black silhouette hand; the screen shows simple app shapes (avatar circle, message bubbles, "
+                        "call buttons, numbers) with NO readable words.",
+            "an_du": "FRAMING (mandatory): one clear symbolic image — the symbolic object large and centered, simple "
+                     "uncluttered composition.",
+            "ngoai_canh": "FRAMING (mandatory): exterior establishing shot from the outside (building, storefront, street); "
+                          "people small or absent."}.get(khung, "")
 
 
 def _cau_anh(sb, c, a, co_truoc, tham):
     """Câu lệnh đầy đủ của một ảnh scene + chú thích thứ tự ảnh tham chiếu."""
     nv = [_asset(sb, x) for x in a.get("nhan_vat") or []]
-    nv = [x for x in nv if x]
+    nv = [x for x in nv if x and not ((sb.get("cai_dat") or {}).get("con_roi") and x.get("loai") == "nhan_vat")]
     bc = _asset(sb, c.get("boi_canh"))
-    dong = [a["prompt_en"]]
+    cd = sb.get("cai_dat") or {}
+    khoa_bc = cd.get("khoa_boi_canh", True) is not False
+    dong = []
+
+    # 1. Phong cách ảnh đồng nhất luôn đứng đầu câu lệnh, rồi lệnh khung hình bắt buộc
+    pc = sb.get("phong_cach_chung") or ""
+    if pc:
+        dong.append(f"Visual Art Style: {pc}.")
+    lk = _lenh_khung(_khung_anh(c, a), sum(1 for x in nv if x.get("loai") == "nhan_vat"))
+    if lk:
+        dong.append(lk)
+
+    # 2. Câu lệnh hành động và góc máy cụ thể của ảnh
+    dong.append(a["prompt_en"])
+
+    # 3. Nhân vật đồng nhất (Character Consistency)
     if nv:
-        dong.append("Characters — keep them EXACTLY identical to their reference images and descriptions (same face, age, "
-                    "hairstyle, build, outfit and colors): " + " ".join(f"{x['ten']} ({x['id']}): {x['mo_ta_en']}" for x in nv))
+        dong.append("Characters — keep them 100% identical to reference images and bible descriptions (same face, age, "
+                    "hairstyle, build, outfit and colors): " + " ".join(f"{x['ten']} ({x['id']}): {x['mo_ta_en']}" for x in nv)
+                    + " Nobody else appears unless the action above names them.")
+    elif (sb.get("cai_dat") or {}).get("con_roi"):
+        dong.append("No people and no characters in this frame (they are added separately); hands only as plain black "
+                    "silhouettes.")
+    elif not any(_asset(sb, x) for x in a.get("nhan_vat") or []):
+        # 25/10 (thử 20 ảnh): khung ẩn dụ không khai nhân vật -> Flow tự vẽ một người lạ khác phong cách
+        dong.append("No people and no characters in this frame — only the objects and the place described.")
+
+    # 4. Khóa bối cảnh đồng nhất (Background Continuity Lock)
     if bc:
-        dong.append(f"Setting — {bc['ten']}: {bc['mo_ta_en']}")
+        if khoa_bc:
+            dong.append(f"Locked Background Continuity — Setting {bc['ten']}: {bc['mo_ta_en']}. "
+                        f"Maintain 100% identical room layout, architectural details, and lighting mood as the reference setting. "
+                        f"Do not alter the background scenery; only camera framing and character actions change.")
+        else:
+            dong.append(f"Setting — {bc['ten']}: {bc['mo_ta_en']}")
+
     if tham:
         dong.append("Reference images in order: " + "; ".join(tham) + "."
                     + (" The reference marked previous frame is the frame just before this one: continue from it (same place, light and "
                        "continuity) but with a NEW camera angle and the action moved forward." if co_truoc else ""))
-    dong.append(f"Style: {sb.get('phong_cach_chung') or ''}")
-    dong.append(_KHONG_DO)
+    dong.append(_KHONG_DO + _tranh(sb))
     return "\n".join(dong)
+
+
+def _tranh(sb):
+    """Danh sách "không được có" của phong cách kênh (plugin) — trước đây phân tích ra mà storyboard không dùng."""
+    pid = (sb.get("cai_dat") or {}).get("plugin_id")
+    if not pid:
+        return ""
+    import json
+    try:
+        neg = json.load(open(os.path.join(ROOT, "plugins_doi_thu", f"{pid}.json"), encoding="utf-8"))["nhan_vat"]["negative_prompt"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return ""
+    return f" Avoid: {neg}." if str(neg or "").strip() else ""
+
 
 
 def _so_luong():
     import flow_ve
-    return max(1, min(8, flow_ve.so_ho_so_dung_duoc()))
+    return flow_ve.so_luong_ve()                         # 25/10: mỗi hồ sơ nhiều lượt cùng lúc
 
 
 def _sach_logo(files):
@@ -487,15 +914,38 @@ def _sach_logo(files):
         log(f"    ! storyboard: xoá logo lỗi {str(e)[:80]}")
 
 
+def _viet_lai_an_toan(prompt):
+    """Câu lệnh bị Flow chặn vì chính sách -> bản viết lại tránh từ nhạy cảm (máu, vũ khí, bạo lực, trẻ em gặp nguy, thương
+    hiệu thật…) nhưng giữ nguyên cảnh, nhân vật, khung hình và phong cách. '' nếu AI không trả."""
+    p = ("This image-generation prompt was REJECTED by the generator's content policy. Rewrite it so it passes: keep the same "
+         "scene meaning, characters, framing and the full style text, but replace anything violent, bloody, sexual, "
+         "self-harm, weapons, injuries, children in danger, real people or brand names with mild, suggestive, symbolic "
+         "wording. Return ONLY the rewritten prompt, nothing else.\n\nPROMPT:\n" + prompt)
+    kq = (hoi_llm(p, timeout=120) or "").strip().strip("`").strip()
+    return kq if len(kq) > 40 else ""
+
+
 def _ve(sb, muc, prompt, thu, ten_goc, tham_chieu, bao, nhan):
     import flow_ve
     with _KHOA:
         muc.update(tt="dang", loi="")
     t0 = time.time()
-    try:
-        tep = flow_ve.ve_nhieu(prompt, thu, ten_goc + "_" + time.strftime("%H%M%S"), sb["cai_dat"]["ti_le"], tham_chieu)
-    except Exception as e:                                   # noqa: BLE001
-        tep, muc["loi"] = [], str(e)[:200]
+    for lan in range(2):
+        try:
+            tep = flow_ve.ve_nhieu(prompt, thu, ten_goc + "_" + time.strftime("%H%M%S"), sb["cai_dat"]["ti_le"], tham_chieu)
+        except Exception as e:                               # noqa: BLE001
+            tep, muc["loi"] = [], str(e)[:200]
+        loi = muc.get("loi") or flow_ve.loi_cuoi()
+        if loi:
+            muc["loi"] = loi
+        if tep or lan or not re.search(r"violat|policy|couldn.t generate|failed to generate|safety", loi or "", re.I):
+            break
+        # 25/10 user: ảnh bị chặn vì chính sách nội dung -> AI viết lại mô tả nhẹ nhàng hơn (giữ ý cảnh) rồi vẽ lại một lần
+        moi = _viet_lai_an_toan(prompt)
+        if not moi:
+            break
+        bao(f"  ↻ {nhan}: Flow chặn vì nội dung — viết lại mô tả nhẹ hơn rồi vẽ lại")
+        prompt = moi
     if tep:
         _sach_logo(tep)
         with _KHOA:
@@ -520,13 +970,99 @@ def ve_assets(sid, bao, ids=None, ve_lai=False):
         bao("Assets đều đã có ảnh")
         return
     thu = os.path.join(thu_muc(sid), "assets")
+    if sb["cai_dat"].get("con_roi"):                        # nhân vật = con rối: không vẽ bằng Flow
+        import ghep_canh
+        import kho_nhan_vat
+        for a in [x for x in can if x["loai"] == "nhan_vat"]:
+            try:
+                f = kho_nhan_vat.doc(a["kho"])["phoi"] if a.get("kho") else ghep_canh.anh_nhan_vat_code(a, os.path.join(thu, f"{a['id']}.png"))
+            except ValueError:
+                f = ghep_canh.anh_nhan_vat_code(a, os.path.join(thu, f"{a['id']}.png"))
+            with _KHOA:
+                a.update(bien_the=[f], chon=0, tt="xong", loi="")
+            bao(f"  ✔ asset {a['id']} {a['ten']}: con rối " + (f"kho «{a['kho']}»" if a.get("kho") else "code"))
+        luu(sid)
+        can = [x for x in can if x["loai"] != "nhan_vat"]
+        if not can:
+            return
     bao(f"Vẽ {len(can)} ảnh asset qua Flow ({_so_luong()} luồng)…")
+
+    mau = _khung_kenh(sb)
+    if mau:
+        bao(f"Gắn {len(mau)} khung hình thật của kênh làm tham chiếu phong cách cho ảnh asset")
 
     def lam(a):
         if not _da_dung(sid):
-            _ve(sb, a, _cau_asset(sb, a), thu, a["id"], None, bao, f"asset {a['id']} {a['ten']}")
+            p = _cau_asset(sb, a) + (_MAU_KENH if mau else "") + _tranh(sb)
+            _ve(sb, a, p, thu, a["id"], mau or None, bao, f"asset {a['id']} {a['ten']}")
     with ThreadPoolExecutor(_so_luong()) as ex:
         list(ex.map(lam, can))
+
+
+_MAU_KENH = ("\nThe attached reference images are frames from the original channel: copy their ART STYLE exactly (line "
+             "quality, flat colors, how faces and bodies are drawn, level of detail). Do NOT copy their characters, places, "
+             "text or logos.")
+
+
+def _khung_kenh(sb, n=2):
+    """25/10 (thử 20 câu, lượt 5): tả phong cách bằng chữ không đủ — AI đọc khung hình kênh Lạnh Vcl (vẽ thô, mặt meme)
+    thành "vector tối giản, nét gọn" và Flow vẽ ra webcomic bóng bẩy. -> lấy n khung hình THẬT của kênh trong plugin
+    (khung nhiều hình nhất, bỏ khung toàn chữ), cắt bỏ dải dưới có logo kênh, gắn làm tham chiếu phong cách."""
+    pid = (sb.get("cai_dat") or {}).get("plugin_id")
+    if not pid:
+        return []
+    import json
+    try:
+        ds = json.load(open(os.path.join(ROOT, "plugins_doi_thu", f"{pid}.json"), encoding="utf-8"))["boi_canh"]["khung_hinh"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+    from PIL import Image, ImageStat
+    diem = []
+    for f in ds or []:
+        try:
+            im = Image.open(f).convert("RGB")
+        except (OSError, ValueError):
+            continue
+        w, h = im.size
+        im = im.crop((0, 0, w, int(h * 0.8)))              # dải dưới 20% có logo kênh
+        mau = len(im.resize((96, 54)).quantize(colors=32).getcolors() or [])
+        diem.append((mau * sum(ImageStat.Stat(im.convert("L")).stddev), im))
+    diem.sort(key=lambda x: -x[0])
+    thu = os.path.join(thu_muc(sb["id"]), "assets")
+    os.makedirs(thu, exist_ok=True)
+    ra = []
+    for i, (_, im) in enumerate(diem[:n]):
+        p = os.path.join(thu, f"mau_kenh_{i + 1}.png")
+        im.save(p)
+        ra.append(p)
+    return ra
+
+
+def _ghep_con_roi(sb, c, a, khung, thu, k, bao):
+    """Chế độ con rối: cảnh rộng / trung / cận mặt có người -> nền = ảnh bối cảnh, dán con rối (không gọi Flow).
+    -> True nếu đã ghép (ảnh đồ vật / màn hình / ẩn dụ / ngoại cảnh / cảnh không có nền: để Flow vẽ, không người)."""
+    import ghep_canh
+    nen = anh_chon(_asset(sb, c.get("boi_canh")) or {})
+    dat = [d for d in a.get("dat") or [] if _asset(sb, d["nv"])]
+    if not dat:                                              # AI không khai "dat": lấy nhân vật của ảnh
+        dat = [{"nv": x, "tu_the": "dung_binh_thuong", "x": None} for x in a.get("nhan_vat") or []
+               if (_asset(sb, x) or {}).get("loai") == "nhan_vat"]
+    if not nen or not dat or khung not in ("rong", "trung", "can_mat", ""):
+        return False
+    vt = ghep_canh.vi_tri(len(dat))
+    ds = [(_asset(sb, d["nv"]), d["tu_the"], d["x"] if d.get("x") is not None else vt[i]) for i, d in enumerate(dat)]
+    os.makedirs(thu, exist_ok=True)
+    f = os.path.join(thu, f"anh_{a['id']:02d}_{time.strftime('%H%M%S')}_ghep.png")
+    try:
+        ghep_canh.ghep(nen, ds, khung or "rong", KICH_THUOC[sb["cai_dat"]["ti_le"]], f, so=c["id"] + k)
+    except Exception as e:                                   # noqa: BLE001
+        bao(f"  ! ghép scene {c['id']}: {str(e)[:120]} -> để Flow vẽ")
+        return False
+    with _KHOA:
+        a.update(bien_the=[f], chon=0, tt="xong", loi="")
+    luu(sb["id"])
+    bao(f"  ✔ scene {c['id']} ảnh {a['id']}: ghép con rối ({', '.join(x['nv'] + ':' + x['tu_the'] for x in dat)})")
+    return True
 
 
 def ve_canh(sid, bao, ids=None, anh_ids=None, ve_lai=False):
@@ -540,16 +1076,29 @@ def ve_canh(sid, bao, ids=None, anh_ids=None, ve_lai=False):
         ve_assets(sid, bao)
     canh = [c for c in sb["canh"] if ids is None or c["id"] in ids]
     noi = sb["cai_dat"].get("noi_tiep", True)
+    mau_kenh = _khung_kenh(sb, 1)
+
+    con_roi = sb["cai_dat"].get("con_roi")
 
     def lam_anh(c, k):
         a = c["anh"][k]
         thu = os.path.join(thu_muc(sid), f"canh_{c['id']:02d}")
+        khung = _khung_anh(c, a)
+        if con_roi and _ghep_con_roi(sb, c, a, khung, thu, k, bao):
+            return
         # ảnh tham chiếu (Flow nhận tối đa 3): nhân vật trước, rồi ảnh trước (nối tiếp) / bối cảnh, rồi đạo cụ
         ung = []
+        so_nv = 0
         for loai in ("nhan_vat", "dao_cu"):
             for x in a.get("nhan_vat") or []:
                 m = _asset(sb, x) or {}
+                if loai == "nhan_vat" and con_roi:              # con rối: Flow không vẽ người
+                    continue
                 if m.get("loai") == loai and anh_chon(m):
+                    # cận đồ vật: không gắn tờ nhân vật (kéo ảnh thành dáng toàn thân); cận mặt: chỉ một nhân vật
+                    if loai == "nhan_vat" and (khung in ("can_do_vat", "man_hinh") or (khung == "can_mat" and so_nv >= 1)):
+                        continue
+                    so_nv += loai == "nhan_vat"
                     ung.append((anh_chon(m), f"{m.get('ten', x)} ({x})"))
             if loai == "nhan_vat":
                 truoc = anh_chon(c["anh"][k - 1]) if (noi and k > 0) else None
@@ -559,6 +1108,8 @@ def ve_canh(sid, bao, ids=None, anh_ids=None, ve_lai=False):
                 elif bc:
                     ung.append((bc, f"location {c['boi_canh']}"))
         ung = ung[:3]
+        if len(ung) < 3 and mau_kenh:                        # còn chỗ: thêm một khung thật của kênh giữ nét vẽ
+            ung.append((mau_kenh[0], "channel style sample (copy only its drawing style, not its content)"))
         tham, chu = [u[0] for u in ung], [u[1] for u in ung]
         truoc = truoc if "previous frame" in chu else None
         _ve(sb, a, _cau_anh(sb, c, a, bool(truoc), chu), thu, f"anh_{a['id']:02d}", tham, bao,

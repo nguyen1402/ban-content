@@ -101,12 +101,19 @@ NARRATION:
 VE_AI_HOAN_THIEN = True     # 22/10 user: BẬT LẠI ảnh AI diễn biến ở ✨ (kho video + ảnh AI mô tả diễn biến, đúng thời đại);
 #                             danh sách 📝 Chỗ vẽ ảnh AI để duyệt. (19/10 từng tắt, chuyển sang nút 🎨 tự tạo.)
 AI_DIEU_PHOI = "gemini"      # 19/10 user: lên kế hoạch ảnh bằng Gemini (ChatGPT hay bỏ đối tượng bị ngắm); hỏng -> ChatGPT
-KIEU_TAT = set()             # 22/10 user: BẬT bản đồ vệ tinh địa danh (ban_do.clip_dia_danh: từ vũ trụ bay xuống + viền
+KIEU_TAT = {"khoanh_vung", "duong_di", "lan_rong", "ban_do_ve"}   # 26/10 user: "không vẽ bản đồ nữa" — TẮT mọi lớp bản đồ
+#                             (vệ tinh khoanh vùng, đường đi A->B, lan rộng, bản đồ AI vẽ). Bật lại: KIEU_TAT = set()
+# (cũ) 22/10 user: BẬT bản đồ vệ tinh địa danh (ban_do.clip_dia_danh: từ vũ trụ bay xuống + viền
 #                             lãnh thổ thật) — 18/10 từng tắt khung BanDoNen cũ
 HO_SO_THU = 3                # số lần thử lập hồ sơ câu chuyện (lỗi thường nhất thời)
 YEU_DIEM = 0.14             # 22/10: đoạn bản thô khớp dưới mức này (~20% kém nhất, đo America_thu_bam) = FOOTAGE YẾU
 YEU_TI_LE = 0.4              # câu có >= 40% thời lượng là footage yếu / trống -> đánh dấu cho lệnh ảnh AI ưu tiên
 AI_CACH_GIAY = 0.0          # 18/10 user: bỏ giới hạn cách 20 s — chỗ nào kể quá trình / chuỗi hành động là có ảnh slow         # 18/10 user: hai chuỗi ảnh AI tái hiện cách nhau ít nhất bấy nhiêu giây (thay mật độ 65-85%)
+# 26/10 user ("ảnh AI hơi dầy, nhiều chỗ dài cả phút" — đo gaubaccuc: 47 chỗ phủ 38% video, chuỗi liền 44 s):
+AI_TY_LE_TOI_DA = 0.20      # ảnh AI phủ tối đa bấy nhiêu thời lượng video
+AI_CHUOI_TOI_DA = 12.0      # một chỗ ảnh AI (kể cả ảnh nối tiếp) dài tối đa bấy nhiêu giây
+AI_CACH_TOI_THIEU = 15.0    # giữa hai chỗ ảnh AI phải có ít nhất bấy nhiêu giây video thật
+GIAN_PHIEN = 1              # đổi số này -> danh sách 📝 CHƯA duyệt của mọi dự án được lập lại theo luật giãn mới
 _KHONG_AI = __import__("re").compile(r"\?")   # 19/10 user: bỏ danh sách từ gõ tay — câu hỏi thì không vẽ, còn lại AI tự xét
 
 
@@ -299,6 +306,7 @@ def hoi(cau, out, co_the=True, toan_bo=None):
     ra = ra_loc
     if bo_ai:
         log("    ảnh AI tái hiện bị loại: " + ", ".join(f"{k} {v}" for k, v in bo_ai.items()))
+    ra = _gian_ai(ra, toan_bo or cau, yeu)
     if VE_AI_HOAN_THIEN:
         ra = _ap_ke_hoach_ai(ra, cau, out, toan_bo or cau, co_ho_so=bool(hs))
 
@@ -308,6 +316,47 @@ def hoi(cau, out, co_the=True, toan_bo=None):
         dem[x["kieu"]] = dem.get(x["kieu"], 0) + 1
     log("    " + ", ".join(f"{k} {v}" for k, v in sorted(dem.items())))
     return ra
+
+
+def _gian_ai(ra, cau, yeu):
+    """26/10 user: GIÃN ảnh AI đề xuất — mỗi chỗ cắt còn <= AI_CHUOI_TOI_DA giây (bớt câu cuối), hai chỗ cách nhau
+    >= AI_CACH_TOI_THIEU giây video thật, tổng <= AI_TY_LE_TOI_DA thời lượng. Chọn trước câu FOOTAGE YẾU (bản thô khớp
+    kém — chỗ thật sự thiếu hình), rồi chỗ XA các chỗ đã chọn nhất (rải đều cả video, không dồn đầu video)."""
+    theo_i = {c["i"]: c for c in cau}
+    ai = [x for x in ra if x.get("kieu") == "tai_hien" and x.get("cau") in theo_i]
+    if not ai:
+        return ra
+    tong = max(float(c.get("t1") or 0) for c in cau)
+    ung = []
+    for x in ai:
+        i, den = int(x["cau"]), int(x.get("den_cau") or x["cau"])
+        t0 = float(theo_i[i].get("t0") or 0)
+        while den > i and (den not in theo_i or float(theo_i[den].get("t1") or 0) - t0 > AI_CHUOI_TOI_DA):
+            den -= 1
+        t1 = min(float(theo_i[den].get("t1") or t0), t0 + AI_CHUOI_TOI_DA)
+        n_yeu = sum(1 for j in range(i, den + 1) if j in yeu)
+        ung.append((dict(x, den_cau=den), t0, t1, n_yeu / (den - i + 1)))
+    ngan_sach, chon, dung = AI_TY_LE_TOI_DA * tong, [], 0.0
+    while True:
+        tot = None
+        for u in ung:
+            x, t0, t1, yeu_ = u
+            if u in chon or dung + (t1 - t0) > ngan_sach:
+                continue
+            cach = min((max(a0 - t1, t0 - a1) for _, a0, a1, _ in chon), default=tong)
+            if cach < AI_CACH_TOI_THIEU:
+                continue
+            k = (yeu_ > 0, yeu_, cach)
+            if tot is None or k > tot[0]:
+                tot = (k, u)
+        if tot is None:
+            break
+        chon.append(tot[1])
+        dung += tot[1][2] - tot[1][1]
+    log(f"    giãn ảnh AI: giữ {len(chon)}/{len(ai)} chỗ, phủ {dung:.0f}s/{tong:.0f}s ({dung / max(tong, 1) * 100:.0f}%)"
+        f" — mỗi chỗ <= {AI_CHUOI_TOI_DA:.0f}s, cách nhau >= {AI_CACH_TOI_THIEU:.0f}s"
+        + (f", ưu tiên {sum(1 for u in chon if u[3] > 0)} chỗ footage yếu" if yeu else ""))
+    return [x for x in ra if x.get("kieu") != "tai_hien"] + [u[0] for u in sorted(chon, key=lambda u: u[1])]
 
 
 KE_HOACH_AI = "anh_ai_ke_hoach.json"
@@ -331,11 +380,14 @@ def _ap_ke_hoach_ai(ra, cau, out, toan_bo, co_ho_so=True):
     lam_lai = da.get("co_ho_so") is False and co_ho_so and not da.get("duyet")
     if lam_lai:
         log("    danh sách 📝 trước lập lúc thiếu hồ sơ câu chuyện (chưa duyệt) -> lập lại theo hồ sơ")
+    if da.get("ds") and not da.get("duyet") and da.get("gian") != GIAN_PHIEN:   # 26/10: lập trước luật giãn ảnh AI
+        lam_lai = True
+        log("    danh sách 📝 (chưa duyệt) lập trước luật giãn ảnh AI -> lập lại")
     if da.get("_k") != k or not isinstance(da.get("ds"), list) or lam_lai:
         ds = [{f: v for f, v in x.items()                    # 23/10: ve_n / moc_n / huong_n không giới hạn số ảnh
                if (f in ("cau", "den_cau", "thoi_dai", "tieu_de", "moc") or re.match(r"(ve|moc|huong)_\d+$", f))
                and v not in (None, "")} for x in ai]
-        ghi_json(p, {"_k": k, "ds": ds, "duyet": False, "co_ho_so": bool(co_ho_so)})
+        ghi_json(p, {"_k": k, "ds": ds, "duyet": False, "co_ho_so": bool(co_ho_so), "gian": GIAN_PHIEN})
         log(f"    danh sách chỗ vẽ ảnh AI: {len(ds)} chỗ (sửa ở 📝 Chỗ vẽ ảnh AI)")
         return ra
     ds = [dict(y) for y in da["ds"] if isinstance(y, dict) and not y.get("bo") and int(y.get("cau") or 0) in theo_i]

@@ -64,6 +64,15 @@ def _cap_nhat(ten, **kw):
         _ghi_so(d)
 
 
+def _cong_anh(ten, n):
+    """Cộng số ảnh đã vẽ của hồ sơ (đọc + ghi trong cùng khoá: nhiều luồng xong cùng lúc không đếm thiếu)."""
+    with _KHOA_SO:
+        d = _doc_so()
+        m = d.setdefault(ten, {})
+        m.update(so_anh=int(m.get("so_anh") or 0) + n, dung_luc=time.time(), loi="")
+        _ghi_so(d)
+
+
 def ds_ho_so():
     """[{ten, thu_muc, tao, dung_luc, nghi_den, loi, so_anh}] — để hiện trên giao diện."""
     d = _doc_so()
@@ -142,13 +151,21 @@ class _Phien:
     def __init__(self, ten, cong):
         from anh_google import _WS
         self.ten, self.cong = ten, cong
-        self.p = subprocess.Popen([_chrome(), f"--user-data-dir={os.path.join(GOC, _slug(ten))}",
-                                   f"--remote-debugging-port={cong}", "--no-first-run", "--no-default-browser-check",
-                                   "--window-position=-32000,-32000", "--window-size=1280,860",
-                                   # 15/10 đo: cửa sổ ngoài màn hình -> visibilityState 'hidden' -> bấm tạo KHÔNG gửi lệnh
-                                   # (reCAPTCHA / trang chờ khi ẩn). Các cờ này giữ trang "đang hiện".
-                                   "--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding",
-                                   "--disable-background-timer-throttling", TRANG])
+        self.the_he = 0                      # tăng mỗi lần trang tải lại (_vao_du_an) -> lượt đang chờ biết kết quả cũ mất
+        self.dang_cho = []                   # các lượt tạo đang chờ ảnh trên tab này (gửi song song)
+        self.da_nhan = set()                 # id ảnh đã có lượt nhận (không chia nhầm cho lượt khác)
+        self.p = None
+        # 25/10: Chrome của hồ sơ còn mở sẵn ở đúng cổng (server trước tắt đột ngột, atexit không chạy) -> GẮN VÀO luôn,
+        # trước đây mở Chrome mới bị từ chối ("cửa sổ hồ sơ này đang mở sẵn") và hồ sơ hỏng tới khi tự đóng cửa sổ
+        if not self._tab_flow():
+            self.p = subprocess.Popen([_chrome(), f"--user-data-dir={os.path.join(GOC, _slug(ten))}",
+                                       f"--remote-debugging-port={cong}", "--no-first-run", "--no-default-browser-check",
+                                       "--window-position=80,60", "--window-size=1280,860",
+                                       # Giữ trang "đang hiện" để reCAPTCHA và lệnh tạo ảnh chạy mượt
+                                       "--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding",
+                                       "--disable-background-timer-throttling", TRANG])
+        else:
+            log(f"    Flow '{ten}': dùng lại Chrome đang mở ở cổng {cong}")
         tab = None
         for _ in range(60):
             time.sleep(0.5)
@@ -156,19 +173,38 @@ class _Phien:
                 ds = json.load(urllib.request.urlopen(f"http://127.0.0.1:{cong}/json", timeout=2))
             except (OSError, ValueError):
                 continue
-            tab = next((t for t in ds if t.get("type") == "page" and t.get("webSocketDebuggerUrl")), None)
+            trang = [t for t in ds if t.get("type") == "page" and t.get("webSocketDebuggerUrl")]
+            tab = next((t for t in trang if "flow.google" in str(t.get("url"))), trang[0] if trang else None)
             if tab:
                 break
         if not tab:
-            self.dong()
+            if self.p is not None:
+                self.p.terminate()
             raise RuntimeError("không mở được Chrome của hồ sơ (cửa sổ hồ sơ này đang mở sẵn? — đóng nó rồi thử lại)")
         self.ws = _WS(tab["webSocketDebuggerUrl"])
         self.ws.goi("Page.enable")
+        try:
+            self.hien_cua_so()
+        except Exception:
+            pass
         try:
             self.ws.goi("Emulation.setFocusEmulationEnabled", enabled=True)   # trang tưởng đang được chọn
         except Exception:                                    # noqa: BLE001
             pass
         self.cai_dat = None
+
+    def _tab_flow(self):
+        try:
+            ds = json.load(urllib.request.urlopen(f"http://127.0.0.1:{self.cong}/json", timeout=1))
+        except (OSError, ValueError):
+            return False
+        return any(t.get("type") == "page" and "flow.google" in str(t.get("url")) for t in ds)
+
+    def con_song(self):
+        try:
+            return (self.p is None or self.p.poll() is None) and self.js("1") == 1
+        except Exception:                                        # noqa: BLE001
+            return False
 
     def js(self, s):
         return self.ws.js(s)
@@ -195,10 +231,17 @@ class _Phien:
             pass
 
     def dong(self):
+        if self.p is None:                                       # Chrome gắn vào (không do mình mở): đóng qua DevTools
+            try:
+                self.ws.goi("Browser.close")
+            except Exception:                                    # noqa: BLE001
+                pass
         try:
             self.ws.dong()
         except Exception:                                        # noqa: BLE001
             pass
+        if self.p is None:
+            return
         try:
             self.p.terminate()
             self.p.wait(10)
@@ -220,6 +263,33 @@ def dong_tat_ca():
         dong(ten)
 
 
+def hien_tat_ca_cua_so():
+    """Đưa toàn bộ cửa sổ Chrome đang chạy của các hồ sơ Flow lên màn hình chính."""
+    from anh_google import _WS
+    dem = 0
+    with _KHOA_SO:
+        for ten, ph in list(_PHIEN.items()):
+            try:
+                ph.hien_cua_so()
+                dem += 1
+            except Exception:
+                pass
+    for cong in range(9350, 9360):
+        try:
+            ds = json.load(urllib.request.urlopen(f"http://127.0.0.1:{cong}/json", timeout=0.5))
+            tab = next((t for t in ds if t.get("type") == "page" and t.get("webSocketDebuggerUrl")), None)
+            if tab:
+                ws = _WS(tab["webSocketDebuggerUrl"])
+                w = ws.goi("Browser.getWindowForTarget")
+                ws.goi("Browser.setWindowBounds", windowId=w["windowId"],
+                       bounds={"left": 100 + (cong - 9350) * 30, "top": 80 + (cong - 9350) * 30, "width": 1280, "height": 860, "windowState": "normal"})
+                ws.dong()
+                dem += 1
+        except Exception:
+            pass
+    return dem
+
+
 atexit.register(dong_tat_ca)
 
 _MOC = r"""(() => {
@@ -236,7 +306,9 @@ _MOC = r"""(() => {
   };
   // 23/10 đo (bản boq 20261021): lệnh tạo ảnh ogiZ0b đi qua fetch, không còn XHR -> móc cả fetch
   const f0 = window.fetch;
-  window.fetch = function() { return f0.apply(this, arguments).then(r => { try { const u = String(r.url);
+  window.__bc_gui = 0;   // 25/10: số lệnh tạo ảnh (ogiZ0b) ĐÃ GỬI ĐI — bấm tạo mà số này không tăng = Flow chưa nhận lệnh
+  window.fetch = function(x) { try { if (String((x && x.url) || x).includes('ogiZ0b')) window.__bc_gui++; } catch (e) {}
+    return f0.apply(this, arguments).then(r => { try { const u = String(r.url);
       if (u.includes('rpcids=')) r.clone().text().then(t => { if (t.includes('flow-content.google/image')) window.__bc_kq.push(t); }).catch(() => {});
     } catch (e) {} return r; }); };
   return 'moc';
@@ -255,11 +327,20 @@ def _vao_du_an(ph):
     if "hl=" not in url:
         url += ("&" if "?" in url else "?") + "hl=en"
     ph.ws.goi("Page.navigate", url=url)
+    ph.the_he = getattr(ph, "the_he", 0) + 1                  # trang tải lại: kết quả các lượt đang chờ đã mất
     time.sleep(2)
     o = ph.cho("(() => { const u = location.href; if (u.includes('accounts.google.com') || u.includes('flow.google.com/about')) return 'dang_nhap';"
+               " if (document.body && (document.body.innerText||'').includes('Project not found')) return 'khong_thay';"
                " if (document.querySelector('[role=textbox][aria-label]')) return 'du_an';"
                " if ([...document.querySelectorAll('*')].some(e => e.children.length < 3 && /New project/.test(e.innerText||'')))"
                " return 'trang_chu'; return ''; })()", 45)
+    if o == "khong_thay":
+        # Dự án cũ đã hết hạn hoặc bị xóa trên Flow -> chuyển về trang chủ để tự tạo dự án mới
+        ph.ws.goi("Page.navigate", url=TRANG)
+        time.sleep(2)
+        o = ph.cho("(() => { if (document.querySelector('[role=textbox][aria-label]')) return 'du_an';"
+                   " if ([...document.querySelectorAll('*')].some(e => e.children.length < 3 && /New project/.test(e.innerText||'')))"
+                   " return 'trang_chu'; return ''; })()", 45)
     if o == "dang_nhap" or not o:
         raise PermissionError("hồ sơ chưa đăng nhập Flow — bấm 'Mở' trên giao diện để đăng nhập")
     if o == "trang_chu":
@@ -442,8 +523,96 @@ def _gan_tham_chieu(ph, files):
         + (f", tải lên {len(thieu)}" if thieu else "") + ")")
 
 
-def _tao(ph, prompt, ti_le, tham_chieu=None):
-    """Gõ câu lệnh (kèm ảnh tham chiếu nếu có), bấm tạo, chờ -> [link ảnh] (rỗng nếu lỗi; lỗi chữ trên trang trong ph.loi)."""
+_O_TAO = ("(() => { const e = document.querySelector('[role=textbox][aria-label]'); return !!(e && e.offsetParent"
+          " && !/change/i.test(e.getAttribute('aria-label') || '')) })()")
+
+
+def _ve_luoi(ph):
+    """25/10 user ("tạo xong lại tắt tab mở tab mới"): đo 25/10 — Flow hay tự mở ảnh vừa tạo / ảnh bấm trúng ở màn hình
+    SỬA (/edit/<id>, ô "What do you want to change?"): gõ câu lệnh ở đó là SỬA ảnh đó, lượt tạo hỏng -> trước đây đóng
+    Chrome rồi mở lại. Quay về lưới dự án NGAY TRONG TAB (nút Back / history.back), chỉ tải lại trang khi không về được."""
+    for _ in range(3):
+        if not ph.js("location.pathname.includes('/edit/')"):
+            break
+        if not _bam_js(ph, "document.querySelector('button[aria-label=\"Back button to go to previous page\"]')"):
+            ph.js("history.back()")
+        ph.cho("!location.pathname.includes('/edit/')", 8)
+    if not ph.cho(_O_TAO, 5):
+        _vao_du_an(ph)
+
+
+def cuu_phien(ten):
+    """Trang Flow hỏng giữa chừng: thử về lại dự án trong CÙNG cửa sổ (không tắt Chrome); Chrome chết hẳn mới đóng."""
+    ph = _PHIEN.get(ten)
+    if ph is None:
+        return
+    try:
+        if ph.con_song():
+            _vao_du_an(ph)
+            return
+    except Exception as e:                                       # noqa: BLE001
+        log(f"    Flow '{ten}': không cứu được trang ({str(e)[:80]}) -> mở lại Chrome")
+    dong(ten)
+
+
+def _cac_loi(ph, prompt):
+    """Các dòng báo lỗi đang có trên trang — BỎ dòng là chữ câu lệnh (ô câu lệnh, lưới ảnh có 'Expand prompt'): câu lệnh có
+    chữ 'limit' / 'verify' / 'later'… từng bị tưởng là Flow báo hết lượt -> hồ sơ bị tắt và nghỉ 6 giờ.
+    25/10 user (ảnh chụp ô "Failed — We noticed some unusual activity"): Flow chống spam ghi "unusual ACTIVITY", bản cũ chỉ
+    dò "unusual traffic" -> lượt đó chờ đủ 4 phút (acc4 lần nào cũng "hết giờ chờ")."""
+    ds = ph.js(r"""(() => { const t = document.body.innerText.split('\n'); const re = /(unusual|verify|captcha|limit|quota|try again later|couldn.t generate|failed to generate|violat|policy|Something went wrong)/i;
+      return t.map(s => s.trim()).filter(s => s && s.length < 220 && re.test(s)).slice(0, 60) })()""") or []
+    cu = getattr(ph, "da_gui", [])
+    return [x for x in ds if not any(x in p or x[:60] in p for p in [prompt] + cu)]
+
+
+def _loi_trang(ph, prompt, cu=0):
+    """Lỗi MỚI (sau lúc gửi): ô lỗi của lượt trước vẫn nằm trên trang -> chỉ tính khi số dòng lỗi tăng so với lúc gửi."""
+    ds = _cac_loi(ph, prompt)
+    return ds[0] if len(ds) > cu else ""
+
+
+def _dau_rieng(ph, prompt):
+    """Đoạn chữ ĐẶC TRƯNG của câu lệnh để nhận ra ảnh của nó trong phản hồi: chỉ chữ / số / cách (dấu ' " ( … Flow trả về
+    dạng thoát \\u0027…), dài nhất và KHÔNG có trong câu lệnh của lượt khác đang chờ cùng tab (25/10: câu lệnh storyboard
+    nào cũng mở bằng cùng dòng phong cách -> lấy đoạn ở dòng hành động riêng của ảnh)."""
+    return _dau_khac(prompt, [c["prompt"] for c in ph.dang_cho] + list(getattr(ph, "da_gui", [])))
+
+
+def _dau_khac(prompt, khac):
+    return _dau_ds(prompt, khac)[0]
+
+
+def _dau_ds(prompt, khac, n=3):
+    """Tới n đoạn chữ riêng của câu lệnh (không có trong câu lệnh nào của `khac`), dài trước. 25/10 (thử 20 câu, lượt 3:
+    lượt NV2 vẫn nhận ảnh của lượt BC5) -> phản hồi phải chứa ĐỦ các đoạn này mới là của lượt, không chỉ một đoạn."""
+    doan = sorted({x.strip()[-60:] for x in re.findall(r"[A-Za-z0-9 ]{12,}", prompt)}, key=len, reverse=True)
+    rieng = [d for d in doan if len(d) >= 12 and not any(d in k for k in khac)][:n]
+    return rieng or (doan[:1] if doan else [prompt[-40:]])
+
+
+def _gui(ph, prompt, ti_le, tham_chieu=None):
+    """Gõ câu lệnh (kèm ảnh tham chiếu nếu có) và bấm tạo — KHÔNG chờ ảnh. Trả 'lượt' để _cho() chờ; gọi trong khoá hồ sơ.
+    25/10 (thử 20 ảnh, nhiều lượt cùng tab): gắn tham chiếu đôi khi hỏng ("nút tạo không bật", "không mở được bảng ảnh
+    tham chiếu") khi lưới ảnh đang đổi -> đóng bảng, gỡ chip, thử lại MỘT lần ngay trên tab trước khi tính là lỗi."""
+    for lan in range(2):
+        try:
+            return _gui_mot(ph, prompt, ti_le, tham_chieu)
+        except PermissionError:
+            raise
+        except Exception as e:                                   # noqa: BLE001
+            if lan:
+                raise
+            log(f"    Flow '{ph.ten}': {str(e)[:80]} -> thử gửi lại")
+            for t in ("keyDown", "keyUp"):
+                ph.ws.goi("Input.dispatchKeyEvent", type=t, key="Escape", code="Escape", windowsVirtualKeyCode=27)
+            time.sleep(0.8)
+            _ve_luoi(ph)
+            _bo_tham_chieu(ph)
+
+
+def _gui_mot(ph, prompt, ti_le, tham_chieu=None):
+    _ve_luoi(ph)
     _chon_cai_dat(ph, ti_le)
     truoc = ph.js("window.__bc_kq ? window.__bc_kq.length : -1")
     if truoc == -1:
@@ -453,52 +622,154 @@ def _tao(ph, prompt, ti_le, tham_chieu=None):
         _gan_tham_chieu(ph, tham_chieu)
     else:
         _bo_tham_chieu(ph)
+    if ph.js("location.pathname.includes('/edit/')"):            # bấm chip tham chiếu có lúc mở ảnh ở màn hình sửa
+        _ve_luoi(ph)
+        if tham_chieu:
+            _gan_tham_chieu(ph, tham_chieu)
     ph.js("(() => { const e = document.querySelector('[role=textbox][aria-label]'); e.focus();"
           " document.execCommand('selectAll'); document.execCommand('delete'); return true })()")
     ph.ws.goi("Input.insertText", text=prompt)
     if not ph.cho("(() => { const b = document.querySelector('button[aria-label=\"Start generation\"]');"
                   " return b && !b.disabled })()", 10):
         raise RuntimeError("nút tạo không bật (câu lệnh chưa vào ô?)")
-    da_co = {i for i, _ in _link(ph.js("(window.__bc_kq || [])") or [], None)}   # ảnh CŨ của dự án (trả về kèm)
-    _bam(ph, 'button[aria-label="Start generation"]')       # bấm chuột THẬT (sự kiện tin cậy) — .click() JS có lúc bị bỏ qua
-    dong1 = prompt.split("\n", 1)[0]                          # đoạn ĐẶC TRƯNG của câu lệnh (câu nào cũng mở bằng "Create…")
-    # 23/10: chỉ chữ / số / cách — dấu ' " ( … Flow trả về dạng thoát (\u0027…) nên đoạn có dấu không khớp -> "hết giờ chờ"
-    dau = max(re.findall(r"[A-Za-z0-9 ]{8,}", dong1[-160:]) or [dong1[-40:]], key=len).strip()[-40:]
-    han = time.time() + CHO_ANH
-    link = []
-    while time.time() < han:
-        time.sleep(3)
-        try:
-            kq = ph.js(f"(window.__bc_kq || []).slice({int(truoc)})") or []
-        except Exception:                                        # noqa: BLE001
-            kq = []
-        link = [x for x in _link(kq, dau, len(prompt) + 3000) if x[0] not in da_co]
-        if len(link) >= 2:
-            return [u for _, u in link]
-        loi = ph.js("(() => { const t = document.body.innerText; const m = t.match(/(unusual traffic|verify|captcha|"
-                    "limit|quota|try again later|couldn.t generate|violat|policy|Something went wrong)[^\\n]{0,120}/i);"
-                    " return m ? m[0] : '' })()")
-        if loi and not link:
-            ph.loi = loi
-            return []
-    ph.loi = "hết giờ chờ"
-    return [u for _, u in link]
+    ds_dau = _dau_ds(prompt, [c["prompt"] for c in ph.dang_cho] + list(getattr(ph, "da_gui", [])))
+    try:
+        loi_cu = len(_cac_loi(ph, prompt))
+    except Exception:                                            # noqa: BLE001
+        loi_cu = 0
+    luot = {"prompt": prompt, "truoc": int(truoc), "the_he": ph.the_he, "dau": ds_dau[0], "dau_ds": ds_dau, "loi_cu": loi_cu,
+            "da_co": {i for i, _ in _link(ph.js("(window.__bc_kq || [])") or [], None)}}   # ảnh CŨ của dự án
+    # 25/10 (thử 20 ảnh: scene 6 nhận ảnh của scene 15): đoạn đặc trưng của lượt ĐANG CHỜ có thể nằm trong câu lệnh MỚI
+    # (đoạn đó chọn lúc lượt cũ gửi, khi chưa có câu lệnh mới để so — thường rơi vào mô tả nhân vật dùng chung) -> lượt cũ
+    # nhận luôn ảnh của lượt mới. Chọn lại đoạn cho lượt cũ, khác hẳn câu lệnh mới.
+    for c in ph.dang_cho:
+        con = [d for d in c.get("dau_ds") or [c["dau"]] if d not in prompt]
+        c["dau_ds"] = con or _dau_ds(c["prompt"], [prompt] + [x["prompt"] for x in ph.dang_cho if x is not c])
+        c["dau"] = c["dau_ds"][0]
+    ph.dang_cho.append(luot)
+    # 25/10 (đo: lượt "hết giờ chờ" = 55 phản hồi sau khi bấm, KHÔNG phản hồi nào có câu lệnh của lượt -> lần bấm không ăn,
+    # trước đây chờ đủ 4 phút): bấm rồi đợi lệnh tạo thật sự đi khỏi trang; 8 s chưa đi thì bấm lại, vẫn không thì báo lỗi
+    gui0 = ph.js("window.__bc_gui === undefined ? -1 : window.__bc_gui")
+    for _ in range(2):
+        _bam(ph, 'button[aria-label="Start generation"]')   # bấm chuột THẬT (sự kiện tin cậy) — .click() JS có lúc bị bỏ qua
+        if gui0 is None or gui0 < 0 or ph.cho(f"(window.__bc_gui || 0) > {int(gui0)}", 8, 0.25):
+            break                                            # (trang móc bản cũ, không đếm được: bấm một lần như trước)
+    else:
+        ph.dang_cho.remove(luot)
+        raise RuntimeError("Flow không nhận lệnh tạo (bấm 2 lần)")
+    luot["t0"] = time.time()
+    ph.da_gui = (getattr(ph, "da_gui", []) + [prompt])[-60:]
+    # chờ ô câu lệnh trống lại (Flow đã nhận lượt này) rồi mới nhả khoá cho lượt kế gõ tiếp
+    ph.cho("(() => { const e = document.querySelector('[role=textbox][aria-label]');"
+           " return !e || !(e.innerText || '').trim() })()", 4, 0.25)
+    return luot
+
+
+_LOI_CHUNG = re.compile(r"verify|captcha|limit|quota|later", re.I)   # lỗi của cả tài khoản / tab, không riêng lượt
+
+
+def _cho(ph, luot):
+    """Chờ ảnh của MỘT lượt đã gửi (không giữ khoá hồ sơ — các lượt khác vẫn gửi tiếp) -> [link] ([] nếu lỗi: ph.loi)."""
+    prompt, dau, t0 = luot["prompt"], luot["dau"], luot["t0"]
+    han = t0 + CHO_ANH
+    link, mot, loi_tu = [], 0, 0
+    try:
+        while time.time() < han:
+            time.sleep(1.5)
+            if _PHIEN.get(ph.ten) is not ph or ph.the_he != luot["the_he"]:
+                luot["loi"] = "trang Flow đã tải lại / đóng giữa chừng"
+                return []
+            try:
+                kq = ph.js(f"(window.__bc_kq || []).slice({luot['truoc']})") or []
+            except Exception:                                    # noqa: BLE001
+                kq = []
+            khac = [c["dau"] for c in ph.dang_cho if c is not luot]
+            link = [x for x in _link(kq, luot["dau"], len(prompt) + 3000, khac, luot.get("dau_ds"))
+                    if x[0] not in luot["da_co"] and x[0] not in ph.da_nhan]
+            if len(link) >= 2:
+                break
+            if link:                                             # Flow chỉ trả 1 ảnh (ảnh kia bị lọc): chờ thêm 20 s rồi dùng
+                mot = mot or time.time()
+                if time.time() - mot > 20:
+                    break
+            try:
+                loi = _loi_trang(ph, prompt, luot.get("loi_cu", 0)) if time.time() - t0 > 6 else ""
+            except Exception:                                    # noqa: BLE001  (trang đang vẽ lại)
+                loi = ""
+            if loi and re.search(r"unusual", loi, re.I) and not luot.get("da_nghi"):
+                # chống spam của Flow: ngừng GỬI THÊM vào hồ sơ này ngay (lượt đang chờ vẫn chờ nốt theo luật bên dưới)
+                luot["da_nghi"] = True
+                _cap_nhat(ph.ten, nghi_den=time.time() + NGHI_LOI, loi="Flow chống spam: " + loi[:100])
+                log(f"    Flow '{ph.ten}': Flow báo 'unusual activity' -> nghỉ {NGHI_LOI // 60} phút")
+            if loi and not link:
+                # nhiều lượt cùng chờ: lỗi chung (xác minh / hết lượt) dừng ngay; lỗi riêng một ảnh ("couldn't generate"…)
+                # chưa biết của lượt nào -> lượt đứng một mình thì dừng, đang chờ cùng lượt khác thì chờ thêm 45 s
+                loi_tu = loi_tu or time.time()
+                if _LOI_CHUNG.search(loi) or len(ph.dang_cho) <= 1 or time.time() - loi_tu > 45:
+                    luot["loi"] = loi
+                    return []
+        else:
+            luot["loi"] = "hết giờ chờ"
+            if not link:
+                link = _vot_lai(ph, luot)
+                if link:
+                    luot["loi"] = ""
+        link = link[:2]                                         # một lượt Flow ra 2 ảnh: không nhận quá (ảnh lượt khác)
+        ph.da_nhan.update(i for i, _ in link)
+        return [u for _, u in link]
+    finally:
+        if luot in ph.dang_cho:
+            ph.dang_cho.remove(luot)
+
+
+def _vot_lai(ph, luot):
+    """25/10 (thử 20 ảnh: 4-6 lượt "hết giờ chờ" mỗi lần chạy, mỗi lượt mất 4 phút rồi vẽ lại): trước khi bỏ lượt, dò lại
+    MỌI phản hồi từ lúc gửi với luật nới (có ÍT NHẤT một đoạn riêng, không có đoạn của lượt khác đang chờ). Không thấy thì
+    ghi các phản hồi + đoạn đặc trưng ra cache/flow_het_gio.txt để tìm nguyên nhân."""
+    try:
+        kq = ph.js(f"(window.__bc_kq || []).slice({luot['truoc']})") or []
+    except Exception:                                            # noqa: BLE001
+        return []
+    khac = [d for c in ph.dang_cho if c is not luot for d in c.get("dau_ds") or [c["dau"]]]
+    for t in kq:
+        if any(d in t for d in luot.get("dau_ds") or [luot["dau"]]) and not any(k in t for k in khac):
+            link = [x for x in _link([t], None) if x[0] not in luot["da_co"] and x[0] not in ph.da_nhan]
+            if link:
+                log(f"    Flow '{ph.ten}': hết giờ nhưng dò lại thấy {len(link)} ảnh của lượt")
+                return link
+    try:
+        from common import CACHE_CHUNG
+        with open(os.path.join(CACHE_CHUNG, "flow_het_gio.txt"), "a", encoding="utf-8") as f:
+            f.write(f"\n\n===== {time.strftime('%d/%m %H:%M:%S')} hồ sơ {ph.ten} | đoạn {luot.get('dau_ds')} | "
+                    f"{len(kq)} phản hồi | đang chờ {len(ph.dang_cho)}\n--- câu lệnh:\n{luot['prompt'][:4000]}\n")
+            for t in kq:
+                f.write(f"--- phản hồi ({len(t)} ký tự, {len(_URL.findall(t))} link, có đoạn: "
+                        f"{[d in t for d in luot.get('dau_ds') or []]}):\n{t[:3000]}\n")
+    except OSError:
+        pass
+    return []
 
 
 # link ảnh trong phản hồi: "...image/<id>?Expires\\u003d…\\u0026KeyName…" (dấu = và & bị thoát 1-2 lớp)
 _URL = re.compile(r'https://flow-content\.google/image/([0-9a-f-]+)\?(?:[^"\\]|\\+u00[0-9a-fA-F]{2})*')
 
 
-def _link(kq, dau, tam=2500):
-    """[(id, url)] ảnh trong các phản hồi; dau: đoạn câu lệnh phải đứng trước link (None = mọi ảnh)."""
+def _link(kq, dau, tam=2500, khac=(), du=()):
+    """[(id, url)] ảnh trong các phản hồi; dau: đoạn câu lệnh phải đứng trước link (None = mọi ảnh); khac: đoạn đặc trưng
+    của các lượt khác đang chờ — link gần đoạn của lượt khác hơn thì là ảnh của lượt đó."""
     ra, thay = [], set()
     for t in kq:
+        if du and not all(d in t for d in du):                   # phản hồi không chứa đủ các đoạn riêng: không phải của lượt
+            continue
         for m in _URL.finditer(t):
-            # 23/10: câu lệnh storyboard dài ~3000 ký tự -> cửa sổ dò phải dài hơn câu lệnh (trước cố định 2500 -> "hết giờ chờ")
-            if dau is not None and dau not in t[max(0, m.start() - tam):m.start()]:
-                continue
             if m.group(1) in thay:
                 continue
+            if dau is not None:
+                # 23/10: câu lệnh storyboard dài ~3000 ký tự -> cửa sổ dò phải dài hơn câu lệnh (trước cố định 2500)
+                lo = max(0, m.start() - tam)
+                vt = t.rfind(dau, lo, m.start())
+                if vt < 0 or any(t.rfind(k, lo, m.start()) > vt for k in khac if k and k != dau):
+                    continue
             thay.add(m.group(1))
             u = re.sub(r"\\+u003d", "=", m.group(0))
             u = re.sub(r"\\+u0026", "&", u)
@@ -506,6 +777,19 @@ def _link(kq, dau, tam=2500):
     return ra
 
 
+def _tao(ph, prompt, ti_le, tham_chieu=None):
+    """Gửi + chờ một lượt (lối cũ, một lượt một lúc) -> [link ảnh] (rỗng nếu lỗi; lỗi chữ trên trang trong ph.loi)."""
+    luot = _gui(ph, prompt, ti_le, tham_chieu)
+    link = _cho(ph, luot)
+    ph.loi = luot.get("loi", "")
+    return link
+
+
+# 25/10 user "tối ưu tốc độ nhất có thể": mỗi hồ sơ GỬI TIẾP lượt mới khi lượt trước còn đang vẽ (Flow vẽ song song),
+# khoá hồ sơ chỉ giữ lúc gõ + bấm tạo (vài giây) chứ không suốt ~30-60 s chờ ảnh. BC_FLOW_SONG_SONG=1 để quay về lối cũ.
+SONG_SONG = max(1, min(6, int(os.environ.get("BC_FLOW_SONG_SONG") or 3)))   # đo 25/10: 6 lượt chạy được nhưng dồn nhiều thì Flow báo "unusual activity"
+LOI_LIEN_TOI_DA = 2          # hồ sơ lỗi liên tiếp bấy nhiêu lượt -> nghỉ NGHI_LOI giây (không để luồng phí thời gian vào nó)
+_LOI_LIEN = {}
 _GIU = {}                    # tên hồ sơ -> số luồng đang giữ (vẽ ảnh / tạo video)
 _KHOA_GIU = threading.Lock()
 
@@ -528,6 +812,23 @@ def _tha_ho_so(ten):
 
 def so_ho_so_dung_duoc():
     return sum(1 for h in ds_ho_so() if not h["dang_nghi"])
+
+
+def so_luong_ve():
+    """Số luồng vẽ ảnh Flow nên chạy: mỗi hồ sơ dùng được SONG_SONG lượt cùng lúc."""
+    return max(1, min(32, so_ho_so_dung_duoc() * SONG_SONG))
+
+
+def _ghi_loi(ten, loi):
+    """Đếm lỗi liên tiếp của hồ sơ; quá LOI_LIEN_TOI_DA thì cho nghỉ (lượt sau xếp sang hồ sơ khác)."""
+    with _KHOA_GIU:
+        _LOI_LIEN[ten] = _LOI_LIEN.get(ten, 0) + 1
+        n = _LOI_LIEN[ten]
+    if n >= LOI_LIEN_TOI_DA:
+        log(f"    Flow '{ten}': lỗi {n} lượt liền -> nghỉ {NGHI_LOI // 60} phút")
+        _cap_nhat(ten, nghi_den=time.time() + NGHI_LOI, loi=f"lỗi {n} lượt liền: {str(loi)[:120]}")
+        with _KHOA_GIU:
+            _LOI_LIEN[ten] = 0
 
 
 def ve(prompt, thu, ten_file, ti_le="16:9", tham_chieu=None):
@@ -555,11 +856,20 @@ def ve_nhieu(prompt, thu, ten_goc, ti_le="16:9", tham_chieu=None):
     return _ve_flow(prompt, thu, [f"{ten_goc}_1.png", f"{ten_goc}_2.png"], ti_le, tham_chieu)
 
 
+_LOI_LUONG = {}              # luồng -> lỗi Flow của lượt cuối (bên gọi biết vì sao hỏng: chính sách / chống spam…)
+
+
+def loi_cuoi():
+    """Lỗi Flow lượt cuối của luồng đang gọi ('' nếu lượt cuối được ảnh)."""
+    return _LOI_LUONG.get(threading.get_ident(), "")
+
+
 def _ve_flow(prompt, thu, ten_files, ti_le, tham_chieu):
-    """Một lượt tạo trên hồ sơ rảnh (xoay vòng khi lỗi) -> [file đã tải theo ten_files] | []."""
+    """Một lượt tạo trên hồ sơ ít việc nhất (xoay vòng khi lỗi) -> [file đã tải theo ten_files] | []."""
+    _LOI_LUONG[threading.get_ident()] = ""
     ds = [h for h in ds_ho_so() if not h["dang_nghi"]]
-    # 22/10 user ("nhiều luồng"): mỗi luồng GIỮ CHỖ một hồ sơ RẢNH (dưới khoá chung) — trước đây các luồng cùng xếp
-    # theo .locked() một lúc nên cùng chọn hồ sơ đầu rồi chờ nhau. Hết hồ sơ rảnh thì xếp hồ sơ ít người chờ nhất.
+    # 22/10 user ("nhiều luồng"): mỗi luồng GIỮ CHỖ một hồ sơ (dưới khoá chung), ít luồng giữ nhất trước. 25/10: mỗi hồ sơ
+    # nhận tới SONG_SONG lượt cùng lúc — khoá hồ sơ chỉ giữ lúc gõ + bấm tạo, chờ ảnh thì không giữ.
     da_thu = set()
     while True:
         ten = _giu_ho_so([h["ten"] for h in ds], da_thu)
@@ -570,6 +880,7 @@ def _ve_flow(prompt, thu, ten_files, ti_le, tham_chieu):
             _tha_ho_so(ten)
             continue
         try:
+            ph = None
             khoa = _KHOA_PHIEN.setdefault(ten, threading.Lock())
             with khoa:
                 try:
@@ -578,8 +889,7 @@ def _ve_flow(prompt, thu, ten_files, ti_le, tham_chieu):
                         ph = _Phien(ten, CONG_DAU + list(_doc_so()).index(ten) % 40)
                         _PHIEN[ten] = ph
                         _vao_du_an(ph)
-                    ph.loi = ""
-                    link = _tao(ph, prompt, ti_le, tham_chieu)
+                    luot = _gui(ph, prompt, ti_le, tham_chieu)
                 except PermissionError as e:
                     log(f"    ! Flow '{ten}': {e}")
                     # 23/10: hồ sơ bị ĐĂNG XUẤT (acc3/acc4 về trang /about) -> nghỉ 6 giờ (bấm 'Mở' đăng nhập lại sẽ xoá nghỉ),
@@ -589,18 +899,28 @@ def _ve_flow(prompt, thu, ten_files, ti_le, tham_chieu):
                     continue
                 except Exception as e:                               # noqa: BLE001
                     log(f"    ! Flow '{ten}': {type(e).__name__}: {str(e)[:140]}")
+                    _ghi_loi(ten, e)
+                    # 25/10: giữ cửa sổ, về lại dự án (không tắt / mở Chrome) — trừ khi lượt khác còn chờ ảnh trên tab
+                    # (tải lại trang làm mất kết quả của chúng): khi đó chỉ chuyển lượt này sang hồ sơ khác
+                    if not (ph and ph.dang_cho):
+                        cuu_phien(ten)
+                    continue
+            link = _cho(ph, luot)
+            if not link:
+                loi = luot.get("loi") or "không có ảnh"
+                _LOI_LUONG[threading.get_ident()] = loi
+                log(f"    ! Flow '{ten}': {loi[:140]}")
+                if re.search(r"unusual", loi, re.I):                  # chống spam: đã cho nghỉ ở _cho
+                    pass
+                elif re.search(r"verify|captcha", loi, re.I):
+                    ph.hien_cua_so()                           # để người dùng giải xác minh
+                    _cap_nhat(ten, nghi_den=time.time() + NGHI_LOI, loi="cần xác minh: " + loi[:120])
+                elif re.search(r"limit|quota|later", loi, re.I):
+                    _cap_nhat(ten, nghi_den=time.time() + 6 * 3600, loi="hết lượt: " + loi[:120])
                     dong(ten)
-                    continue
-                if not link:
-                    loi = getattr(ph, "loi", "") or "không có ảnh"
-                    log(f"    ! Flow '{ten}': {loi[:140]}")
-                    if re.search(r"unusual|verify|captcha", loi, re.I):
-                        ph.hien_cua_so()                           # để người dùng giải xác minh
-                        _cap_nhat(ten, nghi_den=time.time() + NGHI_LOI, loi="cần xác minh: " + loi[:120])
-                    elif re.search(r"limit|quota|later", loi, re.I):
-                        _cap_nhat(ten, nghi_den=time.time() + 6 * 3600, loi="hết lượt: " + loi[:120])
-                        dong(ten)
-                    continue
+                else:
+                    _ghi_loi(ten, loi)
+                continue
             os.makedirs(thu, exist_ok=True)
             tep = []
             for i, u in enumerate(link[:len(ten_files)]):
@@ -615,7 +935,9 @@ def _ve_flow(prompt, thu, ten_files, ti_le, tham_chieu):
                 except Exception as e:                               # noqa: BLE001
                     log(f"    ! Flow tải ảnh lỗi: {str(e)[:100]}")
             if tep:
-                _cap_nhat(ten, dung_luc=time.time(), so_anh=int(_doc_so().get(ten, {}).get("so_anh") or 0) + len(tep), loi="")
+                with _KHOA_GIU:
+                    _LOI_LIEN[ten] = 0
+                _cong_anh(ten, len(tep))
                 if tep[0] != os.path.join(thu, ten_files[0]):          # ảnh 1 tải hỏng, ảnh 2 được -> đứng tên ảnh 1
                     os.replace(tep[0], os.path.join(thu, ten_files[0]))
                     tep[0] = os.path.join(thu, ten_files[0])
