@@ -226,9 +226,159 @@ def _tai(ph, u, dich):
     return True
 
 
+_KHOA_DAT = threading.Lock()
+_DAT = {}                    # tên hồ sơ -> điểm đang giữ chỗ (lượt tạo chưa xong) — nhiều luồng không vượt hạn ngày
+
+
+def uoc_diem(model, phan_giai="", do_dai="", so=1):
+    """Điểm ước tính trước khi mở Flow (giá thật đọc ở dòng "Generating will use N credits")."""
+    m = str(model or "")
+    if "Omni" in m:
+        g = 6 if "360" in str(phan_giai) else 12             # 27/10 user: Omni 720p 10 s = 12 điểm
+    else:
+        g = 100 if "Quality" in m else 20 if "Fast" in m else 10
+    return g * max(1, int(so or 1))
+
+
+def clip_con_hom_nay(can=12):
+    """Số clip (mỗi clip `can` điểm) còn tạo được hôm nay trên mọi hồ sơ dùng được."""
+    return sum(flow_ve.diem_con(h["ten"], h) // can for h in flow_ve.ds_ho_so() if not h["dang_nghi"])
+
+
+def _chon_theo_diem(ds, can):
+    """Chọn hồ sơ còn đủ điểm hôm nay (ít luồng giữ nhất, rồi còn nhiều điểm nhất); giữ chỗ `can` điểm -> tên | None."""
+    with _KHOA_DAT:
+        ung = [h for h in ds if flow_ve.diem_con(h["ten"], h) - _DAT.get(h["ten"], 0) >= can]
+        if not ung:
+            return None
+        h = min(ung, key=lambda x: (flow_ve._GIU.get(x["ten"], 0),                       # noqa: SLF001
+                                    -(flow_ve.diem_con(x["ten"], x) - _DAT.get(x["ten"], 0))))
+        _DAT[h["ten"]] = _DAT.get(h["ten"], 0) + can
+        return h["ten"]
+
+
+def _bo_dat(ten, can):
+    with _KHOA_DAT:
+        _DAT[ten] = max(0, _DAT.get(ten, 0) - can)
+
+
+# 27/10 user: "khi bật Chrome rồi thì chạy hết điểm thì lưu video lại rồi đóng Chrome sang tiếp tài khoản khác để làm tiếp.
+# tối đa 4 tài khoản làm việc cùng 1 lúc" + "mỗi tài khoản chạy 2 video cùng lúc" -> mỗi tài khoản đang nhận chạy MOI_TK khe
+# (tab chính + tab phụ, mỗi tab một dự án Flow riêng), mỗi khe lần lượt lấy việc trong hàng chờ tới khi tài khoản không còn
+# đủ điểm (tính cả lượt đang chạy), rồi đóng Chrome, nhận tài khoản kế. Việc lỗi do tài khoản (hết điểm, xác minh…) trả lại
+# hàng chờ cho tài khoản khác.
+SONG_SONG_VIDEO = max(1, int(os.environ.get("BC_FLOW_VIDEO_SONG_SONG") or 4))     # số tài khoản cùng lúc
+MOI_TK = max(1, min(2, int(os.environ.get("BC_FLOW_VIDEO_MOI_TK") or 2)))         # số video cùng lúc trên một tài khoản
+_LOI_TAI_KHOAN = re.compile(r"hết điểm|chỉ còn|credits|unusual|verify|captcha|hồ sơ Flow|Chrome|tab phụ|đăng nhập|quota|"
+                            r"limit|later", re.I)
+
+
+def chay_theo_tai_khoan(viec, lam, can=12, song_song=SONG_SONG_VIDEO, moi_tk=MOI_TK, bao=None):
+    """viec: [x…]; lam(x, ten_ho_so, khe) -> kết quả (ném lỗi nếu hỏng). -> [kết quả | None] cùng thứ tự viec.
+    Tối đa `song_song` tài khoản (cửa sổ Chrome) cùng lúc, mỗi tài khoản `moi_tk` video cùng lúc."""
+    from collections import deque
+    bao = bao or (lambda m: log("    " + m))
+    hang = deque((i, x, 0) for i, x in enumerate(viec))
+    kq = [None] * len(viec)
+    khoa = threading.Lock()
+    dang_dung, da_bo, dang_chay = set(), set(), {}          # tài khoản đang nhận / hỏng lượt này / số việc đang chạy
+
+    def nhan():
+        with khoa:
+            ung = [h for h in flow_ve.ds_ho_so() if not h["dang_nghi"] and h["ten"] not in dang_dung
+                   and h["ten"] not in da_bo and flow_ve.diem_con(h["ten"], h) >= can]
+            if not ung:
+                return None
+            # đang mở Chrome trước; rồi tài khoản đã dùng dở (ít điểm còn) -> dùng cho hết, ít tài khoản phải mở
+            h = min(ung, key=lambda x: (not x["dang_mo"], flow_ve.diem_con(x["ten"], x), x.get("tao", 0)))
+            dang_dung.add(h["ten"])
+            return h["ten"]
+
+    def lay_viec(ten):
+        with khoa:
+            if not hang or ten in da_bo or flow_ve.diem_con(ten) - dang_chay.get(ten, 0) * can < can:
+                return None
+            dang_chay[ten] = dang_chay.get(ten, 0) + 1
+            return hang.popleft()
+
+    def khe(ten, k):
+        while True:
+            v = lay_viec(ten)
+            if v is None:
+                return
+            i, x, lan = v
+            try:
+                kq[i] = lam(x, ten, k)
+            except Exception as e:                           # noqa: BLE001
+                loi = str(e)
+                if _LOI_TAI_KHOAN.search(loi):
+                    with khoa:
+                        if lan < 2:                          # việc trả lại hàng chờ cho tài khoản khác
+                            hang.appendleft((i, x, lan + 1))
+                        da_bo.add(ten)
+                    bao(f"tài khoản «{ten}» (tab {k}): lỗi tài khoản ({loi[:100]})")
+                else:
+                    bao(f"! việc {i + 1}: {loi[:120]}")
+            finally:
+                with khoa:
+                    dang_chay[ten] -= 1
+
+    def dong(ten, ly_do):
+        bao(f"tài khoản «{ten}»: {ly_do} -> đóng Chrome")
+        with _KHOA_MO.setdefault(ten, threading.Lock()):
+            flow_ve.dong(ten)
+
+    def chu():
+        while True:
+            with khoa:
+                if not hang:
+                    return
+            ten = nhan()
+            if ten is None:
+                return
+            try:                                             # mở Chrome + đọc điểm thật / giờ reset trên bảng tài khoản
+                tt = flow_ve.doc_diem(mo_phien(ten, 1, bao))
+            except Exception as e:                           # noqa: BLE001
+                bao(f"tài khoản «{ten}»: không mở được ({str(e)[:100]})")
+                with khoa:
+                    da_bo.add(ten)
+                    dang_dung.discard(ten)
+                dong(ten, "lỗi mở")
+                continue
+            bao(f"tài khoản «{ten}»: còn {flow_ve.diem_con(ten)} điểm"
+                + (f" (Flow báo {tt['diem']}, reset {tt.get('reset', '?')})" if tt.get("diem") is not None else "")
+                + f" -> chạy {moi_tk} video cùng lúc")
+            ts = [threading.Thread(target=khe, args=(ten, k + 1), daemon=True) for k in range(moi_tk)]
+            for t in ts:
+                t.start()
+            for t in ts:
+                t.join()
+            try:                                             # đọc lại số điểm thật trước khi rời tài khoản
+                if ten not in da_bo:
+                    flow_ve.doc_diem(mo_phien(ten, 1))
+            except Exception:                                # noqa: BLE001
+                pass
+            with khoa:
+                het = ten in da_bo or flow_ve.diem_con(ten) < can
+                dang_dung.discard(ten)
+            if het:
+                dong(ten, "dùng hết điểm" if ten not in da_bo else "lỗi tài khoản")
+
+    n = max(1, min(song_song, -(-len(viec) // moi_tk)))
+    ts = [threading.Thread(target=chu, daemon=True) for _ in range(n)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    if hang:
+        bao(f"còn {len(hang)} việc chưa làm: hết tài khoản đủ điểm -> chạy tiếp sau giờ reset")
+    return kq
+
+
 def tao(prompt, thu, ten_goc, ti_le="16:9", model="Veo 3.1 - Fast", phan_giai="", do_dai="", so=1,
-        anh_dau=None, anh_cuoi=None, ho_so="", bao=None):
-    """Tạo video qua Flow -> {"tep": [mp4…], "ho_so", "cai_dat", "diem"}. Ném lỗi (không lùi đường khác: video tốn điểm)."""
+        anh_dau=None, anh_cuoi=None, ho_so="", bao=None, gioi_han=False, khe=1):
+    """Tạo video qua Flow -> {"tep": [mp4…], "ho_so", "cai_dat", "diem"}. Ném lỗi (không lùi đường khác: video tốn điểm).
+    gioi_han=True (tạo tự động): chỉ dùng hồ sơ còn đủ điểm trong hạn DIEM_NGAY/ngày, free trước Pro sau."""
     bao = bao or (lambda *_: None)
     prompt = str(prompt or "").strip()
     if not prompt and not anh_dau:
@@ -237,28 +387,75 @@ def tao(prompt, thu, ten_goc, ti_le="16:9", model="Veo 3.1 - Fast", phan_giai=""
     ds = [h for h in flow_ve.ds_ho_so() if not h["dang_nghi"] and (not ho_so or h["ten"] == ho_so)]
     if not ds:
         raise RuntimeError("chưa có hồ sơ Flow dùng được — tạo / đăng nhập ở «🎨 Hồ sơ Flow» trên trang chính")
-    # 22/10 user: nhiều video cùng lúc -> mỗi lượt GIỮ CHỖ một hồ sơ rảnh (flow_ve._giu_ho_so), không giành nhau
-    ten = flow_ve._giu_ho_so([h["ten"] for h in ds])           # noqa: SLF001
+    can = uoc_diem(model, phan_giai, do_dai, so)
+    if gioi_han:
+        ten = _chon_theo_diem(ds, can)
+        if not ten:
+            raise RuntimeError(f"hết điểm video hôm nay (mỗi hồ sơ {flow_ve.DIEM_NGAY} điểm/ngày, cần {can}) — mai tạo tiếp")
+        flow_ve._giu_ho_so([ten])                                # noqa: SLF001
+    else:
+        # 22/10 user: nhiều video cùng lúc -> mỗi lượt GIỮ CHỖ một hồ sơ rảnh (flow_ve._giu_ho_so), không giành nhau
+        ten = flow_ve._giu_ho_so([h["ten"] for h in ds])       # noqa: SLF001
     try:
-        return _tao_tren(ten, prompt, thu, ten_goc, ti_le, model, phan_giai, do_dai, so, anh_dau, anh_cuoi, bao)
+        return _tao_tren(ten, prompt, thu, ten_goc, ti_le, model, phan_giai, do_dai, so, anh_dau, anh_cuoi, bao,
+                         can, gioi_han, khe)
     finally:
         flow_ve._tha_ho_so(ten)                                  # noqa: SLF001
+        if gioi_han:
+            _bo_dat(ten, can)
 
 
-def _tao_tren(ten, prompt, thu, ten_goc, ti_le, model, phan_giai, do_dai, so, anh_dau, anh_cuoi, bao):
-    with flow_ve._KHOA_PHIEN.setdefault(ten, threading.Lock()):  # noqa: SLF001
+def _so_diem(ton):
+    try:
+        return int(float(str(ton).replace(",", "")))
+    except ValueError:
+        return 0
+
+
+_KHOA_MO = {}                # tên -> Lock chỉ lúc MỞ Chrome / tab (không giữ suốt lượt tạo)
+
+
+def mo_phien(ten, khe=1, bao=None):
+    """Phiên Flow của hồ sơ: khe 1 = tab chính, khe 2 = tab phụ (dự án riêng, flow_ve.phien_phu)."""
+    with _KHOA_MO.setdefault(ten, threading.Lock()):
         ph = flow_ve._PHIEN.get(ten)                              # noqa: SLF001
+        if ph is None:
+            (bao or (lambda m: None))(f"Mở Chrome hồ sơ «{ten}»…")
+            ph = flow_ve._Phien(ten, flow_ve.CONG_DAU + list(flow_ve._doc_so()).index(ten) % 40)   # noqa: SLF001
+            flow_ve._PHIEN[ten] = ph                              # noqa: SLF001
+            flow_ve._vao_du_an(ph)                                # noqa: SLF001
+        return ph if khe == 1 else flow_ve.phien_phu(ten)
+
+
+def _cuu(ten, khe):
+    if khe == 1:
+        flow_ve.cuu_phien(ten)
+        return
+    ph = flow_ve._PHIEN_PHU.get(ten)                              # noqa: SLF001
+    try:
+        if ph is not None and ph.con_song():
+            flow_ve._vao_du_an(ph)                                # noqa: SLF001
+            return
+    except Exception:                                             # noqa: BLE001
+        pass
+    flow_ve._PHIEN_PHU.pop(ten, None)                             # noqa: SLF001  (lần sau mở tab phụ mới)
+
+
+def _tao_tren(ten, prompt, thu, ten_goc, ti_le, model, phan_giai, do_dai, so, anh_dau, anh_cuoi, bao, can=0, gioi_han=False,
+              khe=1):
+    # 27/10: mỗi khe (tab) một khoá riêng -> tab chính và tab phụ của cùng hồ sơ tạo video SONG SONG
+    with flow_ve._KHOA_PHIEN.setdefault(ten if khe == 1 else f"{ten}#{khe}", threading.Lock()):  # noqa: SLF001
         try:
-            if ph is None:
-                bao(f"Mở Chrome hồ sơ «{ten}»…")
-                ph = flow_ve._Phien(ten, flow_ve.CONG_DAU + list(flow_ve._doc_so()).index(ten) % 40)   # noqa: SLF001
-                flow_ve._PHIEN[ten] = ph                          # noqa: SLF001
-                flow_ve._vao_du_an(ph)                            # noqa: SLF001
+            ph = mo_phien(ten, khe, bao)
             ph.js(_MOC_V)
             bao("Chọn cài đặt video…")
             dong, ton = _cai_dat(ph, ti_le, model, phan_giai, do_dai, so)
             bao(f"{dong} — Flow báo tốn {ton or '?'} điểm")
+            if not re.search(rf"\bx{so}\b", dong):              # 27/10 user: mỗi câu lệnh đúng {so} video — chọn xN hỏng
+                raise RuntimeError(f"Flow chưa chọn được x{so} (cài đặt: {dong}) — không tạo để khỏi tốn điểm")
             log(f"    Flow video '{ten}': {dong}, {ton or '?'} điểm")
+            if gioi_han and _so_diem(ton) > flow_ve.diem_con(ten):
+                raise RuntimeError(f"hồ sơ «{ten}» chỉ còn {flow_ve.diem_con(ten)} điểm hôm nay, lượt này cần {ton}")
             _bo_khung_cu(ph)
             if anh_dau:
                 bao("Tải ảnh khung đầu lên Flow…")
@@ -303,6 +500,8 @@ def _tao_tren(ten, prompt, thu, ten_goc, ti_le, model, phan_giai, do_dai, so, an
                   not enough credits|out of credits|limit|quota|try again later|couldn.t generate|failed to generate|violat|policy|
                   Something went wrong)[^\n]{0,140}/i); return m ? m[0] : '' })()""".replace("\n                  ", ""))
                 if loi and not link and time.time() - t0 > 8:
+                    if re.search(r"credits", loi, re.I):
+                        flow_ve.ghi_diem(ten, 0, het=True)        # hết điểm thật -> hôm nay không xếp hồ sơ này nữa
                     if re.search(r"unusual|verify|captcha", loi, re.I):
                         ph.hien_cua_so()
                     raise RuntimeError("Flow báo: " + loi[:200])
@@ -320,9 +519,10 @@ def _tao_tren(ten, prompt, thu, ten_goc, ti_le, model, phan_giai, do_dai, so, an
                     tep.append(dich)
             if not tep:
                 raise RuntimeError("thấy video trên Flow nhưng tải về không được")
+            flow_ve.ghi_diem(ten, _so_diem(ton) or can or uoc_diem(model, phan_giai, do_dai, so))
             flow_ve._cap_nhat(ten, dung_luc=time.time(), loi="",  # noqa: SLF001
                               so_video=int(flow_ve._doc_so().get(ten, {}).get("so_video") or 0) + len(tep))   # noqa: SLF001
             return {"tep": tep, "ho_so": ten, "cai_dat": dong, "diem": ton}
         except Exception:
-            flow_ve.cuu_phien(ten)                                # trang hỏng giữa chừng: về lại dự án trong cùng cửa sổ
+            _cuu(ten, khe)                                        # trang hỏng giữa chừng: về lại dự án trong cùng cửa sổ
             raise

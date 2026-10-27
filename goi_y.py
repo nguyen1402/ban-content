@@ -779,9 +779,21 @@ def goi_y(du_an, ids=None, chi_canh_trong=True, mo_hinh=None, luu=True):
         ep_tuyet_doi = cot_loi.khoang(du_an)
     except Exception:                                        # noqa: BLE001
         ep_tuyet_doi = []
+    try:                                                     # 27/10 user: chỗ hook / chỗ 📝 ảnh AI & Veo -> không đặt footage
+        import cho_phu
+        da_phu = cho_phu.canh_phu(du_an)
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! chỗ đã phủ hình AI: {str(e)[:100]}")
+        da_phu = set()
+    if da_phu:
+        log(f"  gợi ý: {len(da_phu)} cảnh đã có hình AI (hook Veo / 📝) -> không đặt footage")
     for k, c in enumerate(chon):
         kh = dung.get(str(c["id"]), {})
         if luu and chi_canh_trong and kh.get("doan") and not kh.get("goi_y"):
+            continue
+        if c["id"] in da_phu:
+            if luu and kh.get("goi_y") and kh.get("doan"):   # gợi ý cũ (trước khi đánh dấu) -> bỏ
+                dung_tay.luu_canh(du_an, c["id"], [])
             continue
         th = []
         if NGHI_GIONG_DOC:

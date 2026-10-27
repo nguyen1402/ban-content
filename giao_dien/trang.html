@@ -78,6 +78,7 @@ dialog::backdrop{background:#000a}dialog video{width:100%;display:block;border-r
       <input type="text" id="flowten" placeholder="Tên hồ sơ, vd flow1" style="max-width:220px">
       <button id="flowtao">＋ Hồ sơ Chrome Flow</button>
       <button type="button" class="p" id="flow_btn_hien_all" style="border-color:var(--ok);color:var(--ok);font-weight:600" title="Đưa toàn bộ cửa sổ Chrome của Flow ra giữa màn hình để quan sát hoặc thao tác trực tiếp">🖥️ Hiện các cửa sổ Chrome lên màn hình</button>
+      <button type="button" class="p" id="flow_btn_doc_diem" title="Mở lần lượt từng hồ sơ, bấm ảnh tài khoản trên Flow để đọc số điểm thật và GIỜ RESET điểm mỗi ngày">🔄 Đọc điểm &amp; giờ reset</button>
       <button type="button" class="p" id="flow_btn_dong_all" style="border-color:var(--er);color:var(--er)" title="Đóng toàn bộ Chrome Flow đang chạy ngầm">✕ Đóng hết Chrome Flow</button>
     </div>
     <div id="flowds" style="margin-top:8px"></div>
@@ -255,10 +256,16 @@ async function veFlow(){let d;try{d=await api('/api/flow')}catch(e){$('#flowds')
     const tt=h.dang_nghi?'<span style="color:#c62828">● tạm nghỉ: '+escH(h.loi||'')+'</span>':(h.loi?'<span style="color:#c62828">● '+escH(h.loi)+'</span>':'<span style="color:#2e7d32">● sẵn sàng</span>');
     const kq=t.dang?'<span class="sub" style="margin:0">đang thử… (mở ẩn, tạo 1 ảnh, ~30-60 giây)</span>':(t.kq?'<a href="'+t.kq+'" target="_blank">✔ ảnh thử</a>':(t.loi?'<span style="color:#c62828">✖ '+escH(t.loi)+'</span>':''));
     return '<div class="row" style="gap:8px;margin:4px 0"><b>'+escH(h.ten)+'</b>'+tt+'<span class="sub" style="margin:0">'+(h.so_anh||0)+' ảnh</span>'+
+      '<span class="sub" style="margin:0" title="Điểm video còn dùng trong ngày (hạn 50/ngày, Omni 720p 10 s = 12 điểm)">🎬 còn '+(h.diem_con??50)+'/50đ (~'+Math.floor((h.diem_con??50)/12)+' clip)</span>'+
+      (h.reset?'<span class="sub" style="margin:0;color:var(--ok)" title="Flow: Credits refresh daily at … (đọc lúc '+(h.doc_luc?new Date(h.doc_luc*1000).toLocaleString('vi-VN'):'?')+')">⏰ reset '+escH(h.reset)+' hằng ngày'+(h.diem_flow!=null?' · Flow báo '+h.diem_flow+'đ':'')+'</span>':'<span class="sub" style="margin:0">⏰ chưa đọc giờ reset</span>')+
+      (h.loi_diem?'<span style="color:#c62828;font-size:12px">✖ đọc điểm: '+escH(h.loi_diem)+'</span>':'')+
+      '<button data-fl="doc_diem|'+escH(h.ten)+'" style="padding:2px 8px" title="Đọc điểm thật + giờ reset của hồ sơ này">🔄</button>'+
       '<button data-fl="mo|'+escH(h.ten)+'" style="padding:2px 8px" title="Mở cửa sổ Chrome của hồ sơ để đăng nhập / giải xác minh">Mở</button>'+
       '<button data-fl="thu|'+escH(h.ten)+'" style="padding:2px 8px">Thử</button>'+
       '<button data-fl="xoa|'+escH(h.ten)+'" style="padding:2px 8px">Xoá</button>'+kq+'</div>'}).join(''):'<div class="sub" style="margin:0">(chưa có hồ sơ — đang dùng Gemini cookie, tốn điểm)</div>';
+  if(d.doc_diem)dang=true;$('#flow_btn_doc_diem').disabled=!!d.doc_diem;$('#flow_btn_doc_diem').textContent=d.doc_diem?'⏳ Đang đọc điểm…':'🔄 Đọc điểm & giờ reset';
   clearTimeout(flowHen);if(dang&&$('#flowk').style.display!=='none')flowHen=setTimeout(veFlow,3000)}
+$('#flow_btn_doc_diem').onclick=async()=>{try{await post('/api/flow/doc_diem',{});tb('Đang đọc điểm từng hồ sơ (mỗi hồ sơ ~15-30 giây)…');veFlow()}catch(e){tb('Lỗi: '+e.message)}};
 $('#nutflow').onclick=()=>{const c=$('#flowk');const hien=c.style.display==='none';c.style.display=hien?'':'none';if(hien){veFlow();kiemTraFlowHangLoat()}};
 $('#flowtao').onclick=async()=>{const ten=$('#flowten').value.trim();if(!ten)return tb('Đặt tên hồ sơ');
   try{await post('/api/flow/tao',{ten});$('#flowten').value='';tb('Đã mở Chrome — đăng nhập Flow rồi đóng cửa sổ');veFlow()}catch(e){tb('Lỗi: '+e.message)}};

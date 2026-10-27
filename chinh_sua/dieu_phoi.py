@@ -103,6 +103,10 @@ VE_AI_HOAN_THIEN = True     # 22/10 user: BẬT LẠI ảnh AI diễn biến ở
 AI_DIEU_PHOI = "gemini"      # 19/10 user: lên kế hoạch ảnh bằng Gemini (ChatGPT hay bỏ đối tượng bị ngắm); hỏng -> ChatGPT
 KIEU_TAT = {"khoanh_vung", "duong_di", "lan_rong", "ban_do_ve"}   # 26/10 user: "không vẽ bản đồ nữa" — TẮT mọi lớp bản đồ
 #                             (vệ tinh khoanh vùng, đường đi A->B, lan rộng, bản đồ AI vẽ). Bật lại: KIEU_TAT = set()
+# 27/10 user: "không còn dùng cái Remotion bản đồ và thẻ highlight cho nội dung của mình nữa" -> tắt CẢ các thẻ Remotion
+# (số liệu, mốc năm, giải thích, sơ đồ…) — chỉ còn ảnh AI / video Veo. Khi mọi lớp đều tắt thì không hỏi lệnh điều phối.
+KIEU_TAT |= {"the", "nhan_vat", "so_sanh", "su_kien", "giai_thich", "con_so", "song", "quy_trinh", "cau_tao", "vong_doi",
+             "mo_phong"}
 # (cũ) 22/10 user: BẬT bản đồ vệ tinh địa danh (ban_do.clip_dia_danh: từ vũ trụ bay xuống + viền
 #                             lãnh thổ thật) — 18/10 từng tắt khung BanDoNen cũ
 HO_SO_THU = 3                # số lần thử lập hồ sơ câu chuyện (lỗi thường nhất thời)
@@ -213,9 +217,11 @@ def hoi(cau, out, co_the=True, toan_bo=None):
                               f"{' (WEAK FOOTAGE)' if c['i'] in yeu else ''} {c['text']}" for c in lot) for lot in lots]
     if yeu:
         log(f"[ĐP] {len(yeu)} câu footage yếu ở bản thô -> lệnh ảnh AI ưu tiên")
-    p_hoi = [_P.format(ds=d) for d in ds_lot] + ([_P_AI.format(ho_so=hs, ds=d) for d in ds_lot_ai] if VE_AI_HOAN_THIEN else [])
+    lop = bool(KIEU - KIEU_TAT - {"tai_hien", "dien_canh"})   # còn lớp minh hoạ nào bật (ngoài ảnh AI)?
+    p_lop = [_P.format(ds=d) for d in ds_lot] if lop else []
+    p_hoi = p_lop + ([_P_AI.format(ho_so=hs, ds=d) for d in ds_lot_ai] if VE_AI_HOAN_THIEN else [])
     khoa = [hashlib.md5(p.encode("utf-8")).hexdigest()[:16] for p in p_hoi]
-    khoa_ai = set(khoa[len(lots):])
+    khoa_ai = set(khoa[len(p_lop):])
     p_luu = os.path.join(out, "dieu_phoi_hoi.json")
     da = doc_json(p_luu, {}) or {}
     can = [k for k, kk in enumerate(khoa) if rut_json(da.get(kk) or "") is None]
@@ -306,9 +312,24 @@ def hoi(cau, out, co_the=True, toan_bo=None):
     ra = ra_loc
     if bo_ai:
         log("    ảnh AI tái hiện bị loại: " + ", ".join(f"{k} {v}" for k, v in bo_ai.items()))
+    def bo_hook(ra):                                         # 27/10 user: đoạn hook toàn video Veo -> không ảnh AI ở đó
+        try:
+            import cho_phu
+            hk = cho_phu.khoang_hook(out)
+        except Exception as e:                               # noqa: BLE001
+            log(f"    ! lọc theo đoạn hook: {str(e)[:100]}")
+            return ra
+        n0 = len(ra)
+        ra = [x for x in ra if not any(a_ - 0.3 <= float((cau_theo_i.get(x["cau"]) or {}).get("t0") or -1) < b_ - 0.3
+                                       for a_, b_ in hk)]
+        if len(ra) < n0:
+            log(f"    bỏ {n0 - len(ra)} chỗ ảnh AI nằm trong đoạn hook (video Veo phủ)")
+        return ra
+    ra = bo_hook(ra)
     ra = _gian_ai(ra, toan_bo or cau, yeu)
     if VE_AI_HOAN_THIEN:
         ra = _ap_ke_hoach_ai(ra, cau, out, toan_bo or cau, co_ho_so=bool(hs))
+        ra = bo_hook(ra)
 
     _bu_tieu_de(ra, out)
     dem = {}

@@ -285,6 +285,17 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
     can = [c for c in canh if not (dung.get(str(c["id"]), {}).get("doan") and not dung[str(c["id"])].get("goi_y"))]
     if not can:
         raise ValueError("mọi cảnh đều đã tự dựng — không còn cảnh nào để tự động")
+    try:                                                     # 27/10 user: chỗ hook Veo / 📝 ảnh AI & Veo không cần footage
+        import cho_phu
+        phu = cho_phu.canh_phu(du_an)
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! chỗ đã phủ hình AI: {str(e)[:100]}")
+        phu = set()
+    if phu:
+        can = [c for c in can if c["id"] not in phu]
+        log(f"  bỏ {len(phu)} cảnh đã có hình AI (hook Veo / 📝 ảnh AI & Veo) — không tìm, không băm footage")
+        if not can:
+            raise ValueError("mọi cảnh đều đã có hình AI hoặc tự dựng — không còn cảnh nào cần footage")
 
     t_bd = time.time()
 

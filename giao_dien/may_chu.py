@@ -825,7 +825,7 @@ _FLOW_THU = {}                                          # tên hồ sơ -> {dang
 @app.get("/api/flow")
 def flow_ds():
     import flow_ve
-    return json_ok({"ho_so": flow_ve.ds_ho_so(), "thu": _FLOW_THU})
+    return json_ok({"ho_so": flow_ve.ds_ho_so(), "thu": _FLOW_THU, "doc_diem": _FLOW_DOC_DIEM["dang"]})
 
 
 @app.post("/api/flow/tao")
@@ -849,6 +849,38 @@ def flow_mo():
 def flow_xoa():
     import flow_ve
     flow_ve.xoa_ho_so(str((request.json or {}).get("ten") or ""))
+    return json_ok({"ok": True})
+
+
+_FLOW_DOC_DIEM = {"dang": False}
+
+
+@app.post("/api/flow/doc_diem")
+def flow_doc_diem():
+    """27/10 user: đọc điểm Flow thật + GIỜ RESET điểm (bảng tài khoản trên Flow) của một / mọi hồ sơ (chạy nền, lần lượt).
+    Hồ sơ chưa mở Chrome thì mở, đọc xong đóng lại."""
+    import flow_ve
+    import flow_video
+    ten = str((request.json or {}).get("ten") or "")
+    if _FLOW_DOC_DIEM["dang"]:
+        return json_ok({"ok": True, "dang": True})
+    ds = [h["ten"] for h in flow_ve.ds_ho_so() if not ten or h["ten"] == ten]
+
+    def lam():
+        _FLOW_DOC_DIEM["dang"] = True
+        try:
+            for t in ds:
+                da_mo = t in flow_ve._PHIEN                      # noqa: SLF001
+                try:
+                    flow_ve.doc_diem(flow_video.mo_phien(t))
+                    flow_ve._cap_nhat(t, loi_diem="")             # noqa: SLF001
+                except Exception as e:                           # noqa: BLE001
+                    flow_ve._cap_nhat(t, loi_diem=str(e)[:120])   # noqa: SLF001
+                if not da_mo:
+                    flow_ve.dong(t)
+        finally:
+            _FLOW_DOC_DIEM["dang"] = False
+    threading.Thread(target=lam, daemon=True).start()
     return json_ok({"ok": True})
 
 
@@ -2183,8 +2215,16 @@ def anh_ai_ke_hoach():
             loi = dong[-1][:300] if dong else ""
         except OSError:
             pass
+    clip_con, het_hook = None, 0.0
+    try:                                                     # 27/10: số clip Veo còn hôm nay + đoạn hook (Veo phủ)
+        import cho_phu
+        import flow_video
+        clip_con = flow_video.clip_con_hom_nay(flow_video.uoc_diem("Omni 1.1 Flash", "720p"))
+        het_hook = max((b for _, b in cho_phu.khoang_hook(out)), default=0.0)
+    except Exception:                                        # noqa: BLE001
+        pass
     return json_ok({"co": isinstance(da.get("ds"), list), "ds": da.get("ds") or [], "cau": _cau_srt(out),
-                    "dang": dang, "loi": loi})
+                    "dang": dang, "loi": loi, "clip_con": clip_con, "het_hook": het_hook})
 
 
 @app.post("/api/anh_ai_ke_hoach/lap")
@@ -2223,12 +2263,23 @@ def luu_anh_ai_ke_hoach():
             den = max(i, int(y.get("den_cau") or i))
         except (TypeError, ValueError):
             continue
-        z = {k: v for k, v in y.items() if k in ("thoi_dai", "tieu_de", "moc", "bo", "tay")
+        z = {k: v for k, v in y.items() if k in ("thoi_dai", "tieu_de", "moc", "bo", "tay", "loai", "veo_en")
              or re.match(r"(ve|moc|huong)_\d+$", str(k))}   # 23/10: chuỗi ảnh nối tiếp không giới hạn số ảnh
         z.update(cau=i, den_cau=den)
         ds.append(z)
     common.ghi_json(p, dict(da, ds=sorted(ds, key=lambda z: z["cau"]), duyet=True))
     return json_ok({"ok": True, "so": len(ds)})
+
+
+@app.post("/api/anh_ai_ke_hoach/gop_y")
+def gop_y_anh_ai_ke_hoach():
+    """27/10 user: ô góp ý -> AI viết lại danh sách 📝 Chỗ ảnh AI & Veo theo ý người dùng (chạy nền, trả job)."""
+    import gop_y
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t or not str(d.get("y_kien") or "").strip():
+        raise HTTPError(400, "thiếu dự án hoặc góp ý")
+    return json_ok({"job": _job_doi_thu(lambda bao: gop_y.ke_hoach(t, d["y_kien"], d.get("ds")))})
 
 
 # --------------------------------------------------------------------------- 🎨 tạo ảnh rồi chèn thẳng vào bản nháp
@@ -2423,6 +2474,17 @@ def hook_video_tao_thu():
         return {"file": f, "url": url_tep(f) + f"&v={int(time.time())}", "ho_so": kq["ho_so"], "diem": kq["diem"]}
 
     return json_ok({"job": _job_doi_thu(lam)})
+
+
+@app.post("/api/hook_video/gop_y")
+def hook_video_gop_y():
+    """27/10 user: ô góp ý -> AI viết lại câu lệnh video hook theo ý người dùng (chạy nền, trả job)."""
+    import gop_y
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t or not str(d.get("y_kien") or "").strip():
+        raise HTTPError(400, "thiếu dự án hoặc góp ý")
+    return json_ok({"job": _job_doi_thu(lambda bao: gop_y.hook(t, d["y_kien"]))})
 
 
 @app.post("/api/hook_video/luu")

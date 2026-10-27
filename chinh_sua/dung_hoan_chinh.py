@@ -34,7 +34,7 @@ NHAC_BAT = True
 NHAC_NGUON = "kho_chuan"  # "kho_chuan" (kho_am_thanh sạch) | "mixkit" | "kho"
 CHU_BAT = False
 #: 12/10 user: lớp ẢNH PHỦ minh hoạ khi cần (chinh_sua/lop_phu.py). Tắt bằng --khong-lop-phu.
-HOOK_VEO_BAT = False        # 23/10 user: ✨ tự tạo video hook bằng Flow (hook_video.tao_video) đè lên ~30 s đầu —
+HOOK_VEO_BAT = False        # 23/10 user: ✨ tự tạo video hook bằng Flow (hook_video.tao_video) đè lên ~60 s đầu —
 #                             CHỈ khi tick ô «🎬 Video hook Flow» (--co-hook-veo)
 NHAN_VAT_BAT = False       # 22/10 user: TẮT ảnh Google người thật (dễ nhầm người) -> người thật chỉ được vẽ ảnh AI DIỄN BIẾN
 #                            việc họ làm, không lộ mặt (luật trong dieu_phoi._P_AI). Bật True = thẻ ảnh thật lop_phu.lap_nhan_vat
@@ -59,6 +59,55 @@ STRONG = ["Phóng to", "Trượt sang phải", "Mờ dần"]
 #: chuyển cảnh ĐO ĐƯỢC là làm nháy khung khi clip không có phần dư đầu/cuối (đo trên MP4 xuất từ CapCut, 09/10:
 #: Zoom gần nhẹ 15/15 chỗ nháy, Lật hiện ra 5/5, Hòa trộn rực rỡ 1/1; Mờ dần/Rõ dần/Trượt gần như sạch).
 BO_NHAY = {"Zoom gần nhẹ", "Lật hiện ra", "Hòa trộn rực rỡ", "Chớp sét", "Xoay và hiện ra", "Rung chấn"}
+
+
+# --------------------------------------------------------------------------- 27/10 video Veo (hook + thân bài)
+def ap_veo(de, cau, hook_ds):
+    """Chỗ 🎬 Veo trong danh sách 📝 -> clip Veo (tạo mới khi tick ô 🎬, tốn điểm) đặt trên track hook; chỗ KHÔNG có clip
+    (và khúc hook chưa có clip) -> ảnh AI vẽ thay (0 điểm) — 27/10 user: chỗ đã đánh dấu không băm footage, nên không được
+    để trống. -> (de mới, lịch Veo thân bài)."""
+    from common import DU_AN as _da
+    veo = [x for x in de if x.get("loai") == "veo"]
+    lich = []
+    if veo:
+        try:
+            import veo_canh
+            lich, khong = veo_canh.lich(_da, veo, cau, tao_moi=HOOK_VEO_BAT)
+        except Exception as e:                               # noqa: BLE001
+            log(f"    ! Veo thân bài: {type(e).__name__}: {str(e)[:150]}")
+            khong = veo
+        da = {id(x) for x in veo} - {id(x) for x in khong}
+        de = [x for x in de if id(x) not in da]              # chỗ không có clip giữ lại làm ảnh AI
+    try:
+        import hook_video
+        hk = hook_video.doc(_da)
+        het = float(hk.get("het_hook") or hk.get("giay_hook") or 0)
+        co = {round(float(z["bd"]), 1) for z in hook_ds}
+        bu = 0
+        for y in hk.get("ds") or []:
+            a0 = float(y.get("t0") or 0)
+            if any(abs(a0 - b0) < 0.2 for b0 in co) or not str(y.get("prompt_en") or "").strip():
+                continue
+            b0 = min(a0 + hook_video.HOOK_CLIP_GIAY, het or a0 + hook_video.HOOK_CLIP_GIAY)
+            canh_o = [c for c in cau if float(c["t1"]) > a0 + 0.2 and float(c["t0"]) < b0 - 0.2]
+            canh_ = [p.strip() for p in re.split(r"(?i)\bcut to\b|shot \d+:", y["prompt_en"]) if len(p.strip()) > 20]
+            for k in range(0, len(canh_o), 3):               # mỗi ảnh AI tối đa 3 câu (luật danh sách 📝)
+                nhom = canh_o[k:k + 3]
+                ve1 = (y.get("khung_dau") if k == 0 else "") or (canh_[min(k // 3, len(canh_) - 1)] if canh_ else "")
+                if not str(ve1).strip():
+                    continue
+                x = {"kieu": "tai_hien", "cau": nhom[0]["i"], "den_cau": nhom[-1]["i"], "ve_1": str(ve1).strip()[:300],
+                     "moc": " ".join(str(nhom[0]["text"]).split()[:4]), "tay": True}
+                if len(canh_) > 1:
+                    x["ve_2"] = canh_[min(k // 3 + 1, len(canh_) - 1)][:300]
+                de = [z for z in de if not (z.get("kieu") == "tai_hien" and nhom[0]["i"] <= int(z["cau"]) <= nhom[-1]["i"])]
+                de.append(x)
+                bu += 1
+        if bu:
+            log(f"    hook: {bu} ảnh AI thay cho khúc chưa có clip Veo (hết điểm / chưa tạo)")
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! ảnh thay khúc hook: {str(e)[:120]}")
+    return sorted(de, key=lambda z: int(z.get("cau") or 0)), lich
 
 
 # --------------------------------------------------------------------------- dòng thời gian của dự án thô
@@ -936,7 +985,7 @@ def main():
     ap.add_argument("--bang-giay-den", type=float, default=None, help="bảng giấy chỉ làm tới giây này (bản thử)")
     ap.add_argument("--khong-tieng-dong", action="store_true", help="không thêm tiếng động diễn cảnh / SFX minh hoạ")
     ap.add_argument("--co-tieng-dong", action="store_true", help="bật tiếng động diễn cảnh")
-    ap.add_argument("--co-hook-veo", action="store_true", help="tạo video hook bằng Flow cho ~30 s đầu (tốn điểm Flow)")
+    ap.add_argument("--co-hook-veo", action="store_true", help="tạo video hook bằng Flow cho ~60 s đầu (tốn điểm Flow)")
     ap.add_argument("--sua-nhanh", action="store_true",
                     help="giữ kế hoạch: bỏ SFX, làm lại chữ (chỉ số liệu/dữ kiện) và chọn lại nhạc từ kho sạch")
     ap.add_argument("--tinh-lai-chuyen-canh", action="store_true",
@@ -987,6 +1036,27 @@ def main():
         dieu_phoi.hoi(cau, OUT, co_the=LOP_PHU_BAT)
         log("[ĐX] xong danh sách chỗ vẽ ảnh AI")
         return
+    if HOOK_VEO_BAT and giong_chung:                         # 23/10 user: video hook Flow cho đoạn mở đầu (tick ô 🎬)
+        try:
+            import hook_video
+            from common import DU_AN as _da
+            hook_ds = hook_video.tao_video(_da)           # clip đã tạo (cùng câu lệnh) dùng lại, không tốn điểm
+        except Exception as e:                               # noqa: BLE001
+            log(f"    ! video hook: {type(e).__name__}: {str(e)[:150]}")
+            hook_ds = []
+    elif giong_chung:
+        # 25/10 user ("xem lại phần ghép video hook veo3 vào bản nháp"): không tick ô 🎬 trước đây XOÁ TRẮNG hook_ds —
+        # clip đã tạo / 💾 Lưu trên giao diện không bao giờ vào bản nháp. Ô tick chỉ quyết định TẠO MỚI bằng Flow (tốn
+        # điểm); clip đã có thì luôn ghép (xếp lại theo mốc giọng hiện tại, không gọi Flow)
+        try:
+            import hook_video
+            from common import DU_AN as _da
+            hook_ds = hook_video.ke_hoach_hook(_da)
+        except Exception as e:                               # noqa: BLE001
+            log(f"    ! video hook (clip có sẵn): {type(e).__name__}: {str(e)[:150]}")
+            hook_ds = []
+    else:
+        hook_ds = []
     am = _kho_am_thanh()
     if (a.giu_ke_hoach or a.tinh_lai_chuyen_canh or a.sua_nhanh) and os.path.isfile(KE_HOACH):
         kh = json.load(open(KE_HOACH, encoding="utf-8"))
@@ -1032,6 +1102,11 @@ def main():
         de = None
         if DIEU_PHOI_BAT and (HIEU_UNG_BAT or LOP_PHU_BAT):
             import dieu_phoi
+            try:                                             # 27/10: chỗ 🎬 Veo chưa có câu lệnh -> AI viết trước
+                import veo_canh
+                veo_canh.viet_lenh(OUT, cau)
+            except Exception as e:                           # noqa: BLE001
+                log(f"    ! Veo: viết câu lệnh lỗi: {str(e)[:120]}")
             de = dieu_phoi.hoi(cau, OUT, co_the=LOP_PHU_BAT)
             try:                                             # 18/10 user: đoạn đã có ẢNH CỐT LÕI toàn màn hình (bản thô)
                 import cot_loi                               # -> không chồng thêm lớp AI / HUD lên đó
@@ -1045,6 +1120,7 @@ def main():
                     log(f"    điều phối: bỏ {n0 - len(de)} lớp trùng đoạn ảnh cốt lõi")
             except Exception as e:                           # noqa: BLE001
                 log(f"    ! lọc theo ảnh cốt lõi: {str(e)[:100]}")
+            de, kh["veo"] = ap_veo(de, cau, hook_ds)
         if HIEU_UNG_BAT:
             import hieu_ung
             if de is not None:
@@ -1090,27 +1166,7 @@ def main():
             f"{len(kh.get('hieu_ung') or [])} hiệu ứng, {len(kh.get('anh_ai') or [])} cảnh AI ({sum(len(y.get('phan_doan') or []) for y in kh.get('anh_ai') or [])} ảnh), "
             f"{len(kh.get('bang_giay') or [])} khối bảng giấy, {len(kh['chuyen_canh'])} chuyển cảnh, {len(kh['nhac'])} đoạn nhạc, "
             f"{len(kh['sfx'])} SFX, {len(kh.get('tieng_dong') or [])} tiếng động diễn cảnh -> ra/ke_hoach.json")
-    if HOOK_VEO_BAT and giong_chung:                         # 23/10 user: video hook Flow cho đoạn mở đầu (tick ô 🎬)
-        try:
-            import hook_video
-            from common import DU_AN as _da
-            kh["hook"] = hook_video.tao_video(_da)           # clip đã tạo (cùng câu lệnh) dùng lại, không tốn điểm
-        except Exception as e:                               # noqa: BLE001
-            log(f"    ! video hook: {type(e).__name__}: {str(e)[:150]}")
-            kh["hook"] = []
-    elif giong_chung:
-        # 25/10 user ("xem lại phần ghép video hook veo3 vào bản nháp"): không tick ô 🎬 trước đây XOÁ TRẮNG kh["hook"] —
-        # clip đã tạo / 💾 Lưu trên giao diện không bao giờ vào bản nháp. Ô tick chỉ quyết định TẠO MỚI bằng Flow (tốn
-        # điểm); clip đã có thì luôn ghép (xếp lại theo mốc giọng hiện tại, không gọi Flow)
-        try:
-            import hook_video
-            from common import DU_AN as _da
-            kh["hook"] = hook_video.ke_hoach_hook(_da)
-        except Exception as e:                               # noqa: BLE001
-            log(f"    ! video hook (clip có sẵn): {type(e).__name__}: {str(e)[:150]}")
-            kh["hook"] = []
-    else:
-        kh["hook"] = []
+    kh["hook"] = hook_ds + list(kh.get("veo") or [])        # 27/10: video Veo thân bài đặt cùng track hook
     ghi_json(KE_HOACH, kh)
     if a.chi_lap_ke_hoach:
         return

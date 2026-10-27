@@ -73,12 +73,75 @@ def _cong_anh(ten, n):
         _ghi_so(d)
 
 
+# 27/10 user: mỗi tài khoản (free hay Pro như nhau) tạo video tối đa 50 điểm/ngày (Omni 720p 10 s = 12 điểm -> 4 video).
+# "Ngày" tính theo GIỜ RESET của chính tài khoản đó (bảng tài khoản Flow: "Credits refresh daily at 5:57 PM"), chưa đọc
+# được thì theo nửa đêm. Đếm điểm đã dùng trong chu kỳ ở ho_so.json; đọc được số điểm thật thì lấy theo số thật.
+DIEM_NGAY = 50
+
+
+def _hom_nay(m=None):
+    """Khoá chu kỳ điểm hiện tại = ngày của lần reset gần nhất (theo giờ reset của hồ sơ, mặc định 00:00)."""
+    gio, phut = (int(x) for x in str((m or {}).get("reset") or "00:00").split(":"))
+    bay = time.localtime()
+    if (bay.tm_hour, bay.tm_min) < (gio, phut):
+        bay = time.localtime(time.time() - 86400)
+    return time.strftime("%Y-%m-%d", bay)
+
+
+def diem_con(ten, m=None):
+    """Điểm video còn dùng được trong chu kỳ này của hồ sơ (theo hạn DIEM_NGAY, cả free lẫn Pro)."""
+    m = m if m is not None else _doc_so().get(ten, {})
+    return max(0, DIEM_NGAY - int((m.get("diem_ngay") or {}).get(_hom_nay(m)) or 0))
+
+
+def ghi_diem(ten, n, het=False, dat=None):
+    """Cộng n điểm đã dùng (het=True: Flow báo hết điểm -> coi như dùng hết hạn chu kỳ này; dat: đặt thẳng số đã dùng)."""
+    with _KHOA_SO:
+        d = _doc_so()
+        m = d.setdefault(ten, {})
+        hn = _hom_nay(m)
+        da = int((m.get("diem_ngay") or {}).get(hn) or 0)
+        m["diem_ngay"] = {hn: DIEM_NGAY if het else int(dat) if dat is not None else da + int(n or 0)}   # chỉ giữ chu kỳ này
+        _ghi_so(d)
+
+
+_BANG_TK = ("(() => { const c = document.querySelector('[aria-label=\"Credits display\"]'); if (!c) return null;"
+            " const p = c.closest('[role=dialog]') || document.body; return p.innerText || '' })()")
+
+
+def doc_diem(ph):
+    """27/10 user: bấm ảnh tài khoản (góc trên phải) -> đọc "N Google Flow credits" + "Credits refresh daily at 5:57 PM"
+    -> {"diem": N, "reset": "17:57"} (ghi vào ho_so.json) | {} khi không đọc được. Đóng bảng sau khi đọc."""
+    xy = ph.js("(() => { const e = [...document.querySelectorAll('img')].find(i => /googleusercontent/.test(i.src)"
+               " && i.getBoundingClientRect().y < 120 && i.getBoundingClientRect().x > innerWidth * 0.6); if (!e) return null;"
+               " const r = e.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2] })()")
+    if not xy:
+        return {}
+    for t in ("mouseMoved", "mousePressed", "mouseReleased"):
+        ph.ws.goi("Input.dispatchMouseEvent", type=t, x=xy[0], y=xy[1], button="left", clickCount=1)
+    chu = ph.cho(_BANG_TK, 8) or ""
+    ph.js("(() => { const b = document.querySelector('button[aria-label=\"Close account panel\"]'); if (b) b.click(); return 1 })()")
+    ra = {}
+    m = re.search(r"([\d,.]+)\s*(?:Google Flow )?credits", chu, re.I)
+    if m:
+        ra["diem"] = int(float(m.group(1).replace(",", "")))
+    m = re.search(r"refresh\w*\s+daily\s+at\s+(\d{1,2}):(\d{2})\s*([AP]M)?", chu, re.I)
+    if m:
+        h = int(m.group(1)) % 12 + (12 if (m.group(3) or "").upper() == "PM" else 0) if m.group(3) else int(m.group(1))
+        ra["reset"] = f"{h:02d}:{m.group(2)}"
+    if ra:
+        _cap_nhat(ph.ten, doc_luc=time.time(), **{("diem_flow" if k == "diem" else k): v for k, v in ra.items()})
+        if "diem" in ra and ra["diem"] < DIEM_NGAY:          # số thật thấp hơn hạn (free đã dùng / tạo tay trên web)
+            ghi_diem(ph.ten, 0, dat=DIEM_NGAY - ra["diem"])
+    return ra
+
+
 def ds_ho_so():
-    """[{ten, thu_muc, tao, dung_luc, nghi_den, loi, so_anh}] — để hiện trên giao diện."""
+    """[{ten, thu_muc, tao, dung_luc, nghi_den, loi, so_anh, diem_con}] — để hiện trên giao diện."""
     d = _doc_so()
     ra = []
     for ten, m in d.items():
-        ra.append(dict(m, ten=ten, thu_muc=os.path.join(GOC, _slug(ten)),
+        ra.append(dict(m, ten=ten, thu_muc=os.path.join(GOC, _slug(ten)), diem_con=diem_con(ten, m),
                        dang_nghi=float(m.get("nghi_den") or 0) > time.time(), dang_mo=ten in _PHIEN))
     return sorted(ra, key=lambda x: x.get("tao", 0))
 
@@ -316,7 +379,35 @@ class _Phien:
                 pass
 
 
+_PHIEN_PHU = {}              # tên -> _Phien của TAB PHỤ (cùng Chrome, dự án riêng) cho video thứ 2 chạy song song
+
+
+def phien_phu(ten):
+    """27/10 user "mỗi tài khoản chạy 2 video cùng lúc": tab thứ hai trong CÙNG Chrome của hồ sơ, mở dự án Flow riêng
+    (lưới video, mạng, ô câu lệnh tách hẳn tab chính -> hai lượt không lấy nhầm video của nhau). Cần tab chính mở trước."""
+    from anh_google import _WS
+    ph = _PHIEN_PHU.get(ten)
+    if ph is not None and ph.con_song():
+        return ph
+    chinh = _PHIEN[ten]
+    req = urllib.request.Request(f"http://127.0.0.1:{chinh.cong}/json/new?{TRANG}", method="PUT")
+    t = json.load(urllib.request.urlopen(req, timeout=10))
+    ph = _Phien.__new__(_Phien)
+    ph.ten, ph.cong, ph.p, ph.the_he, ph.dang_cho, ph.da_nhan, ph.cai_dat = ten, chinh.cong, None, 0, [], set(), None
+    ph.khoa_du_an, ph.id_tab = "du_an_url_2", t["id"]
+    ph.ws = _WS(t["webSocketDebuggerUrl"])
+    ph.ws.goi("Page.enable")
+    try:
+        ph.ws.goi("Emulation.setFocusEmulationEnabled", enabled=True)
+    except Exception:                                        # noqa: BLE001
+        pass
+    _vao_du_an(ph)
+    _PHIEN_PHU[ten] = ph
+    return ph
+
+
 def dong(ten):
+    _PHIEN_PHU.pop(ten, None)                                # tab phụ đóng theo Chrome
     ph = _PHIEN.pop(ten, None)
     if ph:
         ph.dong()
@@ -442,7 +533,8 @@ def _trang_thai(ph, giay=60):
 def _vao_du_an(ph):
     """Mở dự án Flow của hồ sơ (tạo mới nếu chưa có) -> True; chưa đăng nhập -> raise."""
     m = _doc_so().get(ph.ten, {})
-    url = m.get("du_an_url") or TRANG
+    khoa = getattr(ph, "khoa_du_an", "du_an_url")           # 27/10: tab phụ (video thứ 2) dùng dự án RIÊNG du_an_url_2
+    url = m.get(khoa) or TRANG
     if "hl=" not in url:
         url += ("&" if "?" in url else "?") + "hl=en"
     ph.ws.goi("Page.navigate", url=url)
@@ -466,7 +558,11 @@ def _vao_du_an(ph):
             "/New project/.test(e.innerText||'')); if (e) { e.click(); return true } return false })()")
         if not ph.cho("location.href.includes('/project/') && !!document.querySelector('[role=textbox][aria-label]')", 45):
             raise RuntimeError("không tạo được dự án Flow")
-        _cap_nhat(ph.ten, du_an_url=ph.js("location.href"))
+        _cap_nhat(ph.ten, **{khoa: ph.js("location.href")})
+    elif khoa != "du_an_url" and not m.get(khoa):            # trang chủ tự vào thẳng dự án cũ -> không chung với tab chính
+        if str(ph.js("location.href")).split("?")[0] == str(m.get("du_an_url") or "").split("?")[0]:
+            raise RuntimeError("tab phụ không tạo được dự án riêng (Flow tự mở dự án của tab chính)")
+        _cap_nhat(ph.ten, **{khoa: ph.js("location.href")})
     for chu in ("Get started", "Got it", "Close", "Dismiss"):     # bảng giới thiệu / có gì mới
         ph.js(_BAM_CHU + f"({json.dumps(chu)})")
     # 20/10 đo: tài khoản mới (acc4-acc8) mở sẵn chế độ AGENT (khung chat "Untitled session") -> không có nút
