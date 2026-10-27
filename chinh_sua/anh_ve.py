@@ -163,7 +163,7 @@ def xoa_logo(f):
         return True
     if os.path.isfile(tam):
         os.remove(tam)
-    return False
+    return xoa_dau_flow(f)                                   # gwt không tự dò ra: ảnh Google Flow -> khuôn riêng của Flow
 
 
 _KHUON = []                                                  # khuôn alpha logo ✦ 96x96 của gwt (lấy một lần)
@@ -187,6 +187,145 @@ def _khuon_logo():
 
 def _chay(cmd, timeout=3600):
     return subprocess.run(cmd, capture_output=True, timeout=timeout, creationflags=0x08000000 if os.name == "nt" else 0)
+
+
+def _khop_logo(med, ngan):
+    """Khớp khuôn logo ✦ của gwt trên ảnh xám `med` (góc dưới phải đã cắt ra), qua nhiều cỡ.
+    ngan = cạnh ngắn của khung gốc. -> (điểm khớp, x, y, cỡ, tỉ lệ sáng) — x, y tính trong `med`."""
+    import cv2
+    import numpy as np
+    rh, rw = med.shape
+    khuon = _khuon_logo()
+    tot = (0.0, 0, 0, 0)
+    for co in range(max(24, int(ngan * 0.045)) // 2 * 2, min(int(ngan * 0.11), rw, rh) + 1, 2):   # 1080p: logo 72 = 6,7%
+        t = cv2.resize(khuon, (co, co), interpolation=cv2.INTER_AREA)
+        k = max(15, co // 2 * 2 + 1)
+        d = med - cv2.GaussianBlur(med, (k, k), 0)            # bỏ nền mượt, giữ nét logo
+        r = cv2.matchTemplate(d, t - t.mean(), cv2.TM_CCOEFF_NORMED)
+        le = int(ngan * 0.25)                                 # logo nằm sát góc: cách mép phải/dưới tối đa 25% cạnh ngắn
+        r[:max(0, rh - co - le), :] = -1
+        r[:, :max(0, rw - co - le)] = -1
+        _, mx, _, (lx, ly) = cv2.minMaxLoc(r)
+        if mx > tot[0] and float((d[ly:ly + co, lx:lx + co] * t).sum()) > 0:   # logo SÁNG hơn nền
+            tot = (mx, lx, ly, co)
+    diem, lx, ly, co = tot
+    ty_le = 0.0
+    if co:                                                   # KIỂM VẬT LÝ: logo trắng phủ alpha -> độ sáng nổi lên = (255 - nền) * alpha
+        t = np.zeros_like(med)
+        t[ly:ly + co, lx:lx + co] = cv2.resize(khuon, (co, co), interpolation=cv2.INTER_AREA)
+        k = max(15, co // 2 * 2 + 1)
+        d = med - cv2.GaussianBlur(med, (k, k), 0)
+        tc = t - cv2.GaussianBlur(t, (k, k), 0)
+        vung = np.zeros(med.shape, bool)
+        vung[max(0, ly - co):ly + 2 * co, max(0, lx - co):lx + 2 * co] = True
+        nen = float(np.median(med[vung & (t < 0.01)]))
+        ty_le = float((d * tc)[vung].sum() / max(1e-6, (tc * tc)[vung].sum())) / max(1.0, 255 - nen)
+    return diem, lx, ly, co, ty_le
+
+
+# 26/10 user (ảnh storyboard Flow còn vệt tô lấp ở góc — "tưởng dùng tools xoá cơ mà"): gwt tự dò KHÔNG nhận dấu ✦ của
+# ảnh Flow ("No watermark detected (-8%)"); ép gwt xoá đúng vùng thì còn BÓNG TỐI hình sao vì khuôn alpha của gwt là của
+# logo Gemini (đục hơn, viền mềm). Đo 26/10 trên 6 ảnh Flow 1376x768 (nền inpaint từ xung quanh, trung bình, đối xứng 8
+# phía của ✦): dấu Flow là sao 4 cánh viền sắc ~48px, alpha phẳng ~0,29, tâm cách mép phải / dưới ~97px -> khuôn riêng
+# tools/gwt/khuon_flow.npy (64x64, tâm ở giữa) và tính ngược nền: B = (I - a*255) / (1 - a). Flow không đóng dấu mọi ảnh
+# (ảnh nền phẳng không có) -> phải dò, không thấy thì để nguyên ảnh.
+KHUON_FLOW = os.path.join(os.path.dirname(GWT), "khuon_flow.npy")
+FLOW_CACH_MEP = 97          # tâm dấu cách mép phải / dưới (ảnh cạnh ngắn 768)
+
+
+def do_logo_flow(f, a=None):
+    """Tìm dấu ✦ Flow quanh vị trí quen thuộc -> (tâm x, tâm y, hệ số cỡ, khuôn alpha đã co giãn) | None."""
+    import cv2
+    import numpy as np
+    if not os.path.isfile(KHUON_FLOW):
+        return None
+    if a is None:
+        a = cv2.imdecode(np.fromfile(f, np.uint8), cv2.IMREAD_COLOR)
+    if a is None:
+        return None
+    h, w = a.shape[:2]
+    k = min(w, h) / 768
+    al = np.load(KHUON_FLOW)
+    n = max(16, int(round(al.shape[0] * k)) // 2 * 2)
+    al = cv2.resize(al, (n, n), interpolation=cv2.INTER_AREA) if n != al.shape[0] else al
+    vien = int(24 * k) + 4
+    m0 = np.zeros((n + 2 * vien, n + 2 * vien), np.uint8)
+    m0[vien:vien + n, vien:vien + n][al > 0.03] = 255
+    m0 = cv2.dilate(m0, np.ones((5, 5), np.uint8))
+
+    def thu(x, y):
+        """Tại góc (x, y): đoán nền dưới dấu bằng lấp từ xung quanh, suy ra độ đục từng điểm, so với khuôn.
+        -> (độ khớp hình dạng, độ đục so với khuôn). Dấu thật: khớp cao, độ đục ~1."""
+        if x - vien < 0 or y - vien < 0 or x + n + vien > w or y + n + vien > h:
+            return -1.0, 0.0
+        nen = cv2.inpaint(a[y - vien:y + n + vien, x - vien:x + n + vien], m0, 5, cv2.INPAINT_TELEA)
+        nen = nen.astype(np.float32)[vien:vien + n, vien:vien + n]
+        uoc = ((a[y:y + n, x:x + n].astype(np.float32) - nen) / np.maximum(255 - nen, 20)).mean(2)
+        if uoc.std() < 1e-6:
+            return -1.0, 0.0
+        return float(np.corrcoef(uoc.ravel(), al.ravel())[0, 1]), float((uoc * al).sum() / (al * al).sum())
+
+    cx, cy = int(w - FLOW_CACH_MEP * k - n / 2), int(h - FLOW_CACH_MEP * k - n / 2)
+    le = int(6 * k) + 2                                      # dò lệch ±le px quanh chỗ quen thuộc: bước 2 rồi tinh 1
+    tot = max(((thu(cx + dx, cy + dy), cx + dx, cy + dy) for dy in range(-le, le + 1, 2) for dx in range(-le, le + 1, 2)),
+              key=lambda t: t[0][0])
+    (_, _), bx, by = tot
+    tot = max(((thu(bx + dx, by + dy), bx + dx, by + dy) for dy in (-1, 0, 1) for dx in (-1, 0, 1)), key=lambda t: t[0][0])
+    (khop, duc), x, y = tot
+    # 26/10 đo: 8 ảnh có dấu khớp 0,58-0,99 (7/8 >= 0,76), độ đục 1,05-1,56; 120 ảnh storyboard cũ (đã tô lấp) + ảnh
+    # nền phẳng: cao nhất 0,56 (vết tô lấp) — riêng một ảnh cũ 0,79 là ảnh VẪN CÒN dấu (tô lấp cũ bỏ sót)
+    if khop < 0.6 or not 0.7 <= duc <= 1.7:
+        log(f"    Dò dấu Flow: không thấy (khớp {khop:.2f}, độ đục {duc:.2f})")
+        return None
+    return x, y, n, al
+
+
+def xoa_dau_flow(f):
+    """Xoá dấu ✦ của ảnh Google Flow bằng tính ngược alpha (không làm mờ, không vẽ bù). True = đã xoá."""
+    import cv2
+    import numpy as np
+    try:
+        a = cv2.imdecode(np.fromfile(f, np.uint8), cv2.IMREAD_COLOR)
+        vt = do_logo_flow(f, a)
+        if not vt:
+            return False
+        x, y, n, al = vt
+        # viền dấu thật mềm / lệch nhẹ so với khuôn -> tính ngược thô để lại đường viền mảnh. Chọn vị trí (±2px) và độ mềm
+        # viền khuôn làm VIỀN ÍT LỘ NHẤT (năng lượng nét ở dải viền sau khi tính ngược) — chỉ tính ngược, không lấp / làm mờ
+        # (26/10 thử lấp dải viền: cánh ✦ mảnh nên dải viền phủ gần hết dấu, cắt đứt nét nền như cách tô lấp cũ)
+        h, w = a.shape[:2]
+        # mỗi ảnh tự chọn vị trí (±3px), cỡ (94-100%) và độ đục (±10%) của khuôn: thước đo = độ lệch so với NỀN ĐOÁN (lấp
+        # vùng dấu từ xung quanh) — chỉ để chọn thông số, ảnh ra vẫn là tính ngược (giữ nguyên nét thật của nền)
+        vien = int(12 * n / 64) + 6
+        if x - vien - 3 < 0 or y - vien - 3 < 0 or x + n + vien + 3 > w or y + n + vien + 3 > h:
+            return False
+        vung = cv2.dilate((al > 0.01).astype(np.uint8), np.ones((5, 5), np.uint8))
+        m = np.zeros((n + 2 * vien, n + 2 * vien), np.uint8)
+        m[vien:vien + n, vien:vien + n] = vung * 255
+        nen = cv2.inpaint(a[y - vien:y + n + vien, x - vien:x + n + vien], m, 5, cv2.INPAINT_TELEA)
+        nen = nen.astype(np.float32)[vien:vien + n, vien:vien + n]
+        khuon = {}
+        for co in (0.94, 0.97, 1.0):
+            M = cv2.getRotationMatrix2D(((n - 1) / 2, (n - 1) / 2), 0, co)
+            for duc in (0.9, 1.0, 1.1):
+                khuon[co, duc] = np.clip(cv2.warpAffine(al, M, (n, n), flags=cv2.INTER_LINEAR) * duc, 0, 0.95)[..., None]
+
+        def go(dx, dy, k):
+            o = a[y + dy:y + dy + n, x + dx:x + dx + n].astype(np.float32)
+            return np.clip((o - khuon[k] * 255) / (1 - khuon[k]), 0, 255)
+        vg = vung > 0
+        thu = [(dx, dy, k) for dy in range(-3, 4) for dx in range(-3, 4) for k in khuon]
+        dx, dy, k = min(thu, key=lambda t: float(np.abs(go(*t) - np.roll(nen, (t[1], t[0]), (0, 1)))[vg].mean()))
+        # còn sót đường viền rất mảnh (quầng tối ~1px quanh ✦ của Flow, đo được nhưng khuôn 2 lớp không làm sai số giảm);
+        # thử lấp dải 1px thì ảnh nền cỏ thành vết gợn -> giữ thuần tính ngược
+        a[y + dy:y + dy + n, x + dx:x + dx + n] = go(dx, dy, k).round().astype(np.uint8)
+        ok, buf = cv2.imencode(os.path.splitext(f)[1] or ".png", a)
+        if ok:
+            buf.tofile(f)
+        return bool(ok)
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! xoá dấu Flow lỗi: {str(e)[:80]}")
+        return False
 
 
 def do_logo_video(f):
@@ -213,33 +352,8 @@ def do_logo_video(f):
     if n < 3:
         raise ValueError("video quá ngắn để dò logo")
     med = np.median(np.frombuffer(raw[:n * rw * rh], np.uint8).reshape(n, rh, rw), 0).astype(np.float32)
-    khuon = _khuon_logo()
-    tot = (0.0, 0, 0, 0)
-    ngan = min(w, h)
-    for co in range(max(24, int(ngan * 0.045)) // 2 * 2, min(int(ngan * 0.11), rw, rh) + 1, 2):   # 1080p: logo 72 = 6,7%
-        t = cv2.resize(khuon, (co, co), interpolation=cv2.INTER_AREA)
-        k = max(15, co // 2 * 2 + 1)
-        d = med - cv2.GaussianBlur(med, (k, k), 0)            # bỏ nền mượt, giữ nét logo
-        r = cv2.matchTemplate(d, t - t.mean(), cv2.TM_CCOEFF_NORMED)
-        le = int(ngan * 0.25)                                 # logo nằm sát góc: cách mép phải/dưới tối đa 25% cạnh ngắn
-        r[:max(0, rh - co - le), :] = -1
-        r[:, :max(0, rw - co - le)] = -1
-        _, mx, _, (lx, ly) = cv2.minMaxLoc(r)
-        if mx > tot[0] and float((d[ly:ly + co, lx:lx + co] * t).sum()) > 0:   # logo SÁNG hơn nền
-            tot = (mx, lx + x0, ly + y0, co)
-    diem, x, y, co = tot
-    ty_le = 0.0
-    if co:                                                   # KIỂM VẬT LÝ: logo trắng phủ alpha -> độ sáng nổi lên = (255 - nền) * alpha
-        lx, ly = x - x0, y - y0
-        t = np.zeros_like(med)
-        t[ly:ly + co, lx:lx + co] = cv2.resize(khuon, (co, co), interpolation=cv2.INTER_AREA)
-        k = max(15, co // 2 * 2 + 1)
-        d = med - cv2.GaussianBlur(med, (k, k), 0)
-        tc = t - cv2.GaussianBlur(t, (k, k), 0)
-        vung = np.zeros(med.shape, bool)
-        vung[max(0, ly - co):ly + 2 * co, max(0, lx - co):lx + 2 * co] = True
-        nen = float(np.median(med[vung & (t < 0.01)]))
-        ty_le = float((d * tc)[vung].sum() / max(1e-6, (tc * tc)[vung].sum())) / max(1.0, 255 - nen)
+    diem, x, y, co, ty_le = _khop_logo(med, min(w, h))
+    x, y = (x + x0, y + y0) if co else (x, y)
     log(f"    Dò logo video: điểm khớp {diem:.2f}, tỉ lệ sáng {ty_le:.2f} tại ({x},{y}) cỡ {co}px")
     # 20/10 đo: 2 video Gemini khớp 0,82/0,85 + tỉ lệ 1,04/0,96; 27 video thường: khớp <= 0,6 hoặc tỉ lệ -0,0 / 0,08
     if diem < 0.6 or not 0.7 <= ty_le <= 1.35:

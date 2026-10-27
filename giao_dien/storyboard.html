@@ -121,6 +121,15 @@ details>summary{cursor:pointer;color:var(--mut);font-size:12.5px}
           <label><b>👤 Mô tả nhân vật đồng nhất (Character DNA):</b></label>
           <span class="sub" style="font-size:11.5px">Khóa diện mạo NV1 mọi cảnh</span>
         </div>
+        <div id="o_nv_kho" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+          <img id="nv_kho_anh" alt="" style="display:none;width:54px;height:54px;object-fit:cover;border-radius:6px;border:1px solid var(--line);cursor:pointer" onclick="window.open(this.src)">
+          <label style="flex:1" title="Nhân vật chính đã lưu từ storyboard trước (nút 💾 trên thẻ nhân vật): dùng nguyên mô tả + ảnh mẫu, không vẽ lại — giống hệt qua mọi kịch bản">📚 Nhân vật chính từ kho
+            <select id="nv_kho" style="width:100%"><option value="">— AI tự tạo theo kịch bản —</option></select></label>
+          <button type="button" class="p nho" id="nv_kho_xoa" title="Xoá nhân vật này khỏi kho" style="display:none">🗑</button>
+        </div>
+        <span id="nv_kho_canh" class="sub" style="display:none;color:var(--wa)"></span>
+        <label title="Tự động: kịch bản có người kể nói với khán giả (chúng ta, quý vị, các bạn, tôi…) thì người kể là nhân vật chính, người được kể là vai phụ" style="display:block;margin-bottom:4px">🎙 Nhân vật chính là
+          <select id="nv_chinh_la"><option value="tu_dong">Tự động (ưu tiên người kể)</option><option value="nguoi_ke">Người kể chuyện / dẫn dắt</option><option value="nhan_vat_truyen">Nhân vật trong câu chuyện</option></select></label>
         <textarea id="nhan_vat_dong_nhat" rows="3" style="font-size:12.5px" placeholder="Nhập ngoại hình cố định: tuổi, kiểu tóc, trang phục, màu áo, nét mặt đặc trưng... (VD: Chàng trai 25 tuổi, tóc đen gọn gàng, mắt sắc nét sáng sủa, mặc áo hoodie xám phong cách hiện đại...)"></textarea>
       </div>
     </div>
@@ -129,8 +138,9 @@ details>summary{cursor:pointer;color:var(--mut);font-size:12.5px}
       <label title="Số ảnh mỗi scene (mặc định 4; mỗi scene còn chỉnh riêng được)">Số ảnh/scene <input type="number" id="so_anh" min="1" max="10" value="4"></label>
       <label title="0 = để AI tự chia theo nhịp kịch bản">Số scene <input type="number" id="so_canh" min="0" max="40" value="0"></label>
       <label>Tỉ lệ <select id="ti_le"><option>16:9</option><option>9:16</option><option>1:1</option><option>4:3</option><option>3:4</option></select></label>
-      <label title="Chế độ chia cảnh: Tự động theo nhịp cảnh hoặc Đồng bộ bám sát từng câu thoại (1 câu nói = 1 mô tả ảnh riêng)">Phân cảnh <select id="che_do_canh" style="font-weight:600"><option value="tu_dong">📜 Tự động (nhịp cảnh)</option><option value="theo_thoai">💬 Đồng bộ theo từng câu thoại (1 câu = 1 ảnh riêng)</option></select></label>
-      <label title="Khóa chặt bối cảnh khi các câu thoại ở cùng địa điểm, giữ nguyên phông nền 100%, chỉ đổi góc máy & cử chỉ nhân vật"><input type="checkbox" id="khoa_boi_canh" checked> 🔒 Khóa bối cảnh đồng nhất</label>
+      <label title="Tự động: AI chia scene theo nhịp, mỗi scene nhiều ảnh. Mỗi câu 1 ảnh: code tách đúng từng câu, AI dựng nhịp giữ chân (hook → dẫn → xoay → cao trào → chốt) với biểu cảm + góc máy theo cảm xúc từng câu">Phân cảnh <select id="che_do_canh" style="font-weight:600"><option value="tu_dong">📜 Tự động (nhịp cảnh)</option><option value="moi_cau">🎯 Mỗi câu 1 ảnh (giữ chân người xem)</option></select></label>
+      <label title="Chỉ nhân vật chính: khoá ngoại hình NV1 bằng ảnh mẫu, vai phụ chỉ giữ một dòng nhận diện, bối cảnh / đạo cụ tự do theo từng câu — cả phim thống nhất bằng phong cách ảnh. Đầy đủ: khoá cả bối cảnh và đạo cụ (cách cũ)">Đồng nhất <select id="dong_nhat"><option value="nv_chinh">👤 Chỉ nhân vật chính</option><option value="day_du">🔒 Đầy đủ (NV + bối cảnh + đạo cụ)</option></select></label>
+      <label id="o_khoa_bc" title="Khóa chặt bối cảnh khi các câu thoại ở cùng địa điểm, giữ nguyên phông nền 100%, chỉ đổi góc máy & cử chỉ nhân vật"><input type="checkbox" id="khoa_boi_canh" checked> 🔒 Khóa bối cảnh đồng nhất</label>
       <label title="Nhân vật KHÔNG do AI vẽ mỗi cảnh: dán con rối đã duyệt trong Kho nhân vật (vai phụ: con rối code) vào ảnh bối cảnh — giữ đúng nét MS Paint, cảnh rộng / trung / cận mặt không cần gọi Flow"><input type="checkbox" id="con_roi"> 🧍 Nhân vật con rối</label>
       <span id="o_kho_nv" class="sub" style="display:none">Kho: <span id="ds_kho_nv"></span> <a href="/nhan_vat" target="_blank">mở kho</a></span>
       <label title="Bật: ảnh trước của cùng scene gắn làm tham chiếu cho ảnh sau (liền mạch hơn nhưng CHẬM — vẽ lần lượt trong scene). Tắt: mọi ảnh vẽ song song, nhân vật vẫn giữ nhờ ảnh asset."><input type="checkbox" id="noi_tiep"> Nối tiếp ảnh trước (chậm)</label>
@@ -166,6 +176,10 @@ details>summary{cursor:pointer;color:var(--mut);font-size:12.5px}
   <div class="row" style="margin-bottom:10px">
     <label>Giọng đọc <select id="x_giong"></select></label>
     <label>Tốc độ <input type="number" id="x_toc" min="0.7" max="1.5" step="0.05" value="1"></label>
+    <button id="x_nghe" class="p" title="Đọc thử câu đầu kịch bản bằng giọng đang chọn (OmniVoice, ~20 giây)">▶ Nghe thử</button>
+    <button id="x_clone" class="p" title="Tải lên một đoạn ghi âm giọng mẫu (wav / mp3 / m4a, nên 5-15 giây, một người nói, không nhạc nền) — giọng mới sẽ đọc theo đúng chất giọng đó">🎙 Clone giọng mới</button>
+    <input type="file" id="x_tep_giong" accept="audio/*,.wav,.mp3,.m4a,.ogg,.flac" style="display:none">
+    <audio id="x_am" controls style="display:none;height:32px;vertical-align:middle"></audio>
     <button id="x_doc_xuat" class="ok" title="Đọc lời kịch bản của từng scene (OmniVoice) rồi tạo bản nháp CapCut: ảnh mỗi scene trải theo đúng độ dài lời đọc">🔊 Đọc lời + ghép bản nháp CapCut</button>
     <span class="sub" id="x_giong_tt"></span>
   </div>
@@ -173,6 +187,7 @@ details>summary{cursor:pointer;color:var(--mut);font-size:12.5px}
     <button id="x_json">⬇ Tải file JSON</button>
     <label>Tên bản nháp <input id="x_ten" placeholder="SB_…" style="width:200px"></label>
     <label>Giây mỗi ảnh <input type="number" id="x_giay" min="0.5" max="20" step="0.5" value="3"></label>
+    <label title="Chuyển động của ảnh trong bản nháp CapCut">Chuyển động <select id="x_cd"><option value="da_dang">🎥 Đa dạng (zoom to/nhỏ, lia trái/phải/lên/xuống)</option><option value="zoom">Chỉ zoom nhẹ (cũ)</option><option value="tat">Đứng yên</option></select></label>
     <label><input type="checkbox" id="x_video" checked> Kèm video hook</label>
     <label title="Dùng giọng đã đọc (nếu có) và khớp ảnh theo lời"><input type="checkbox" id="x_co_giong" checked> Kèm giọng đọc</label>
     <button id="x_capcut" class="ok">📦 Xuất bản nháp CapCut</button>
@@ -249,6 +264,9 @@ function caiDat(){return{
   giay_anh:+$('#x_giay').value||3,
   khoa_boi_canh:$('#khoa_boi_canh').checked,
   che_do_canh:$('#che_do_canh').value||'tu_dong',
+  dong_nhat:$('#dong_nhat').value||'nv_chinh',
+  nv_kho:$('#nv_kho').value||'',
+  nv_chinh_la:$('#nv_chinh_la').value||'tu_dong',
   con_roi:$('#con_roi').checked,
   kho_nv:[...document.querySelectorAll('#ds_kho_nv input:checked')].map(e=>e.value)
 }}
@@ -262,7 +280,35 @@ async function veKhoNv(chon){
       :'chưa có nhân vật —';}catch(e){}
 }
 $('#con_roi').onchange=()=>veKhoNv();
-if($('#che_do_canh')){$('#che_do_canh').onchange=()=>{if($('#che_do_canh').value==='theo_thoai')$('#so_anh').value=1}}
+// 26/10: khoá bối cảnh chỉ có nghĩa khi đồng nhất đầy đủ; mỗi câu 1 ảnh thì số ảnh/scene luôn là 1
+function anHienDongNhat(){const day=$('#dong_nhat').value==='day_du'||$('#con_roi').checked;$('#o_khoa_bc').style.display=day?'':'none';
+  $('#so_anh').disabled=$('#che_do_canh').value==='moi_cau'}
+$('#dong_nhat').addEventListener('change',anHienDongNhat);$('#che_do_canh').addEventListener('change',anHienDongNhat);
+$('#con_roi').addEventListener('change',anHienDongNhat);anHienDongNhat();
+
+// 26/10: kho nhân vật Flow — nhân vật chính dùng lại giữa các storyboard
+let KHO_NV=[];
+async function veKhoFlow(chon){
+  try{KHO_NV=(await api('/api/sb/kho_nv')).ds}catch(e){KHO_NV=[]}
+  const s=$('#nv_kho'),cu=chon!==undefined?chon:s.value;
+  s.innerHTML='<option value="">— AI tự tạo theo kịch bản —</option>'+KHO_NV.map(n=>`<option value="${esc(n.id)}">${esc(n.ten)} · ${esc(n.phong_cach||'?')}</option>`).join('');
+  s.value=KHO_NV.some(n=>n.id===cu)?cu:'';hienNvKho();
+}
+function hienNvKho(){
+  const n=KHO_NV.find(x=>x.id===$('#nv_kho').value);const im=$('#nv_kho_anh'),cb=$('#nv_kho_canh');
+  im.style.display=n?'':'none';if(n)im.src=n.url;$('#nv_kho_xoa').style.display=n?'':'none';
+  const ta=$('#nhan_vat_dong_nhat');ta.dataset.goc=ta.dataset.goc||ta.placeholder;
+  ta.disabled=!!n;ta.placeholder=n?'Đang dùng nhân vật từ kho: '+n.mo_ta_en:ta.dataset.goc;
+  const lech=n&&n.phong_cach&&n.phong_cach!==$('#phong_cach').value;
+  cb.style.display=lech?'block':'none';
+  if(lech)cb.textContent=`⚠ «${n.ten}» được vẽ ở phong cách «${n.phong_cach}», storyboard đang chọn «${$('#phong_cach').value}» — ảnh có thể lệch nét vẽ.`;
+}
+$('#nv_kho').addEventListener('change',hienNvKho);$('#phong_cach').addEventListener('change',hienNvKho);
+$('#nv_kho_xoa').onclick=async()=>{const n=KHO_NV.find(x=>x.id===$('#nv_kho').value);if(!n||!confirm(`Xoá «${n.ten}» khỏi kho? (storyboard đã dùng vẫn giữ ảnh)`))return;
+  await post('/api/sb/kho_nv/xoa',{id:n.id});$('#nv_kho').value='';await veKhoFlow('');luuDau();tb('Đã xoá khỏi kho')};
+async function luuKho(aid){const a=D.sb.assets.find(x=>x.id===aid);const ten=prompt('Tên nhân vật trong kho:',a?a.ten:'');if(!ten)return;
+  try{const r=await post('/api/sb/kho_nv/luu',{id:SID,asset:aid,ten});await veKhoFlow();tb('💾 Đã lưu «'+r.nv.ten+'» vào kho nhân vật')}catch(e){tb('Lỗi: '+e.message)}}
+veKhoFlow();
 
 async function veDs(){let d;try{d=await api('/api/sb/ds')}catch(e){return}
   $('#chon_sb').innerHTML='<option value="">＋ Storyboard mới</option>'+d.ds.map(x=>`<option value="${esc(x.id)}">${esc(x.ten)} · ${x.so_canh} scene</option>`).join('');
@@ -279,6 +325,7 @@ $('#chon_sb').onchange=e=>{
 };
 function moi(){
   D=null;window._PLUGIN_ID='';$('#ten').value='';$('#kich_ban').value='';$('#phong_cach_them').value='';$('#nhan_vat_dong_nhat').value='';
+  $('#nv_kho').value='';hienNvKho();
   ['#the_assets','#the_canh','#the_xuat'].forEach(s=>$(s).classList.add('an'));$('#tt').style.display='none';
   try{
     const d=JSON.parse(localStorage.getItem('sb_draft_moi')||'{}');
@@ -288,6 +335,7 @@ function moi(){
         if(d.cai_dat.phong_cach)$('#phong_cach').value=d.cai_dat.phong_cach;
         if(d.cai_dat.phong_cach_them)$('#phong_cach_them').value=d.cai_dat.phong_cach_them;
         if(d.cai_dat.nhan_vat_dong_nhat)$('#nhan_vat_dong_nhat').value=d.cai_dat.nhan_vat_dong_nhat;
+        if(d.cai_dat.nv_kho)veKhoFlow(d.cai_dat.nv_kho);
         window._PLUGIN_ID=d.cai_dat.plugin_id||'';
       }
       tb('Đã phục hồi bản thảo chưa lưu');
@@ -458,7 +506,7 @@ function luuDau(){
     }catch(e){}
   },600);
 }
-['#ten','#kich_ban','#so_anh','#so_canh','#ti_le','#phong_cach','#phong_cach_them','#nhan_vat_dong_nhat','#noi_tiep','#x_giay','#khoa_boi_canh','#che_do_canh'].forEach(s=>{
+['#ten','#kich_ban','#so_anh','#so_canh','#ti_le','#phong_cach','#phong_cach_them','#nhan_vat_dong_nhat','#noi_tiep','#x_giay','#khoa_boi_canh','#che_do_canh','#dong_nhat','#nv_kho','#nv_chinh_la'].forEach(s=>{
   const el=$(s);if(el){el.addEventListener('change',luuDau);if(s==='#ten'||s==='#kich_ban')el.addEventListener('input',luuDau)}
 });
 
@@ -478,8 +526,9 @@ async function tai(){
     $('#ti_le').value=c.ti_le;$('#phong_cach').value=c.phong_cach||'dien_anh';$('#phong_cach_them').value=c.phong_cach_them||'';
     $('#nhan_vat_dong_nhat').value=c.nhan_vat_dong_nhat||'';$('#noi_tiep').checked=c.noi_tiep===true;
     if($('#khoa_boi_canh'))$('#khoa_boi_canh').checked=c.khoa_boi_canh!==false;
-    if($('#che_do_canh'))$('#che_do_canh').value=c.che_do_canh||'tu_dong';
-    $('#con_roi').checked=c.con_roi===true;veKhoNv(c.kho_nv||[]);
+    if($('#che_do_canh'))$('#che_do_canh').value=c.che_do_canh==='theo_thoai'?'moi_cau':(c.che_do_canh||'tu_dong');
+    $('#dong_nhat').value=c.dong_nhat||'nv_chinh';$('#nv_chinh_la').value=c.nv_chinh_la||'tu_dong';veKhoFlow(c.nv_kho||'');
+    $('#con_roi').checked=c.con_roi===true;veKhoNv(c.kho_nv||[]);anHienDongNhat();
     $('#x_giay').value=c.giay_anh||3;$('#x_ten').placeholder='SB_'+s.id;
     try{localStorage.setItem('sb_lan_cuoi',SID)}catch(e){}
     hienLuu('✔ Đã nạp ' + s.ten);
@@ -512,17 +561,21 @@ function khung(m,ti,nhan,thuoc){
   const bt=u.length>1?`<div class="bt">${u.map((x,i)=>`<button class="${i===chon?'chon':''}" data-chon="${thuoc}|${i}">${i+1}</button>`).join('')}</div>`:'';
   return `<div class="khung" style="aspect-ratio:${ar}">${ben}<span class="nhan">${esc(nhan)}</span>${bt}</div>`}
 
-const LOAI={nhan_vat:['nv','Nhân vật'],boi_canh:['bc','Bối cảnh'],dao_cu:['dc','Đạo cụ']};
+const LOAI={nhan_vat:['nv','Nhân vật'],boi_canh:['bc','Bối cảnh'],dao_cu:['dc','Đạo cụ'],phong_cach:['dc','Chuẩn phong cách']};
+const NHIP={hook:'🪝 Hook',dan:'➡️ Dẫn',xoay:'🔄 Xoay',cao_trao:'🔥 Cao trào',chot:'🎯 Chốt'};
 function veAssets(){const s=D.sb;$('#the_assets').classList.toggle('an',!s.assets.length);
   $('#pc_dong').innerHTML=s.phong_cach_chung?`<b>Phong cách chung:</b>&nbsp;<input id="pc_chung" value="${esc(s.phong_cach_chung)}" style="flex:1;min-width:280px">`:'';
   const pcc=$('#pc_chung');if(pcc)pcc.onchange=()=>post('/api/sb/sua',{id:SID,phong_cach_chung:pcc.value}).then(()=>tb('Đã lưu'));
   const tiAsset=s.cai_dat.ti_le;
   $('#ds_assets').innerHTML=s.assets.map(a=>{const l=LOAI[a.loai]||['nv',''];return `<div class="o">
-    ${khung(a,tiAsset,a.id+' · '+l[1],'a|'+a.id)}
+    ${a.phu?`<div class="khung" style="aspect-ratio:${tiAsset.replace(':','/')}"><span>vai phụ — chỉ giữ dòng nhận diện, không vẽ ảnh mẫu</span><span class="nhan">${esc(a.id)} · Vai phụ</span></div>`
+      :khung(a,tiAsset,a.id+' · '+l[1],'a|'+a.id)}
     <div class="than"><div class="row" style="justify-content:space-between"><input data-a="${esc(a.id)}" data-k="ten" value="${esc(a.ten)}" style="flex:1;font-weight:600">
-      <button class="p nho" data-ve-asset="${esc(a.id)}" title="Vẽ lại ảnh asset này">↻</button></div>
+      ${a.loai==='nhan_vat'&&!a.phu&&(a.url||[]).some(Boolean)?`<button class="p nho" onclick="luuKho('${esc(a.id)}')" title="Lưu nhân vật này (mô tả + ảnh mẫu đang chọn) vào kho để dùng lại cho kịch bản khác">💾</button>`:''}
+      ${a.phu?'':`<button class="p nho" data-ve-asset="${esc(a.id)}" title="Vẽ lại ảnh asset này">↻</button>`}</div>
+      ${a.tu_kho?`<span class="chip bc">📚 từ kho nhân vật</span>`:''}${a.vai==='nguoi_ke'?`<span class="chip nv">🎙 người kể</span>`:''}
       <span class="sub">${esc(a.mo_ta_vi)}</span>
-      ${a.loai==='nhan_vat'?`
+      ${a.loai==='nhan_vat'&&!a.phu?`
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin:4px 0">
           <button type="button" class="p nho" onclick="apDungModelSheet('${esc(a.id)}','tat_ca')" style="border-color:var(--ac);color:var(--ac);font-size:11px;padding:2px 6px;font-weight:600">🎭 Bật Model Sheet (Đủ 4 góc &amp; Đa sắc thái)</button>
           <button type="button" class="p nho" onclick="apDungModelSheet('${esc(a.id)}','tuoi_vui')" style="border-color:var(--ok);color:var(--ok);font-size:11px;padding:2px 5px">😊 Tươi cười &amp; Vui vẻ</button>
@@ -552,7 +605,7 @@ function apDungModelSheet(aId, loai){
 }
 
 function themTagPrompt(cId, aId, tag){
-  const ta = document.querySelector(`textarea[data-c="${cId}"][data-anh="${aId}"]`);
+  const ta = document.querySelector(`textarea[data-c="${cId}"][data-anh="${aId}"]:not([data-k])`);
   if (!ta) return;
   ta.value = (ta.value.trim() ? ta.value.trim() + ', ' : '') + tag;
   ta.dispatchEvent(new Event('change'));
@@ -619,7 +672,8 @@ function chipAsset(id){const a=D.sb.assets.find(x=>x.id===id);const l=LOAI[(a||{
 function veCanh(){const s=D.sb;$('#the_canh').classList.toggle('an',!s.canh.length);const ti=s.cai_dat.ti_le;
   $('#ds_canh').innerHTML=s.canh.map(c=>{const v=c.video||{};const vAnh=anhVideo[c.id]||((c.anh.find(a=>(a.url||[]).some(Boolean))||{}).id);
     return `<div class="canh" id="canh_${c.id}">
-    <div class="canh-dau"><div style="flex:1;min-width:260px"><h3>Scene ${c.id} — ${esc(c.tieu_de)}</h3>
+    <div class="canh-dau"><div style="flex:1;min-width:260px"><h3>Scene ${c.id} — ${esc(c.tieu_de)}${c.nhip?` <span class="chip dc">${NHIP[c.nhip]||esc(c.nhip)}</span>`:''}${c.cam_xuc?` <span class="chip nv">${esc(c.cam_xuc)}</span>`:''}</h3>
+      ${c.nhip&&c.loi?`<div style="font-weight:600;margin:2px 0">«${esc(c.loi)}»</div>`:''}
       <div class="sub">${esc(c.tom_tat_vi)}</div>
       <div style="margin-top:4px">${c.boi_canh?chipAsset(c.boi_canh):''}${(c.nhan_vat||[]).map(chipAsset).join('')}</div>
       ${c.loi?`<details><summary>Lời kịch bản của scene</summary><div class="sub" style="white-space:pre-wrap">${esc(c.loi)}</div></details>`:''}</div>
@@ -629,6 +683,10 @@ function veCanh(){const s=D.sb;$('#the_canh').classList.toggle('an',!s.canh.leng
     <div class="dai">${c.anh.map(a=>`<div class="o">${khung(a,ti,'Ảnh '+a.id,'c|'+c.id+'|'+a.id)}
       <div class="than"><span>${esc(a.mo_ta_vi)}</span>
         <div>${(a.nhan_vat||[]).map(chipAsset).join('')}</div>
+        <label class="sub" title="Biểu cảm + ngôn ngữ cơ thể (EN) — được đặt ngay sau mô tả cảnh, nhấn là phần quan trọng nhất">🎭 Biểu cảm
+          <textarea data-c="${c.id}" data-anh="${a.id}" data-k="bieu_cam" style="min-height:44px">${esc(a.bieu_cam||'')}</textarea></label>
+        <label class="sub" title="Góc máy (EN): cỡ cảnh + góc + ống kính + bố cục — đứng đầu câu lệnh, bắt buộc">🎥 Góc máy
+          <textarea data-c="${c.id}" data-anh="${a.id}" data-k="goc_may" style="min-height:36px">${esc(a.goc_may||'')}</textarea></label>
         <details><summary>🎨 Câu lệnh (EN) &amp; Chọn góc / biểu cảm / khóa bối cảnh</summary>
           ${renderTagPalette(c.id, a.id)}
           <textarea data-c="${c.id}" data-anh="${a.id}">${esc(a.prompt_en)}</textarea>
@@ -665,19 +723,34 @@ document.addEventListener('change',async e=>{
   if(t.dataset.model){try{localStorage.setItem('sb_model',t.value)}catch(er){}return}
   let d=null;
   if(t.dataset.a)d={assets:[{id:t.dataset.a,[t.dataset.k]:t.value}]};
-  else if(t.dataset.anh)d={canh:[{id:+t.dataset.c,anh:[{id:+t.dataset.anh,prompt_en:t.value}]}]};
+  else if(t.dataset.anh)d={canh:[{id:+t.dataset.c,anh:[{id:+t.dataset.anh,[t.dataset.k||'prompt_en']:t.value}]}]};
   else if(t.dataset.vp)d={canh:[{id:+t.dataset.vp,video_prompt_en:t.value}]};
   if(d){try{await post('/api/sb/sua',Object.assign({id:SID},d));tb('Đã lưu')}catch(er){tb('Lỗi: '+er.message)}}
 });
 
 $('#x_json').onclick=()=>{if(SID)location.href='/api/sb/json?id='+encodeURIComponent(SID)};
-async function veGiong(){try{const d=await api('/api/giong');let cu='';try{cu=localStorage.getItem('sb_giong')||''}catch(e){}
-  $('#x_giong').innerHTML=d.giong.map(g=>`<option value="${esc(g.tep)}" ${(cu?g.tep===cu:g.ten==='Tự tin')?'selected':''}>${esc(g.ten)}</option>`).join('')}catch(e){}}
+async function veGiong(chon){try{const d=await api('/api/giong');let cu=chon||'';try{cu=cu||localStorage.getItem('sb_giong')||''}catch(e){}
+  $('#x_giong').innerHTML=d.giong.map(g=>`<option value="${esc(g.tep)}" ${(cu?g.tep===cu||g.ten===cu:g.ten==='Tự tin')?'selected':''}>${esc(g.ten)}</option>`).join('');
+  try{localStorage.setItem('sb_giong',$('#x_giong').value)}catch(e){}}catch(e){}}
+// 26/10 user: "giọng đọc hiện tại tôi không thấy có nút nào để clone và chọn giọng" — nghe thử + clone giọng từ file mẫu
+$('#x_nghe').onclick=async()=>{const b=$('#x_nghe');b.disabled=true;b.textContent='Đang đọc thử… (≈20 giây)';
+  try{const cau=(D&&D.sb.canh.find(c=>c.loi)||{}).loi||(($('#kich_ban').value.match(/[^.!?…]+[.!?…]/)||[''])[0]);
+    const r=await post('/api/giong/thu',{giong:$('#x_giong').value,toc_do:+$('#x_toc').value||1,text:String(cau).trim().slice(0,300)});
+    const a=$('#x_am');a.style.display='inline-block';a.src=r.url;a.play()}catch(e){tb('Lỗi: '+e.message)}
+  b.disabled=false;b.textContent='▶ Nghe thử'};
+$('#x_clone').onclick=()=>$('#x_tep_giong').click();
+$('#x_tep_giong').onchange=async e=>{const f=e.target.files[0];if(!f)return;
+  const ten=prompt('Đặt tên cho giọng mới:',f.name.replace(/\.[^.]+$/,''));if(!ten){e.target.value='';return}
+  const fd=new FormData();fd.append('tep',new File([f],ten+(f.name.match(/\.[^.]+$/)||['.wav'])[0],{type:f.type}));
+  try{const r=await api('/api/giong/them',{method:'POST',body:fd});
+    if(!r.ok)throw new Error('không đổi được file sang wav');
+    await veGiong(r.ten);tb('🎙 Đã thêm giọng «'+r.ten+'» — bấm ▶ Nghe thử để nghe')}catch(er){tb('Lỗi: '+er.message)}
+  e.target.value=''};
 $('#x_giong').onchange=e=>{try{localStorage.setItem('sb_giong',e.target.value)}catch(er){}};
 $('#x_doc_xuat').onclick=()=>viec('doc_xuat',{giong:$('#x_giong').value,toc_do:+$('#x_toc').value||1,ten:$('#x_ten').value.trim(),
-  giay_anh:+$('#x_giay').value||3,co_video:$('#x_video').checked});
+  giay_anh:+$('#x_giay').value||3,co_video:$('#x_video').checked,chuyen_dong:$('#x_cd').value});
 veGiong();
-$('#x_capcut').onclick=async()=>{try{const r=await post('/api/sb/capcut',{id:SID,ten:$('#x_ten').value.trim(),giay_anh:+$('#x_giay').value||3,co_video:$('#x_video').checked,co_giong:$('#x_co_giong').checked});
+$('#x_capcut').onclick=async()=>{try{const r=await post('/api/sb/capcut',{id:SID,ten:$('#x_ten').value.trim(),giay_anh:+$('#x_giay').value||3,co_video:$('#x_video').checked,co_giong:$('#x_co_giong').checked,chuyen_dong:$('#x_cd').value});
   $('#x_kq').textContent=`✔ Đã tạo bản nháp «${r.ten}»: ${r.so_doan} đoạn hình${r.so_cau?' + '+r.so_cau+' câu đọc':''}, ${r.giay} giây. Mở CapCut để kiểm tra (nếu CapCut đang mở, quay ra trang chủ CapCut rồi vào lại).`;tb('Đã xuất bản nháp CapCut')}catch(e){tb('Lỗi: '+e.message)}};
 $('#x_thu').onclick=()=>post('/api/sb/mo_thu_muc',{id:SID});
 $('#x_xoa').onclick=async()=>{if(!confirm('Xoá storyboard này cùng toàn bộ ảnh / video của nó?'))return;await post('/api/sb/xoa',{id:SID});SID='';history.replaceState(null,'','/storyboard');moi();veDs()};
@@ -704,5 +777,6 @@ veDs().then(async()=>{
   }
 });
 </script>
+<script src="/cach_hoi.js"></script>
 </body>
 </html>

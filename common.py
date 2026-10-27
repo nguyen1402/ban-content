@@ -225,10 +225,74 @@ def _tat_chatgpt():
 # 15/10 user: "dùng GEMINI làm chính" -> mọi bước hỏi AI: Gemini (cookie) trước, câu/lô Gemini hỏng mới hỏi ChatGPT.
 # BC_AI_CHINH=chatgpt để quay lại ChatGPT chính (Gemini dự phòng).
 AI_CHINH = (os.environ.get("BC_AI_CHINH") or "gemini").strip().lower()
+# 26/10 user ("1 nút tích: muốn dùng cookie thì dùng cookie, còn chọn mở hẳn trình duyệt lên hỏi thì MỌI CHỖ đều mở
+# trình duyệt lên hỏi"): cài đặt CHUNG cho mọi tiến trình (giao diện, chay.py, tình báo đối thủ…) lưu ở file:
+#   "trinh_duyet" — hỏi Gemini bằng Chrome thật của các hồ sơ Flow (gemini_chrome), KHÔNG đụng cookie
+#   "cookie"      — Gemini cookie (gemini_web_client) rồi ChatGPT cookie như trước 26/10, không mở Chrome
+CAI_DAT_AI = os.path.join(CACHE_CHUNG, "cai_dat_ai.json")
+CACH_HOI = ("trinh_duyet", "cookie")
+
+
+def cach_hoi_ai():
+    """'trinh_duyet' | 'cookie' (đọc file mỗi lần — đổi trên giao diện là các tiến trình đang chạy theo ngay)."""
+    c = (doc_json(CAI_DAT_AI, {}) or {}).get("cach_hoi")
+    return c if c in CACH_HOI else "trinh_duyet"
+
+
+def dat_cach_hoi_ai(cach):
+    if cach not in CACH_HOI:
+        raise ValueError("cách hỏi không hợp lệ")
+    d = doc_json(CAI_DAT_AI, {}) or {}
+    d["cach_hoi"] = cach
+    os.makedirs(os.path.dirname(CAI_DAT_AI), exist_ok=True)
+    ghi_json(CAI_DAT_AI, d)
+
+
+def _gc():
+    """Module gemini_chrome khi đang ở chế độ trình duyệt | None (chế độ cookie)."""
+    if cach_hoi_ai() != "trinh_duyet":
+        return None
+    import gemini_chrome
+    return gemini_chrome
+
+
+def hoi_kem_tep(prompt, files, timeout=300):
+    """Hỏi Gemini KÈM ẢNH / TỆP theo cài đặt -> chữ trả lời ('' nếu không được; bên gọi tự lùi về hỏi chữ)."""
+    gc = _gc()
+    if gc:
+        if not gc.co_ho_so():
+            log("    (chế độ trình duyệt: chưa có hồ sơ Chrome Flow nào dùng được)")
+            return ""
+        return gc.hoi(prompt, timeout=timeout, so_lan=2, files=list(files))
+    sys.path.insert(0, os.path.join(ROOT, "tts"))
+    try:
+        import gemini_cookie_store as kg
+        import gemini_web_client as gw
+        ds = list(kg.unique_account_ids(kg.named_account_ids()))
+    except Exception as e:                                 # noqa: BLE001
+        log(f"    (Gemini gửi ảnh không dùng được: {gon_loi(e)})")
+        return ""
+    for acc in ds[:4]:
+        try:
+            kq = gw.ask(acc, prompt, timeout=timeout, retries=1, files=list(files))
+            if kq:
+                return kq
+        except Exception as e:                             # noqa: BLE001
+            log(f"    (gemini '{acc}' gửi ảnh lỗi: {gon_loi(e)})")
+    return ""
 
 
 def hoi_llm(prompt, timeout=240):
-    """Một lượt hỏi AI (Gemini hay ChatGPT làm chính theo AI_CHINH; bên kia dự phòng). '' nếu cả hai hỏng."""
+    """Một lượt hỏi AI theo cài đặt (trình duyệt: chỉ Gemini Chrome; cookie: Gemini rồi ChatGPT). '' nếu hỏng."""
+    gc = _gc()
+    if gc:
+        if not gc.co_ho_so():
+            log("    (chế độ trình duyệt: chưa có hồ sơ Chrome Flow nào dùng được — tạo ở «🎨 Hồ sơ Flow»)")
+            return ""
+        kq = gc.hoi(prompt, timeout=timeout, so_lan=3)
+        if not kq:
+            log("    (Gemini trình duyệt không trả lời)")
+        return kq
     if AI_CHINH == "gemini":
         kq = hoi_gemini(prompt, timeout=timeout, du_phong=False)
         if kq:
@@ -241,6 +305,16 @@ def hoi_llm(prompt, timeout=240):
 def hoi_nhieu(prompts, timeout=240, on_xong=None, ai=None):
     """Hỏi AI nhiều lô cùng lúc (Gemini hay ChatGPT làm chính theo AI_CHINH). Trả list text theo thứ tự `prompts`.
     on_xong(i, text) gọi ngay khi lô i xong. ai="gemini"/"chatgpt": ép AI chính cho lần hỏi này."""
+    gc = _gc()
+    if gc:                                                 # chế độ trình duyệt: mọi lô qua Gemini Chrome, không cookie
+        if not gc.co_ho_so():
+            log("    (chế độ trình duyệt: chưa có hồ sơ Chrome Flow nào dùng được — tạo ở «🎨 Hồ sơ Flow»)")
+            return [""] * len(prompts)
+        ra = gc.hoi_nhieu(prompts, timeout, on_xong)
+        thieu = sum(1 for t in ra if not t)
+        if thieu:
+            log(f"    {thieu}/{len(prompts)} lô Gemini trình duyệt không trả lời")
+        return ra
     if (ai or AI_CHINH) != "gemini":
         return _hoi_nhieu_chatgpt(prompts, timeout, on_xong)
     ra = _hoi_nhieu_gemini(prompts, timeout, on_xong)

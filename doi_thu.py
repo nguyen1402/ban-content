@@ -440,25 +440,13 @@ def _bang_mau(files, n=6):
 
 
 def _hoi_kem_anh(prompt, files, timeout=300):
-    """Hỏi Gemini (cookie) KÈM ẢNH; không gửi được ảnh thì hỏi chữ (AI suy từ tiêu đề + lời thoại)."""
-    import sys
-    from common import gon_loi, hoi_llm
+    """Hỏi Gemini KÈM ẢNH theo cài đặt chung (trình duyệt / cookie — common.hoi_kem_tep); không gửi được ảnh thì hỏi chữ
+    (AI suy từ tiêu đề + lời thoại)."""
+    from common import hoi_kem_tep, hoi_llm
     if files:
-        sys.path.insert(0, os.path.join(ROOT, "tts"))
-        try:
-            import gemini_cookie_store as kg
-            import gemini_web_client as gw
-            ds = list(kg.unique_account_ids(kg.named_account_ids()))
-        except Exception as e:                               # noqa: BLE001
-            log(f"    (Gemini gửi ảnh không dùng được: {gon_loi(e)})")
-            ds = []
-        for acc in ds[:4]:
-            try:
-                kq = gw.ask(acc, prompt, timeout=timeout, retries=1, files=list(files))
-                if kq:
-                    return kq, True
-            except Exception as e:                           # noqa: BLE001
-                log(f"    (gemini '{acc}' gửi ảnh lỗi: {gon_loi(e)})")
+        kq = hoi_kem_tep(prompt, files, timeout=timeout)
+        if kq:
+            return kq, True
     return hoi_llm(prompt + "\n\n(NO IMAGES ATTACHED: infer the visual DNA from titles, tags and transcript, and say so in "
                    "\"ghi_chu\".)", timeout=timeout), False
 
@@ -944,11 +932,119 @@ def _phong_cach_viet(pl):
     return ra or "- Giọng kể tự nhiên, câu ngắn gọn, cụ thể, gắn với hành động và chi tiết đời thực."
 
 
-def lap_dan_bai_kenh(tieu_de, plugin_data, so_tu_mong_muon=None, bao=None):
+# 26/10 user: "tôi có ADN của đối thủ rồi nhưng tôi chưa có ý tưởng tiêu đề và viết dàn bài từ ý tưởng đấy thì sao?" —
+# trước đây chỉ có "đề tài viral phái sinh" = đưa lại chính tiêu đề của đối thủ. Nay AI nghĩ ý tưởng MỚI theo ADN
+# (ngách, công thức hook / tiêu đề, cấu trúc mạch truyện, đề tài từng viral làm mẫu), mỗi ý tưởng kèm góc khai thác,
+# câu mở đầu và lý do ăn view; bấm chọn -> điền tiêu đề -> "Bước 1: Lập dàn bài" như cũ.
+_P_Y_TUONG = """Bạn là trưởng nhóm nội dung của một kênh YouTube muốn cạnh tranh trực tiếp với kênh «{kenh}».
+Dưới đây là ADN của kênh đó. Hãy nghĩ {n} Ý TƯỞNG VIDEO MỚI mà khán giả của kênh này chắc chắn muốn bấm xem.
+
+NGÁCH & KHÁN GIẢ: {ngach}
+ADN KỊCH BẢN:
+{adn}
+CẤU TRÚC MẠCH TRUYỆN: {mach}
+ĐỀ TÀI ĐÃ VIRAL CỦA KÊNH (chỉ để học CÔNG THỨC tiêu đề và loại đề tài ăn view — KHÔNG chép, KHÔNG đổi vài chữ):
+{viral}
+{goi_y}
+YÊU CẦU:
+- Mỗi ý tưởng là một đề tài KHÁC HẲN các tiêu đề trên (đối tượng, nghề, tình huống, con số khác), nhưng cùng ngách và
+  cùng kiểu cảm xúc khiến khán giả kênh này bấm xem.
+- Tiêu đề viết theo ĐÚNG công thức tiêu đề của kênh (cách viết hoa, dấu hai chấm, câu hỏi, con số cụ thể…), tiếng Việt,
+  dưới 100 ký tự, gây tò mò nhưng không lừa.
+- Trải đều nhiều kiểu: mổ xẻ một con số / mô hình, đảo ngược định kiến, câu chuyện một nhân vật, danh sách sai lầm,
+  so sánh hai lựa chọn, bí mật ngành nghề… (theo những kiểu kênh này làm được).
+- Ưu tiên đề tài làm được bằng ảnh minh hoạ / hoạt hình (không cần quay thực tế), hợp thời điểm hiện tại.
+- Không dùng emoji.
+
+Chỉ trả JSON: [{{"tieu_de": "...", "loai": "kiểu đề tài (2-5 chữ)", "goc_khai_thac": "1 câu: đào vào khía cạnh nào",
+"hook": "câu mở đầu video (dưới 25 chữ, theo công thức hook của kênh)", "vi_sao": "1 câu: vì sao khán giả kênh này sẽ bấm",
+"diem": số 1-10 khả năng viral}}]"""
+
+
+def _gan_giong(a, b):
+    """Hai tiêu đề gần như trùng (tỉ lệ từ chung) — lọc ý tưởng AI chỉ đổi vài chữ của tiêu đề đối thủ."""
+    import re
+    ta, tb = (set(re.findall(r"\w+", str(x).lower())) for x in (a, b))
+    return bool(ta and tb) and len(ta & tb) / min(len(ta), len(tb)) > 0.7
+
+
+def goi_y_y_tuong(plugin_data, goi_y="", n=10, bao=None):
+    """Ý tưởng video MỚI theo ADN kênh -> [{tieu_de, loai, goc_khai_thac, hook, vi_sao, diem}] (điểm cao trước)."""
+    from common import hoi_llm, rut_json
+    p = plugin_data or {}
+    viral = [x for x in p.get("de_tai_viral") or [] if isinstance(x, dict) and x.get("tieu_de")]
+    goc = [x["tieu_de"] for x in viral]
+    prompt = _P_Y_TUONG.format(
+        kenh=p.get("kenh_ten") or "đối thủ", n=n, ngach=p.get("ngach") or "(xem ADN)", adn=_phong_cach_viet(p),
+        mach=(p.get("cach_trien_khai") or {}).get("cau_truc_mach_truyen") or "",
+        viral="\n".join(f"- «{x['tieu_de']}» ({x.get('loai') or ''}: {x.get('ly_do') or ''})" for x in viral[:12]) or "(chưa có)",
+        goi_y=(f"\nNGƯỜI DÙNG MUỐN Ý TƯỞNG XOAY QUANH: «{goi_y.strip()}» — mọi ý tưởng phải bám chủ đề này.\n"
+               if str(goi_y or "").strip() else ""))
+    if bao:
+        bao(f"AI đang nghĩ {n} ý tưởng mới theo ADN «{p.get('kenh_ten') or 'kênh'}»…")
+    ra = []
+    for _ in range(2):
+        j = rut_json(hoi_llm(prompt, timeout=180) or "")
+        for x in j if isinstance(j, list) else []:
+            t = str((x or {}).get("tieu_de") or "").strip() if isinstance(x, dict) else ""
+            if not t or any(_gan_giong(t, g) for g in goc) or any(_gan_giong(t, y["tieu_de"]) for y in ra):
+                continue
+            try:
+                diem = max(1, min(10, int(float(x.get("diem") or 5))))
+            except (TypeError, ValueError):
+                diem = 5
+            ra.append({"tieu_de": t, "loai": str(x.get("loai") or "").strip(), "goc_khai_thac": str(x.get("goc_khai_thac") or "").strip(),
+                       "hook": str(x.get("hook") or "").strip(), "vi_sao": str(x.get("vi_sao") or "").strip(), "diem": diem})
+        if len(ra) >= max(3, n // 2):
+            break
+        if bao:
+            bao("  AI trả ít ý tưởng dùng được (trùng tiêu đề đối thủ) — hỏi lại…")
+    if not ra:
+        raise ValueError("AI không trả ý tưởng nào dùng được (thử lại)")
+    return {"y_tuong": sorted(ra, key=lambda y: -y["diem"])}
+
+
+def _y_tuong_them(y):
+    """Góc khai thác + hook của ý tưởng đã chọn (bước 💡) -> dòng thêm cho câu lệnh lập dàn bài."""
+    if not isinstance(y, dict):
+        return ""
+    dong = [f"- Góc khai thác đã chọn: {y['goc_khai_thac']}" if y.get("goc_khai_thac") else "",
+            f"- Câu mở đầu (hook) đã chọn, dùng làm câu đầu của PHẦN 1: «{y['hook']}»" if y.get("hook") else ""]
+    dong = [d for d in dong if d]
+    return ("\nÝ TƯỞNG ĐÃ CHỌN (dàn bài phải đi đúng hướng này):\n" + "\n".join(dong) + "\n") if dong else ""
+
+
+def lap_dan_bai_kenh(tieu_de, plugin_data, so_tu_mong_muon=None, bao=None, y_tuong=None):
     """Bước 1: Lên DÀN BÀI kịch bản theo phong cách triển khai của kênh đối thủ.
     Phân chia thành N phần với số từ định danh cho từng phần khớp với số từ mong muốn.
     """
     from common import hoi_llm
+    prompt, so_phan, so_tu_chuan, kenh_ten = cau_lenh_dan_bai(tieu_de, plugin_data, so_tu_mong_muon, y_tuong)
+    if bao:
+        bao(f"Đang lên dàn bài {so_phan} phần ({so_tu_chuan} từ) theo phong cách {kenh_ten}…")
+    kq = hoi_llm(prompt, timeout=120)
+    if not kq or len(kq.strip()) < 30:
+        raise ValueError("AI không phản hồi dàn bài. Vui lòng thử lại.")
+    return doc_dan_bai(kq, tieu_de, so_tu_chuan)
+
+
+def doc_dan_bai(kq, tieu_de, so_tu_chuan):
+    """Chữ dàn bài AI trả -> {tieu_de, so_tu_tong, so_phan, danh_sach_phan, dan_bai_text}."""
+    # 25/10: KHÔNG qua lam_sach_van_doc — nó xoá dòng "PHẦN 1: …" (nhãn phần) nên dàn bài luôn tách sai
+    import re
+    dan_bai_text = re.sub(r"(?m)^[#* \t]+(?=(PHẦN|Phần|HỒI|CHƯƠNG)\s*\d)", "", kq.strip()).replace("**", "")
+    ds_phan = phan_tich_dan_bai_text(dan_bai_text, so_tu_chuan)
+    return {
+        "tieu_de": str(tieu_de or "").strip(),
+        "so_tu_tong": so_tu_chuan,
+        "so_phan": len(ds_phan),
+        "danh_sach_phan": ds_phan,
+        "dan_bai_text": dan_bai_text
+    }
+
+
+def cau_lenh_dan_bai(tieu_de, plugin_data, so_tu_mong_muon=None, y_tuong=None):
+    """Câu lệnh lập dàn bài theo ADN kênh -> (prompt, số phần, tổng số từ, tên kênh)."""
     tieu_de_raw = str(tieu_de or "").strip()
     if not tieu_de_raw:
         raise ValueError("Chưa nhập tiêu đề hoặc ý tưởng kịch bản mới")
@@ -981,7 +1077,7 @@ ADN KỊCH BẢN CỦA KÊNH (phân bổ các phần theo đúng cấu trúc m�
 
 TIÊU ĐỀ / ĐỀ TÀI:
 «{tieu_de_raw}»
-
+{_y_tuong_them(y_tuong)}
 YÊU CẦU ĐẶC BIỆT KHI LÊN DÀN BÀI:
 1. Chia thành ĐÚNG {so_phan} PHẦN. Tổng số từ của các phần phải cộng lại đúng bằng ~{so_tu_chuan} từ (mỗi phần xấp xỉ ~{w_per_part} từ).
 2. Từng phần phải có logic nhân quả chặt chẽ, cuốn hút, mạch lạc xuyên suốt, không đứt đoạn.
@@ -997,23 +1093,7 @@ PHẦN 2: [Tiêu đề phần 2] (~[số từ] từ)
 
 CHỈ TRẢ VỀ DANH SÁCH CÁC PHẦN TRÊN, KHÔNG CÓ LỜI CHÀO HAY DẪN DẮT NGOÀI LỀ.
 """
-    if bao:
-        bao(f"Đang lên dàn bài {so_phan} phần ({so_tu_chuan} từ) theo phong cách {kenh_ten}…")
-    kq = hoi_llm(prompt, timeout=120)
-    if not kq or len(kq.strip()) < 30:
-        raise ValueError("AI không phản hồi dàn bài. Vui lòng thử lại.")
-
-    # 25/10: KHÔNG qua lam_sach_van_doc — nó xoá dòng "PHẦN 1: …" (nhãn phần) nên dàn bài luôn tách sai
-    import re
-    dan_bai_text = re.sub(r"(?m)^[#* \t]+(?=(PHẦN|Phần|HỒI|CHƯƠNG)\s*\d)", "", kq.strip()).replace("**", "")
-    ds_phan = phan_tich_dan_bai_text(dan_bai_text, so_tu_chuan)
-    return {
-        "tieu_de": tieu_de_raw,
-        "so_tu_tong": so_tu_chuan,
-        "so_phan": len(ds_phan),
-        "danh_sach_phan": ds_phan,
-        "dan_bai_text": dan_bai_text
-    }
+    return prompt, so_phan, so_tu_chuan, kenh_ten
 
 
 def viet_kich_ban_tung_phan(tieu_de, dan_bai_input, plugin_data, so_tu_muc_tieu=None, bao=None):

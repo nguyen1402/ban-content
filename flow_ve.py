@@ -107,10 +107,76 @@ def tao_ho_so(ten):
     mo_dang_nhap(ten)
 
 
+# 26/10 user: "mỗi lần mở tab toàn bị báo thoát đột ngột" — Chrome hồ sơ bị TẮT CƯỠNG BỨC: (1) là tiến trình con của
+# Python nên dừng server / lượt chạy là Windows giết luôn, (2) dong() dùng terminate(). Nay: mở Chrome TÁCH khỏi tiến
+# trình Python, đóng êm bằng Browser.close (như bấm X), trước mỗi lần mở đánh dấu lần thoát trước là bình thường và
+# thêm cờ ẩn bảng "khôi phục trang".
+CO_EM = ["--hide-crash-restore-bubble", "--disable-session-crashed-bubble"]
+
+
+def danh_dau_thoat_em(thu):
+    """Sửa Default/Preferences của hồ sơ: lần thoát trước = bình thường (Chrome thôi hỏi khôi phục trang)."""
+    p = os.path.join(thu, "Default", "Preferences")
+    try:
+        d = json.load(open(p, encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    pr = d.setdefault("profile", {})
+    if pr.get("exit_type") == "Normal" and pr.get("exited_cleanly") is True:
+        return
+    pr["exit_type"], pr["exited_cleanly"] = "Normal", True
+    try:
+        tam = p + ".bc_tam"
+        json.dump(d, open(tam, "w", encoding="utf-8"), ensure_ascii=False)
+        os.replace(tam, p)
+    except OSError:
+        pass
+
+
+def mo_chrome_tach(args, thu):
+    """Mở Chrome TÁCH khỏi tiến trình Python (dừng server / lượt chạy không kéo Chrome chết theo) -> Popen."""
+    danh_dau_thoat_em(thu)
+    args = [args[0]] + CO_EM + list(args[1:])
+    if os.name != "nt":
+        return subprocess.Popen(args, start_new_session=True)
+    co = 0x00000008 | 0x00000200                           # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+    try:
+        return subprocess.Popen(args, creationflags=co | 0x01000000)   # + CREATE_BREAKAWAY_FROM_JOB (thoát job của Python)
+    except OSError:                                          # job không cho tách ra: vẫn mở được, chỉ không thoát job
+        return subprocess.Popen(args, creationflags=co)
+
+
+def dong_em(cong, cho=10):
+    """Đóng Chrome ở cổng DevTools bằng Browser.close (như bấm X) -> True nếu đã đóng hẳn."""
+    from anh_google import _WS
+    try:
+        u = json.load(urllib.request.urlopen(f"http://127.0.0.1:{cong}/json/version", timeout=2))["webSocketDebuggerUrl"]
+    except (OSError, ValueError, KeyError):
+        return True                                          # không còn mở
+    try:
+        w = _WS(u)
+        try:
+            w.goi("Browser.close")
+        finally:
+            w.dong()
+    except Exception:                                        # noqa: BLE001  (Chrome đóng ngay khi nhận lệnh)
+        pass
+    han = time.time() + cho
+    while time.time() < han:
+        try:
+            urllib.request.urlopen(f"http://127.0.0.1:{cong}/json/version", timeout=1)
+        except OSError:
+            return True
+        time.sleep(0.5)
+    return False
+
+
 def _giet_chrome_ho_so(ten):
     """Đóng MỌI Chrome đang giữ thư mục hồ sơ (kể cả do tiến trình khác mở, cửa sổ ẩn ngoài màn hình). 23/10 user: bấm
     'Mở' mà không thấy gì — Chrome của hồ sơ đang chạy ẩn ở -32000 (một lượt vẽ khác) nên lệnh mở chỉ thêm cửa sổ vào
-    phiên ẩn đó."""
+    phiên ẩn đó. 26/10: đóng êm qua cổng DevTools trước, còn sót mới tắt cưỡng bức."""
+    if ten in _doc_so():
+        dong_em(CONG_DAU + list(_doc_so()).index(ten) % 40)
     if os.name != "nt":
         return
     thu = os.path.join(GOC, _slug(ten)).replace("'", "''")
@@ -129,10 +195,11 @@ def mo_dang_nhap(ten):
     """Mở Chrome HIỆN của hồ sơ (không cổng DevTools) ở trang Flow — để đăng nhập / giải xác minh."""
     dong(ten)
     _giet_chrome_ho_so(ten)
-    subprocess.Popen([_chrome(), f"--user-data-dir={os.path.join(GOC, _slug(ten))}", "--no-first-run",
+    mo_chrome_tach([_chrome(), f"--user-data-dir={os.path.join(GOC, _slug(ten))}", "--no-first-run",
                       # 23/10 user: không ép vị trí thì Chrome mở lại ở chỗ NHỚ từ lần chạy ẩn (-1250 / -32000) -> người dùng
                       # không thấy cửa sổ để đăng nhập
-                      "--no-default-browser-check", "--window-position=80,60", "--window-size=1280,900", TRANG])
+                      "--no-default-browser-check", "--window-position=80,60", "--window-size=1280,900", TRANG],
+                   os.path.join(GOC, _slug(ten)))
     _cap_nhat(ten, nghi_den=0, loi="")
 
 
@@ -158,12 +225,12 @@ class _Phien:
         # 25/10: Chrome của hồ sơ còn mở sẵn ở đúng cổng (server trước tắt đột ngột, atexit không chạy) -> GẮN VÀO luôn,
         # trước đây mở Chrome mới bị từ chối ("cửa sổ hồ sơ này đang mở sẵn") và hồ sơ hỏng tới khi tự đóng cửa sổ
         if not self._tab_flow():
-            self.p = subprocess.Popen([_chrome(), f"--user-data-dir={os.path.join(GOC, _slug(ten))}",
+            self.p = mo_chrome_tach([_chrome(), f"--user-data-dir={os.path.join(GOC, _slug(ten))}",
                                        f"--remote-debugging-port={cong}", "--no-first-run", "--no-default-browser-check",
                                        "--window-position=80,60", "--window-size=1280,860",
                                        # Giữ trang "đang hiện" để reCAPTCHA và lệnh tạo ảnh chạy mượt
                                        "--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding",
-                                       "--disable-background-timer-throttling", TRANG])
+                                       "--disable-background-timer-throttling", TRANG], os.path.join(GOC, _slug(ten)))
         else:
             log(f"    Flow '{ten}': dùng lại Chrome đang mở ở cổng {cong}")
         tab = None
@@ -231,16 +298,13 @@ class _Phien:
             pass
 
     def dong(self):
-        if self.p is None:                                       # Chrome gắn vào (không do mình mở): đóng qua DevTools
-            try:
-                self.ws.goi("Browser.close")
-            except Exception:                                    # noqa: BLE001
-                pass
+        """26/10: đóng ÊM (Browser.close, như bấm X) rồi mới tắt cưỡng bức nếu Chrome không chịu đóng — terminate() ngay
+        làm lần mở sau hiện báo "Chrome thoát đột ngột"."""
         try:
             self.ws.dong()
         except Exception:                                        # noqa: BLE001
             pass
-        if self.p is None:
+        if dong_em(self.cong) or self.p is None:
             return
         try:
             self.p.terminate()
@@ -320,6 +384,61 @@ _BAM_CHU = r"""((chu) => {
 })"""
 
 
+# 26/10 user (acc3/acc4/acc5 cùng bị báo "chưa đăng nhập Flow" lúc 20:21, tự bấm vào vẫn vào bình thường): trước đây
+# (1) thấy accounts.google.com / flow.google.com/about MỘT lần là kết luận đăng xuất — mà Chrome vừa mở thường đi vòng qua
+# accounts.google.com để làm mới phiên rồi tự quay về, Flow cũng hiện /about thoáng qua; (2) 45 s chưa tải xong (nhiều Chrome
+# mở cùng lúc, máy lag) cũng bị coi là đăng xuất -> nghỉ 6 giờ oan. Nay trang đăng nhập phải ĐỨNG YÊN ĐĂNG_NHAP_GIU giây
+# (có ô nhập email / nút Sign in) mới tính là đăng xuất; tải chậm thì báo lỗi thường.
+_TRANG_THAI = ("(() => { const u = location.href, t = document.body ? (document.body.innerText || '') : '';"
+               " if (t.includes('Project not found')) return 'khong_thay';"
+               " if (document.querySelector('[role=textbox][aria-label]')) return 'du_an';"
+               # trang Google (đòi email / mật khẩu, hay "Verify it's you" đòi đăng nhập lại — acc4/acc5 26/10): đứng yên
+               # đủ DANG_NHAP_GIU giây mới tính là cần đăng nhập; chuyển tiếp làm mới phiên thì đi qua nhanh
+               " if (u.includes('accounts.google.com')) return 'dang_nhap';"
+               " if (u.includes('flow.google.com/about')) return 'gioi_thieu';"
+               " if ([...document.querySelectorAll('*')].some(e => e.children.length < 3 && /New project/.test(e.innerText||'')))"
+               " return 'trang_chu'; return ''; })()")
+DANG_NHAP_GIU = 20
+
+
+_SIGN_IN = ("(() => { const a = [...document.querySelectorAll('a[href*=\"accounts.google.com/ServiceLogin\"]')]"
+            ".find(e => e.offsetParent); return a ? a.href : '' })()")
+
+
+def _trang_thai(ph, giay=60):
+    """'du_an' | 'trang_chu' | 'khong_thay' | 'dang_nhap' (trang đăng nhập đứng yên) | '' (tải không xong).
+    Đo 26/10 (acc3-acc5): tài khoản Google vẫn đăng nhập (cookie SID) nhưng phiên Flow hết hạn -> dự án chuyển về /about có
+    link "Sign in" passive; bấm là Google tự đăng nhập lại không hỏi mật khẩu (người dùng bấm tay thấy "vào bình thường").
+    -> tự đi theo link đó một lần trước khi kết luận."""
+    han, tu, da_bam = time.time() + giay, None, False
+    while time.time() < han:
+        try:
+            o = ph.js(_TRANG_THAI) or ""
+        except Exception:                                    # noqa: BLE001  (trang đang chuyển)
+            o = ""
+        if o in ("du_an", "trang_chu", "khong_thay"):
+            return o
+        if o == "gioi_thieu" and not da_bam:
+            try:
+                href = ph.js(_SIGN_IN)
+            except Exception:                                # noqa: BLE001
+                href = ""
+            if href:
+                da_bam, tu = True, None
+                log(f"    Flow '{getattr(ph, 'ten', '')}': phiên Flow hết hạn -> tự bấm Sign in (tài khoản Google còn đăng nhập)")
+                ph.ws.goi("Page.navigate", url=href)
+                time.sleep(2)
+                continue
+        if o in ("dang_nhap", "gioi_thieu"):
+            tu = tu or time.time()
+            if time.time() - tu >= DANG_NHAP_GIU:
+                return "dang_nhap"
+        else:
+            tu = None                                        # đang chuyển trang / đang tải: chưa kết luận
+        time.sleep(1)
+    return ""
+
+
 def _vao_du_an(ph):
     """Mở dự án Flow của hồ sơ (tạo mới nếu chưa có) -> True; chưa đăng nhập -> raise."""
     m = _doc_so().get(ph.ten, {})
@@ -329,11 +448,7 @@ def _vao_du_an(ph):
     ph.ws.goi("Page.navigate", url=url)
     ph.the_he = getattr(ph, "the_he", 0) + 1                  # trang tải lại: kết quả các lượt đang chờ đã mất
     time.sleep(2)
-    o = ph.cho("(() => { const u = location.href; if (u.includes('accounts.google.com') || u.includes('flow.google.com/about')) return 'dang_nhap';"
-               " if (document.body && (document.body.innerText||'').includes('Project not found')) return 'khong_thay';"
-               " if (document.querySelector('[role=textbox][aria-label]')) return 'du_an';"
-               " if ([...document.querySelectorAll('*')].some(e => e.children.length < 3 && /New project/.test(e.innerText||'')))"
-               " return 'trang_chu'; return ''; })()", 45)
+    o = _trang_thai(ph)
     if o == "khong_thay":
         # Dự án cũ đã hết hạn hoặc bị xóa trên Flow -> chuyển về trang chủ để tự tạo dự án mới
         ph.ws.goi("Page.navigate", url=TRANG)
@@ -341,8 +456,10 @@ def _vao_du_an(ph):
         o = ph.cho("(() => { if (document.querySelector('[role=textbox][aria-label]')) return 'du_an';"
                    " if ([...document.querySelectorAll('*')].some(e => e.children.length < 3 && /New project/.test(e.innerText||'')))"
                    " return 'trang_chu'; return ''; })()", 45)
-    if o == "dang_nhap" or not o:
+    if o == "dang_nhap":
         raise PermissionError("hồ sơ chưa đăng nhập Flow — bấm 'Mở' trên giao diện để đăng nhập")
+    if not o:                                                  # tải chậm (máy bận) — KHÔNG phải đăng xuất, không nghỉ 6 giờ
+        raise RuntimeError("trang Flow tải quá chậm (chưa hiện ô câu lệnh)")
     if o == "trang_chu":
         ph.js(_BAM_CHU + "('New project')") or ph.js(
             "(() => { const e = [...document.querySelectorAll('*')].find(e => e.children.length < 3 && "
@@ -376,17 +493,39 @@ def _vao_du_an(ph):
     ph.cai_dat = None
 
 
+# 26/10 user (ảnh chụp: ô câu lệnh hiện "Start / End" và "Video · 720p · 10s x1", lượt vẽ đứng im): tab còn ở chế độ VIDEO
+# (Flow nhớ chế độ cuối của dự án; tạo video hook / người dùng bấm tay trong cửa sổ) nhưng ph.cai_dat vẫn nhớ "đã chọn Image"
+# nên bỏ qua bước chọn -> gõ câu lệnh vào ô video, chờ ảnh 4 phút. Nay mỗi lượt đọc lại chế độ thật trên trang.
+_LA_VIDEO = ("(() => { const t = document.querySelector('button[aria-label=\"Settings trigger\"]');"
+             " if (t && /\\bVideo\\b/.test(t.innerText || '')) return true;"
+             " const nut = [...document.querySelectorAll('button,[role=button]')].filter(e => e.offsetParent)"
+             ".map(e => (e.innerText || '').trim());"
+             " return nut.includes('Start') && nut.includes('End'); })()")
+
+
+def _thoat(ph):
+    for t in ("keyDown", "keyUp"):
+        ph.ws.goi("Input.dispatchKeyEvent", type=t, key="Escape", code="Escape", windowsVirtualKeyCode=27)
+
+
 def _chon_cai_dat(ph, ti_le):
-    if ph.cai_dat == ti_le:
+    if ph.cai_dat == ti_le and not ph.js(_LA_VIDEO):
         return
-    ph.js("document.querySelector('button[aria-label=\"Settings trigger\"]').click()")
-    time.sleep(0.8)
-    for chu in ("Image", ti_le, "x2"):
-        ph.js(_BAM_CHU + f"({json.dumps(chu)})")
-        time.sleep(0.3)
-    ton = ph.js("(() => { const t = document.body.innerText.match(/Generating will use ([\\d,.]+) credits?/); return t ? t[1] : '' })()")
-    ph.ws.goi("Input.dispatchKeyEvent", type="keyDown", key="Escape", code="Escape", windowsVirtualKeyCode=27)
-    ph.ws.goi("Input.dispatchKeyEvent", type="keyUp", key="Escape", code="Escape", windowsVirtualKeyCode=27)
+    for lan in range(3):
+        _bam_js(ph, "document.querySelector('button[aria-label=\"Settings trigger\"]')")   # bấm chuột thật
+        time.sleep(0.8)
+        for chu in ("Image", ti_le, "x2"):
+            ph.js(_BAM_CHU + f"({json.dumps(chu)})")
+            time.sleep(0.4)
+        ton = ph.js("(() => { const t = document.body.innerText.match(/Generating will use ([\\d,.]+) credits?/); return t ? t[1] : '' })()")
+        _thoat(ph)
+        time.sleep(0.5)
+        if not ph.js(_LA_VIDEO):
+            break
+        log(f"    Flow '{ph.ten}': tab đang ở chế độ Video -> chọn lại Image (lần {lan + 1})")
+    else:
+        ph.cai_dat = None
+        raise RuntimeError("tab Flow kẹt ở chế độ Video, không chuyển được sang Image")
     if ton and ton.replace(",", "").replace(".", "") != "0":
         raise RuntimeError(f"Flow báo tạo ảnh tốn {ton} điểm — dừng dùng Flow (lùi về Gemini)")
     ph.cai_dat = ti_le
@@ -632,6 +771,9 @@ def _gui_mot(ph, prompt, ti_le, tham_chieu=None):
     if not ph.cho("(() => { const b = document.querySelector('button[aria-label=\"Start generation\"]');"
                   " return b && !b.disabled })()", 10):
         raise RuntimeError("nút tạo không bật (câu lệnh chưa vào ô?)")
+    if ph.js(_LA_VIDEO):                                         # chốt chặn: không bao giờ bấm tạo khi đang ở Video (tốn điểm)
+        ph.cai_dat = None
+        raise RuntimeError("ô câu lệnh đang ở chế độ Video — không bấm tạo")
     ds_dau = _dau_ds(prompt, [c["prompt"] for c in ph.dang_cho] + list(getattr(ph, "da_gui", [])))
     try:
         loi_cu = len(_cac_loi(ph, prompt))

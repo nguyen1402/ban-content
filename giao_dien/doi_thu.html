@@ -208,7 +208,7 @@ https://www.youtube.com/@kenh_khac_2"></textarea>
   <div class="modal-content">
     <div class="modal-header">
       <div style="display:flex;align-items:center;gap:12px;flex:1">
-        <img id="mpl_thumb" src="" style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:1px solid var(--line)" onerror="this.src=''">
+        <img id="mpl_thumb" alt="" style="width:48px;height:48px;border-radius:50%;object-fit:cover;border:1px solid var(--line);visibility:hidden" onerror="this.style.visibility='hidden'">
         <div style="flex:1">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
             <h3 id="mpl_ten" style="margin:0;font-size:16px">Tên Plugin</h3>
@@ -238,6 +238,18 @@ https://www.youtube.com/@kenh_khac_2"></textarea>
         </div>
       </div>
 
+      <!-- 26/10: Bước 0 — AI nghĩ ý tưởng / tiêu đề MỚI theo ADN kênh -->
+      <div style="margin-bottom:12px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px">
+        <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+          <b>💡 Chưa có ý tưởng?</b>
+          <input id="mpl_goi_y" placeholder="(tuỳ chọn) chủ đề muốn xoay quanh — VD: xe điện, quán cà phê, nợ thẻ tín dụng…" style="flex:1;min-width:240px">
+          <label class="sub" style="margin:0">Số ý tưởng <input id="mpl_so_y_tuong" type="number" min="4" max="20" value="10" style="width:56px"></label>
+          <button class="purple" id="nut_y_tuong" onclick="chayNghiYTuong()" style="padding:7px 14px">💡 Nghĩ ý tưởng mới</button>
+        </div>
+        <div class="tt" id="tt_y_tuong" style="margin-top:8px"></div>
+        <div id="mpl_ds_y_tuong" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px;margin-top:8px"></div>
+      </div>
+
       <!-- Quick Topics Suggestions -->
       <div id="mpl_box_quick_topics" style="margin-bottom:12px">
         <span class="sub" style="font-weight:600">💡 Chọn nhanh đề tài viral phái sinh từ đối thủ:</span>
@@ -256,6 +268,25 @@ https://www.youtube.com/@kenh_khac_2"></textarea>
           <button class="p" id="nut_chay_lap_dan_bai" onclick="chayLapDanBai()" style="padding:8px 14px;border:1px solid var(--purple);color:var(--purple);font-weight:600">📋 Bước 1: Lập Dàn Bài</button>
           <button class="purple" id="nut_chay_viet_moi" onclick="chayVietMoiKichBan()" style="padding:8px 16px">🚀 Viết Tự Động Trọn Gói</button>
         </div>
+      </div>
+
+      <!-- 26/10: quy trình viết của người dùng, chạy tự động trên Gemini Pro (quy_trinh_viet.py) -->
+      <div style="margin-top:12px;border:1px dashed var(--purple);border-radius:8px;padding:10px">
+        <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap">
+          <b style="color:var(--purple)">🧠 Quy trình của tôi (tài khoản Gemini Pro)</b>
+          <label class="sub" style="margin:0" title="Model trong Gemini. 26/10: 3.1 Pro hay trả câu từ chối soạn sẵn với câu lệnh dàn ý">Model <select id="qt_model"><option value="flash">3.8 Flash</option><option value="pro">3.1 Pro</option></select></label>
+          <span class="sub" style="margin:0" title="CHAT A: dàn ý A → bài gốc từng phần → viết lại từng phần sâu sắc hơn → End → Hook. CHAT B (chat mới): viết lại chi tiết, dễ hiểu (hook + phần 1, phần 2…, phần cuối + end)">dàn ý A → bài gốc → sâu sắc → End → Hook → chat mới viết lại dễ hiểu</span>
+        </div>
+        <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;margin-top:6px">
+          <label class="sub" style="margin:0">Phần 1 <input id="qt_tu_1" type="number" value="300" style="width:64px"> từ</label>
+          <label class="sub" style="margin:0">Các phần sau <input id="qt_tu" type="number" value="500" style="width:64px"> từ/phần</label>
+          <label class="sub" style="margin:0" title="Đã lập dàn bài ở Bước 1 (và có thể đã sửa tay) thì đưa nguyên dàn bài đó vào chat làm dàn ý A; bỏ tích để Gemini Pro tự lập dàn ý A trong chat"><input type="checkbox" id="qt_dung_dan_bai" checked> Dùng dàn bài ở Bước 1 (nếu có)</label>
+          <button class="p" onclick="moMauQuyTrinh()" title="Xem / sửa nguyên văn các câu lệnh của quy trình">⚙ Câu lệnh</button>
+          <button class="purple" id="nut_quy_trinh" onclick="chayQuyTrinh('moi')" style="margin-left:auto;padding:8px 14px">🧠 Chạy quy trình</button>
+          <button class="p" id="nut_qt_dung" onclick="dungQuyTrinh()" style="display:none">■ Dừng</button>
+        </div>
+        <div class="tt" id="tt_quy_trinh" style="margin-top:8px"></div>
+        <details id="qt_chi_tiet" style="display:none;margin-top:6px"><summary class="sub" style="cursor:pointer">Xem từng bước (dàn ý A, bài gốc, bản sâu sắc, End, Hook)</summary><div id="qt_cac_buoc"></div></details>
       </div>
 
       <!-- Trạng thái tiến độ thực hiện -->
@@ -310,6 +341,7 @@ https://www.youtube.com/@kenh_khac_2"></textarea>
         <input id="mpl_so_tu_lai" type="number" style="width:100px;font-weight:700" value="500">
         <span class="sub">từ (Bám sát nhịp độ của kênh)</span>
         <button class="purple" id="nut_chay_viet_lai" onclick="chayVietLaiKichBan()" style="margin-left:auto;padding:8px 18px">⚡ Viết Lại Kịch Bản Thuần Đọc</button>
+        <button class="p" id="nut_quy_trinh_lai" onclick="chayQuyTrinh('lai')" title="Quy trình của tôi trên Gemini Pro: kịch bản gốc làm TRANSCRIPT GỐC → dàn ý A → bài gốc → sâu sắc → End → Hook → chat mới viết lại dễ hiểu (số từ mỗi phần lấy ở khối 🧠 thẻ Viết mới)" style="padding:8px 14px;border:1px solid var(--purple);color:var(--purple)">🧠 Theo quy trình của tôi (Pro)</button>
       </div>
 
       <div class="tt" id="tt_viet_lai" style="margin-top:10px"></div>
@@ -662,7 +694,7 @@ function veDanhSachPlugin(ds){
   el.innerHTML = ds.map((p, idx)=>`
     <div class="plugin-card" onclick="moModalPluginTheoId('${esc(p.id)}')">
       <div class="plugin-card-header">
-        <img class="plugin-thumb" src="${esc(p.thumb||'')}" alt="Thumb" loading="lazy" onerror="this.src=''">
+        <img class="plugin-thumb" ${p.thumb?`src="${esc(p.thumb)}"`:'style="visibility:hidden"'} alt="Thumb" loading="lazy" onerror="this.onerror=null;this.style.visibility='hidden'">
         <div class="plugin-card-info">
           <div class="plugin-card-title">${esc(p.kenh_ten)}</div>
           <div class="sub" style="font-size:11.5px">Quét: <b>${esc(p.ngay_tao||'')}</b> · ${so(p.sub)} sub</div>
@@ -729,7 +761,9 @@ function moModalPlugin(pl){
   HIEN_TAI_PLUGIN = JSON.parse(JSON.stringify(pl));
   $('#mpl_ten').textContent = pl.kenh_ten || 'Plugin kênh';
   $('#mpl_sub').textContent = `ID: ${pl.id} · Cập nhật: ${pl.ngay_tao || '—'} · Sub: ${so(pl.sub)}`;
-  $('#mpl_thumb').src = pl.thumb || '';
+  // 26/10: src='' + onerror="this.src=''" = vòng lặp lỗi vô tận (đo ~130.000 lần/giây): tab quay mãi, ngốn CPU
+  const th = $('#mpl_thumb');
+  if (pl.thumb) { th.style.visibility = ''; th.src = pl.thumb } else { th.removeAttribute('src'); th.style.visibility = 'hidden' }
   
   const cs = pl.chi_so_kich_ban || {so_tu_tb: 480, thoi_luong_tb_phut: 3.0, toc_do_wpm: 160, thoi_luong_tb_giay: 180};
   const soTu = cs.so_tu_tb || 480;
@@ -788,6 +822,8 @@ function moModalPlugin(pl){
   $('#mpl_dan_bai_text').value = '';
   $('#box_kq_viet_moi').style.display = 'none';
   $('#mpl_kb_moi_ra').value = '';
+  Y_TUONG = []; Y_TUONG_CHON = null; veYTuong();              // ý tưởng của kênh trước không dùng cho kênh này
+  $('#tt_y_tuong').textContent = ''; $('#tt_y_tuong').classList.remove('hien');
 
   capNhatUocTinhThoiLuong();
   chuyenMplTab('new');
@@ -816,7 +852,116 @@ function chuyenMplTab(tab){
 
 function dienDeTaiMoi(tieuDe){
   $('#mpl_tieu_de_moi').value = tieuDe;
+  Y_TUONG_CHON = null;
   tb('Đã chọn đề tài: ' + tieuDe.slice(0, 35) + '…');
+}
+
+// 26/10 user: "có ADN của đối thủ rồi nhưng chưa có ý tưởng tiêu đề" — AI nghĩ ý tưởng mới, bấm chọn -> điền tiêu đề,
+// bước Lập dàn bài nhận thêm góc khai thác + hook của ý tưởng đó
+let Y_TUONG = [], Y_TUONG_CHON = null;
+async function chayNghiYTuong(){
+  if(!HIEN_TAI_PLUGIN) return;
+  const nut = $('#nut_y_tuong'), tt = $('#tt_y_tuong');
+  nut.disabled = true; tt.classList.add('hien'); tt.textContent = 'AI đang đọc ADN kênh và nghĩ ý tưởng…';
+  try{
+    const r = await post('/api/doi_thu/plugin/y_tuong', {plugin: HIEN_TAI_PLUGIN, goi_y: $('#mpl_goi_y').value.trim(),
+                                                         n: +$('#mpl_so_y_tuong').value || 10});
+    await cho(r.job, tt, kq => {
+      Y_TUONG = kq.y_tuong || [];
+      tt.textContent = `✅ ${Y_TUONG.length} ý tưởng — bấm một thẻ để chọn, rồi "📋 Bước 1: Lập Dàn Bài".`;
+      veYTuong();
+    });
+  }catch(e){ tt.textContent = 'Lỗi: ' + e.message }
+  finally{ nut.disabled = false }
+}
+function veYTuong(){
+  $('#mpl_ds_y_tuong').innerHTML = Y_TUONG.map((y, i) => `
+    <div class="the-y-tuong" data-yt="${i}" onclick="chonYTuong(${i})" style="cursor:pointer;border:1px solid ${Y_TUONG_CHON === y ? 'var(--purple)' : 'var(--line)'};
+         border-radius:8px;padding:8px 10px;background:var(--card);${Y_TUONG_CHON === y ? 'box-shadow:0 0 0 2px var(--purple) inset' : ''}">
+      <div style="display:flex;justify-content:space-between;gap:6px"><span class="sub" style="margin:0">${esc(y.loai || '')}</span>
+        <b style="color:${y.diem >= 8 ? '#2e7d32' : y.diem >= 6 ? '#ef6c00' : 'var(--mut)'}" title="Khả năng viral (AI chấm)">${y.diem}/10</b></div>
+      <div style="font-weight:700;margin:3px 0">${esc(y.tieu_de)}</div>
+      ${y.goc_khai_thac ? `<div class="sub" style="margin:2px 0">🎯 ${esc(y.goc_khai_thac)}</div>` : ''}
+      ${y.hook ? `<div class="sub" style="margin:2px 0">🪝 «${esc(y.hook)}»</div>` : ''}
+      ${y.vi_sao ? `<div class="sub" style="margin:2px 0">📈 ${esc(y.vi_sao)}</div>` : ''}
+    </div>`).join('');
+}
+// 26/10 user: quy trình viết của tôi — chạy tự động trên Gemini Pro (quy_trinh_viet.py)
+let QT_JOB = null;
+async function chayQuyTrinh(che_do){
+  if(!HIEN_TAI_PLUGIN) return;
+  const lai = che_do === 'lai';
+  const tieuDe = lai ? '' : $('#mpl_tieu_de_moi').value.trim();
+  const transcript = lai ? $('#mpl_kb_goc').value.trim() : '';
+  if(!lai && !tieuDe){ alert('Nhập hoặc chọn tiêu đề trước.'); $('#mpl_tieu_de_moi').focus(); return }
+  if(lai && !transcript){ alert('Dán kịch bản gốc trước.'); $('#mpl_kb_goc').focus(); return }
+  const danBai = (!lai && $('#qt_dung_dan_bai').checked) ? $('#mpl_dan_bai_text').value.trim() : '';
+  if(!confirm(`Chạy quy trình trên Gemini Pro${danBai ? ' (dùng dàn bài ở Bước 1)' : ''}?\nMỗi phần ~3 lượt chat Pro nên có thể mất 10-30 phút.`)) return;
+  const tt = lai ? $('#tt_viet_lai') : $('#tt_quy_trinh');
+  const nut = lai ? $('#nut_quy_trinh_lai') : $('#nut_quy_trinh');
+  nut.disabled = true; $('#nut_qt_dung').style.display = ''; tt.classList.add('hien'); tt.textContent = 'Bắt đầu quy trình…';
+  try{
+    const r = await post('/api/quy_trinh/chay', {
+      tieu_de: tieuDe || (HIEN_TAI_PLUGIN.kenh_ten ? 'Viết lại theo phong cách ' + HIEN_TAI_PLUGIN.kenh_ten : ''),
+      plugin: HIEN_TAI_PLUGIN, dan_bai: danBai, transcript,
+      tong_tu: lai ? (+$('#mpl_so_tu_lai').value || 0) : (+$('#mpl_so_tu_moi').value || 0),
+      so_tu_phan_1: +$('#qt_tu_1').value || 300, so_tu_phan: +$('#qt_tu').value || 500, model: $('#qt_model').value,
+      y_tuong: (!lai && Y_TUONG_CHON && Y_TUONG_CHON.tieu_de === tieuDe) ? Y_TUONG_CHON : null});
+    QT_JOB = r.job;
+    await cho(r.job, tt, kq => {
+      const so = (kq.kich_ban || '').split(/\s+/).filter(Boolean).length;
+      tt.innerHTML = `✅ Xong quy trình trên ${esc(kq.ho_so)}: ${so} từ (${Math.round((kq.giay || 0) / 60)} phút).`
+        + (kq.chat_a ? ` <a href="${esc(kq.chat_a)}" target="_blank">mở chat A</a>` : '')
+        + (kq.chat_b ? ` · <a href="${esc(kq.chat_b)}" target="_blank">mở chat B</a>` : '');
+      if(lai){ $('#mpl_kb_ra').value = kq.kich_ban || ''; $('#box_kq_viet_lai').style.display = 'block' }
+      else{
+        $('#mpl_kb_moi_ra').value = kq.kich_ban || ''; $('#box_kq_viet_moi').style.display = 'block';
+        $('#mpl_dem_tu_moi').textContent = so + ' từ';
+        if(kq.dan_bai){ $('#mpl_dan_bai_text').value = kq.dan_bai; $('#box_dan_bai').style.display = 'block' }
+      }
+      const khoi = (ten, t) => t ? `<div style="margin:6px 0"><b>${esc(ten)}</b><pre style="white-space:pre-wrap;background:var(--bg);padding:8px;border-radius:6px;font-family:inherit;font-size:12.5px">${esc(t)}</pre></div>` : '';
+      $('#qt_cac_buoc').innerHTML = khoi('Dàn ý A', kq.dan_bai) + (kq.ban_goc || []).map((t, i) => khoi(`Bài gốc phần ${i + 1}`, t)).join('')
+        + (kq.sau_sac || []).map((t, i) => khoi(`Sâu sắc hơn phần ${i + 1}`, t)).join('') + khoi('End', kq.end) + khoi('Hook', kq.hook)
+        + (kq.viet_lai || []).map((t, i) => khoi(`Viết lại dễ hiểu — khúc ${i + 1}`, t)).join('');
+      $('#qt_chi_tiet').style.display = '';
+    });
+  }catch(e){ tt.textContent = 'Lỗi: ' + e.message }
+  finally{ nut.disabled = false; $('#nut_qt_dung').style.display = 'none'; QT_JOB = null }
+}
+async function dungQuyTrinh(){
+  if(!QT_JOB) return;
+  await post('/api/quy_trinh/dung', {job: QT_JOB});
+  tb('Đã yêu cầu dừng — lượt chat đang chạy xong thì dừng');
+}
+async function moMauQuyTrinh(){
+  let d; try{ d = await api('/api/quy_trinh/mau') }catch(e){ tb('Lỗi: ' + e.message); return }
+  const nen = document.createElement('div');
+  nen.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+  nen.innerHTML = `<div style="background:var(--card);color:var(--ink);border-radius:10px;padding:14px;width:min(860px,94vw);max-height:88vh;overflow:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center"><b>⚙ Câu lệnh quy trình (sửa nguyên văn)</b>
+      <span class="sub" style="margin:0">Chỗ trống: {i} số phần · {so_tu} số từ · {nguon_du_kien} câu giới hạn dữ kiện · {ten_phan} tên phần</span></div>
+    ${Object.keys(d.mac_dinh).map(k => `<label style="display:block;margin-top:10px"><b>${esc(d.ten[k] || k)}</b>
+      <textarea data-mau="${k}" rows="${Math.min(14, (d.mau[k].match(/\n/g) || []).length + 3)}" style="width:100%;font-size:12.5px">${esc(d.mau[k])}</textarea></label>`).join('')}
+    <div class="row" style="justify-content:flex-end;gap:8px;margin-top:10px">
+      <button class="p" data-nut="mac_dinh">Về mặc định</button><button class="p" data-nut="huy">Đóng</button><button class="purple" data-nut="luu">💾 Lưu</button></div></div>`;
+  document.body.appendChild(nen);
+  nen.onclick = async e => {
+    const n = e.target.dataset.nut;
+    if(e.target === nen || n === 'huy'){ nen.remove(); return }
+    if(n === 'mac_dinh'){ nen.querySelectorAll('[data-mau]').forEach(t => t.value = d.mac_dinh[t.dataset.mau]); return }
+    if(n === 'luu'){
+      const mau = {}; nen.querySelectorAll('[data-mau]').forEach(t => mau[t.dataset.mau] = t.value);
+      try{ await post('/api/quy_trinh/mau', {mau}); tb('Đã lưu câu lệnh quy trình'); nen.remove() }catch(er){ tb('Lỗi: ' + er.message) }
+    }
+  };
+}
+
+function chonYTuong(i){
+  Y_TUONG_CHON = Y_TUONG[i];
+  $('#mpl_tieu_de_moi').value = Y_TUONG_CHON.tieu_de;
+  veYTuong();
+  tb('Đã chọn ý tưởng — bấm "📋 Bước 1: Lập Dàn Bài"');
+  $('#mpl_tieu_de_moi').scrollIntoView({behavior: 'smooth', block: 'center'});
 }
 
 async function chayLapDanBai(){
@@ -840,7 +985,9 @@ async function chayLapDanBai(){
     const r = await post('/api/doi_thu/plugin/lap_dan_bai', {
       tieu_de: tieuDe,
       plugin: HIEN_TAI_PLUGIN,
-      so_tu: soTu
+      so_tu: soTu,
+      // ý tưởng 💡 đã chọn (chỉ khi tiêu đề chưa bị sửa sang đề tài khác)
+      y_tuong: Y_TUONG_CHON && Y_TUONG_CHON.tieu_de === tieuDe ? Y_TUONG_CHON : null
     });
     await cho(r.job, tt, kq=>{
       tt.textContent = `✅ Đã lập xong dàn bài gồm ${kq.so_phan} phần! Bạn có thể xem/chỉnh sửa nội dung từng phần bên dưới, sau đó bấm "Bước 2: Viết Kịch Bản Từng Phần".`;
@@ -1127,5 +1274,6 @@ $('#csv2').onclick=()=>{const h=['link','tieu_de','kenh','sub','view','he_so','v
   const d=kq2.map(x=>['https://youtu.be/'+x.id,x.tieu_de,x.kenh,x.sub,x.view,x.he_so,x.view_ngay,x.tuong_tac,x.gio_vn,x.tuoi_ngay].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','));
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+[h.join(','),...d].join('\n')],{type:'text/csv'}));a.download='video_dot_bien.csv';a.click()};
 </script>
+<script src="/cach_hoi.js"></script>
 </body>
 </html>

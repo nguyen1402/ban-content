@@ -336,12 +336,14 @@ def them_giong():
     up = request.files.get("tep")
     if not up:
         raise HTTPError(400, "thiếu tệp")
-    ten = re.sub(r"[\\/:*?\"<>|]+", "_", os.path.splitext(up.filename)[0]).strip() or "giong_moi"
+    # raw_filename: up.filename của bottle bỏ dấu tiếng Việt ("Giọng Nam" -> "Ging_Nam")
+    ten = re.sub(r"[\\/:*?\"<>|]+", "_", os.path.splitext(up.raw_filename or up.filename)[0]).strip() or "giong_moi"
     os.makedirs(VOICES, exist_ok=True)
     dich = os.path.join(VOICES, ten + ".wav")
     tam = dich + ".tam"
     up.save(tam, overwrite=True)
-    subprocess.run([FF, "-v", "error", "-y", "-i", tam, "-ac", "1", "-ar", "24000", dich], creationflags=0x08000000)
+    # 26/10: giọng mẫu để clone chỉ cần 5-15 s — cắt tối đa 20 s (mẫu dài làm OmniVoice chậm mà không giống hơn)
+    subprocess.run([FF, "-v", "error", "-y", "-i", tam, "-t", "20", "-ac", "1", "-ar", "24000", dich], creationflags=0x08000000)
     os.remove(tam)
     return json_ok({"ok": os.path.isfile(dich), "ten": ten})
 
@@ -1162,10 +1164,81 @@ def _sb_xem(sid):
     return {"sb": sb, "tt": tt, "phong_cach": list(storyboard.PHONG_CACH), "model": flow_video.MODEL}
 
 
+# 26/10 user: "1 nút tích để tôi nếu muốn dùng cookie thì dùng cookie còn nếu tôi chọn mở hẳn trình duyệt lên hỏi thì
+# mọi chỗ đều mở trình duyệt lên hỏi" — cài đặt chung (common.cach_hoi_ai, lưu file nên mọi tiến trình theo ngay)
+@app.get("/api/cai_dat_ai")
+def cai_dat_ai():
+    return json_ok({"cach_hoi": common.cach_hoi_ai()})
+
+
+@app.post("/api/cai_dat_ai")
+def dat_cai_dat_ai():
+    try:
+        common.dat_cach_hoi_ai(str((request.json or {}).get("cach_hoi") or ""))
+    except ValueError as e:
+        raise HTTPError(400, str(e))
+    return json_ok({"cach_hoi": common.cach_hoi_ai()})
+
+
+@app.get("/cach_hoi.js")
+def cach_hoi_js():
+    """Ô chọn "Hỏi AI bằng" gắn vào <header> của mọi trang (một nguồn, các trang chỉ cần <script src="/cach_hoi.js">)."""
+    response.content_type = "application/javascript; charset=utf-8"
+    return r"""(() => {
+  const h = document.querySelector('header'); if (!h || document.getElementById('cach_hoi_ai')) return;
+  const nhan = document.createElement('label');
+  nhan.title = 'Cách MỌI chỗ trong app hỏi AI (kịch bản, storyboard, tình báo đối thủ…). Trình duyệt: mở Gemini trên Chrome ' +
+    'của các hồ sơ Flow (không cần cookie). Cookie: gọi Gemini / ChatGPT bằng cookie đã nạp như trước.';
+  nhan.style.cssText = 'display:inline-flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap';
+  nhan.innerHTML = '🤖 Hỏi AI bằng <select id="cach_hoi_ai" style="font-weight:600"><option value="trinh_duyet">🌐 Trình duyệt (Chrome)</option>' +
+    '<option value="cookie">🍪 Cookie</option></select>';
+  h.appendChild(nhan);
+  const s = nhan.querySelector('select');
+  fetch('/api/cai_dat_ai').then(r => r.json()).then(d => { s.value = d.cach_hoi }).catch(() => {});
+  s.onchange = async () => {
+    try {
+      const r = await fetch('/api/cai_dat_ai', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                                                body: JSON.stringify({cach_hoi: s.value})});
+      if (!r.ok) throw new Error('mã ' + r.status);
+      const t = s.value === 'cookie' ? 'Mọi chỗ hỏi AI bằng cookie' : 'Mọi chỗ hỏi AI bằng trình duyệt (Chrome hồ sơ Flow)';
+      if (typeof tb === 'function') tb(t); else alert(t);
+    } catch (e) { alert('Không lưu được: ' + e.message) }
+  };
+})();"""
+
+
 @app.get("/api/sb/ds")
 def sb_ds():
     import storyboard
     return json_ok({"ds": storyboard.ds()})
+
+
+@app.get("/api/sb/kho_nv")
+def sb_kho_nv():
+    """Kho nhân vật Flow (nhân vật chính dùng lại giữa các storyboard)."""
+    import storyboard
+    ds = storyboard.kho_ds()
+    for n in ds:
+        n["url"] = url_tep(n["anh"]) + f"&v={int(n.get('tao') or 0)}"
+    return json_ok({"ds": ds})
+
+
+@app.post("/api/sb/kho_nv/luu")
+def sb_kho_nv_luu():
+    import storyboard
+    d = request.json or {}
+    try:
+        n = storyboard.kho_luu(str(d.get("id") or ""), str(d.get("asset") or "NV1"), d.get("ten"))
+    except ValueError as e:
+        raise HTTPError(400, str(e))
+    return json_ok({"ok": True, "nv": n})
+
+
+@app.post("/api/sb/kho_nv/xoa")
+def sb_kho_nv_xoa():
+    import storyboard
+    storyboard.kho_xoa(str((request.json or {}).get("id") or ""))
+    return json_ok({"ok": True})
 
 
 @app.get("/api/sb")
@@ -1232,7 +1305,7 @@ def _giong_hop_le(f):
 def _sb_doc_xuat(S, sid, d, bao):
     """23/10 user: vẽ xong thì đọc lời rồi ghép cả ảnh + giọng đọc vào bản nháp CapCut."""
     S.doc_loi(sid, bao, ref=_giong_hop_le(d.get("giong")), toc_do=d.get("toc_do") or 1.0)
-    kq = S.xuat_capcut(sid, d.get("ten"), d.get("giay_anh"), d.get("co_video", True), True)
+    kq = S.xuat_capcut(sid, d.get("ten"), d.get("giay_anh"), d.get("co_video", True), True, d.get("chuyen_dong") or "da_dang")
     S.TT[sid]["kq_capcut"] = kq
     bao(f"📦 Đã tạo bản nháp CapCut «{kq['ten']}»: {kq['so_doan']} đoạn hình + {kq['so_cau']} câu đọc, {kq['giay']} giây")
 
@@ -1286,7 +1359,7 @@ def sb_capcut():
     d = request.json or {}
     try:
         kq = storyboard.xuat_capcut(str(d.get("id") or ""), d.get("ten"), d.get("giay_anh"), d.get("co_video", True),
-                                    d.get("co_giong", True))
+                                    d.get("co_giong", True), d.get("chuyen_dong") or "da_dang")
     except (RuntimeError, ValueError) as e:
         raise HTTPError(400, str(e))
     return json_ok(kq)
@@ -2782,6 +2855,59 @@ def doi_thu_viet_lai():
     return json_ok({"job": _job_doi_thu(lambda bao: doi_thu.viet_lai_kich_ban_plugin(kich_ban_goc, plugin, so_tu_muc_tieu=so_tu, bao=bao))})
 
 
+# 26/10 user: quy trình viết của người dùng (dàn ý A -> bài gốc -> sâu sắc -> end -> hook trong một chat Gemini Pro,
+# rồi chat mới viết lại chi tiết, dễ hiểu) — quy_trinh_viet.py
+@app.get("/api/quy_trinh/mau")
+def quy_trinh_mau():
+    import quy_trinh_viet as Q
+    return json_ok({"mau": Q.doc_mau(), "ten": Q.TEN_MAU, "mac_dinh": Q.MAU_MAC_DINH})
+
+
+@app.post("/api/quy_trinh/mau")
+def quy_trinh_luu_mau():
+    import quy_trinh_viet as Q
+    return json_ok({"mau": Q.luu_mau((request.json or {}).get("mau") or {})})
+
+
+@app.post("/api/quy_trinh/chay")
+def quy_trinh_chay():
+    """Chạy nền trọn quy trình (lâu: mỗi phần ~3 lượt chat Pro) -> job; /api/doi_thu/tt?job= xem tiến độ, /api/quy_trinh/dung."""
+    import quy_trinh_viet as Q
+    d = request.json or {}
+    tieu_de = str(d.get("tieu_de") or "").strip()
+    transcript = str(d.get("transcript") or "").strip()
+    if not tieu_de and not transcript:
+        raise HTTPError(400, "thiếu tiêu đề (hoặc transcript gốc khi viết lại)")
+    tham = dict(plugin=d.get("plugin") or {}, dan_bai_text=str(d.get("dan_bai") or ""), transcript=transcript,
+                tong_tu=int(d.get("tong_tu") or 0) or None, so_tu_phan_1=max(100, int(d.get("so_tu_phan_1") or 300)),
+                so_tu_phan=max(100, int(d.get("so_tu_phan") or 500)),
+                y_tuong=d.get("y_tuong") if isinstance(d.get("y_tuong"), dict) else None,
+                model=d.get("model") if d.get("model") in ("flash", "pro") else "flash")
+    co = {"dung": False}
+    job = _job_doi_thu(lambda bao: Q.chay(tieu_de, bao=bao, dung=lambda: co["dung"], **tham))
+    TT_DOI_THU[job]["_co"] = co
+    return json_ok({"job": job})
+
+
+@app.post("/api/quy_trinh/dung")
+def quy_trinh_dung():
+    tt = TT_DOI_THU.get(str((request.json or {}).get("job") or "")) or {}
+    if tt.get("_co"):
+        tt["_co"]["dung"] = True
+    return json_ok({"ok": True})
+
+
+@app.post("/api/doi_thu/plugin/y_tuong")
+def doi_thu_y_tuong():
+    """Bước 0 (26/10): AI nghĩ ý tưởng / tiêu đề video MỚI theo ADN kênh (tuỳ chọn xoay quanh một chủ đề người dùng gợi ý)."""
+    import doi_thu
+    d = request.json or {}
+    plugin = d.get("plugin") or {}
+    goi_y = str(d.get("goi_y") or "").strip()[:300]
+    n = max(4, min(20, int(d.get("n") or 10)))
+    return json_ok({"job": _job_doi_thu(lambda bao: doi_thu.goi_y_y_tuong(plugin, goi_y, n, bao=bao))})
+
+
 @app.post("/api/doi_thu/plugin/lap_dan_bai")
 def doi_thu_lap_dan_bai():
     """Bước 1: Lập dàn bài kịch bản mới theo phong cách đối thủ & chia phần theo số từ mong muốn."""
@@ -2792,7 +2918,9 @@ def doi_thu_lap_dan_bai():
     so_tu = int(d.get("so_tu") or 0) or None
     if not tieu_de:
         raise HTTPError(400, "thiếu tiêu đề hoặc ý tưởng kịch bản mới")
-    return json_ok({"job": _job_doi_thu(lambda bao: doi_thu.lap_dan_bai_kenh(tieu_de, plugin, so_tu_mong_muon=so_tu, bao=bao))})
+    y_tuong = d.get("y_tuong") if isinstance(d.get("y_tuong"), dict) else None
+    return json_ok({"job": _job_doi_thu(lambda bao: doi_thu.lap_dan_bai_kenh(tieu_de, plugin, so_tu_mong_muon=so_tu, bao=bao,
+                                                                      y_tuong=y_tuong))})
 
 
 @app.post("/api/doi_thu/plugin/viet_theo_dan_bai")

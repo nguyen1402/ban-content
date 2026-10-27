@@ -1714,7 +1714,7 @@ function veAnh(ds,ng){
       <div class="sub">${coDiem?nhanDiem(a.diem,ng)+(a.chu?' <span class="diem thap" style="background:#fdecea;color:#b3261e">có chữ</span>':''):'<span class="sub">đang chấm…</span>'}</div></div>
       <div class="hang"><button data-tai="${i}">⬇ Tải ảnh</button></div></div>`).join('')||'<p class="sub">Không có kết quả.</p>');
   $('#kqanh').querySelectorAll('img[data-i]').forEach(e=>e.onclick=()=>{const a=ds[+e.dataset.i];
-    $('#xemanh').innerHTML=`<img src="${esc(a.url)}" style="max-width:100%;max-height:260px;border-radius:8px;display:block" onerror="this.src='${esc(a.thumb)}'">`});
+    $('#xemanh').innerHTML=`<img src="${esc(a.url)}" style="max-width:100%;max-height:260px;border-radius:8px;display:block" onerror="this.onerror=null;this.src='${esc(a.thumb)}'">`});
   $('#kqanh').querySelectorAll('button[data-tai]').forEach(b=>b.onclick=async()=>{const a=ds[+b.dataset.tai];b.disabled=true;b.textContent='Đang tải…';
     try{await post('/api/kho/tai_anh',{du_an:DU,url:a.url,tieu_de:a.tieu_de});b.textContent='✓ Đã vào kho';napKho()}
     catch(e){tb('Lỗi: '+e.message);b.disabled=false;b.textContent='⬇ Tải ảnh'}});
@@ -1985,5 +1985,6 @@ $('#ck_yt_xoa').onclick=async()=>{
 
 nap();theoDoiGoiY();theoDoiTuDong();theoDoiHoanThien();ctTheoDoi();
 </script>
+<script src="/cach_hoi.js"></script>
 </body>
 </html>
