@@ -282,6 +282,7 @@ https://www.youtube.com/@kenh_khac_2"></textarea>
           <label class="sub" style="margin:0">Các phần sau <input id="qt_tu" type="number" value="500" style="width:64px"> từ/phần</label>
           <label class="sub" style="margin:0" title="Đã lập dàn bài ở Bước 1 (và có thể đã sửa tay) thì đưa nguyên dàn bài đó vào chat làm dàn ý A; bỏ tích để Gemini Pro tự lập dàn ý A trong chat"><input type="checkbox" id="qt_dung_dan_bai" checked> Dùng dàn bài ở Bước 1 (nếu có)</label>
           <button class="p" onclick="moMauQuyTrinh()" title="Xem / sửa nguyên văn các câu lệnh của quy trình">⚙ Câu lệnh</button>
+          <button class="p" onclick="moKhoBai()" title="Mọi dàn bài / bài viết đã lưu (kich_ban/bai_viet): đọc bài, viết tiếp bài dở, viết phần 2, 3… cho bài viral">📚 Bài đã viết</button>
           <button class="purple" id="nut_quy_trinh" onclick="chayQuyTrinh('moi')" style="margin-left:auto;padding:8px 14px">🧠 Chạy quy trình</button>
           <button class="p" id="nut_qt_dung" onclick="dungQuyTrinh()" style="display:none">■ Dừng</button>
         </div>
@@ -906,9 +907,14 @@ async function chayQuyTrinh(che_do){
       plugin: HIEN_TAI_PLUGIN, dan_bai: danBai, transcript,
       tong_tu: lai ? (+$('#mpl_so_tu_lai').value || 0) : (+$('#mpl_so_tu_moi').value || 0),
       so_tu_phan_1: +$('#qt_tu_1').value || 300, so_tu_phan: +$('#qt_tu').value || 500, model: $('#qt_model').value,
-      y_tuong: (!lai && Y_TUONG_CHON && Y_TUONG_CHON.tieu_de === tieuDe) ? Y_TUONG_CHON : null});
+      y_tuong: (!lai && Y_TUONG_CHON && Y_TUONG_CHON.tieu_de === tieuDe) ? Y_TUONG_CHON : null,
+      bai_id: danBai ? BAI_DAN_BAI_ID : null});
     QT_JOB = r.job;
-    await cho(r.job, tt, kq => {
+    await cho(r.job, tt, kq => hienKetQuaQT(kq, tt, lai));
+  }catch(e){ tt.textContent = 'Lỗi: ' + e.message }
+  finally{ nut.disabled = false; $('#nut_qt_dung').style.display = 'none'; QT_JOB = null }
+}
+function hienKetQuaQT(kq, tt, lai){
       const so = (kq.kich_ban || '').split(/\s+/).filter(Boolean).length;
       tt.innerHTML = `✅ Xong quy trình trên ${esc(kq.ho_so)}: ${so} từ (${Math.round((kq.giay || 0) / 60)} phút).`
         + (kq.chat_a ? ` <a href="${esc(kq.chat_a)}" target="_blank">mở chat A</a>` : '')
@@ -924,7 +930,88 @@ async function chayQuyTrinh(che_do){
         + (kq.sau_sac || []).map((t, i) => khoi(`Sâu sắc hơn phần ${i + 1}`, t)).join('') + khoi('End', kq.end) + khoi('Hook', kq.hook)
         + (kq.viet_lai || []).map((t, i) => khoi(`Viết lại dễ hiểu — khúc ${i + 1}`, t)).join('');
       $('#qt_chi_tiet').style.display = '';
+      if(kq.ma) tt.innerHTML += ` · 💾 đã lưu — <a href="#" onclick="chiTietBai('${esc(kq.ma)}');return false">xem trong 📚 Bài đã viết</a>`;
+}
+// 27/10 user: kho bài viết — mỗi dàn bài / bài viết một thư mục kich_ban/bai_viet/<mã>/ (thoát app vẫn còn): bấm dàn bài
+// có bài rồi thì đọc bài, chưa có thì viết (bài dở thì viết tiếp đúng chat cũ); bài xong có nút viết phần 2, 3… (viral)
+let BAI_DAN_BAI_ID = null;
+const TT_BAI = {xong: ['✅', 'Đã có bài hoàn chỉnh'], dang: ['⏳', 'Viết dở'], dan_bai: ['📋', 'Mới có dàn bài'], trong: ['·', 'Trống']};
+const gioBai = t => t ? new Date(t * 1000).toLocaleString('vi-VN', {hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit'}) : '';
+function hopKho(html, bam){
+  let nen = $('#hop_kho');
+  if(!nen){
+    nen = document.createElement('div'); nen.id = 'hop_kho';
+    nen.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;display:flex;align-items:center;justify-content:center';
+    document.body.appendChild(nen);
+  }
+  nen.innerHTML = `<div style="background:var(--card);color:var(--ink);border-radius:10px;padding:14px;width:min(900px,94vw);max-height:88vh;overflow:auto">${html}</div>`;
+  nen.onclick = e => {
+    if(e.target === nen || e.target.dataset.nut === 'dong'){ nen.remove(); return }
+    const n = e.target.closest('[data-nut]'), m = e.target.closest('[data-ma]');
+    if(n) bam(n.dataset.nut, n); else if(m) bam('xem', m);
+  };
+}
+async function moKhoBai(){
+  let d; try{ d = await api('/api/bai_viet') }catch(e){ tb('Lỗi: ' + e.message); return }
+  hopKho(`<div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap"><b>📚 Bài đã viết <span class="sub" style="margin:0">(${d.ds.length} bài)</span></b>
+      <span><button class="p" data-nut="mo_kho" title="${esc(d.kho)}">📂 Mở thư mục</button> <button class="p" data-nut="dong">Đóng</button></span></div>
+    ${d.ds.length ? d.ds.map(b => `<div data-ma="${esc(b.ma)}" style="cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin-top:6px">
+      <div class="row" style="justify-content:space-between;gap:8px"><b>${TT_BAI[b.tinh_trang][0]} ${esc(b.tieu_de)}${b.phan_so > 1 ? ` <span style="color:var(--purple)">— Phần ${b.phan_so}</span>` : ''}</b>
+        <span class="sub" style="margin:0;white-space:nowrap">${gioBai(b.cap_nhat)}</span></div>
+      <div class="sub" style="margin:2px 0 0">${esc(b.kenh || '')} · ${TT_BAI[b.tinh_trang][1]}${b.tinh_trang === 'xong' ? ` (${b.so_tu} từ)` : ''}${b.so_phan_dan_bai ? ` · dàn bài ${b.so_phan_dan_bai} phần` : ''}${b.dang_chay ? ' · <b>đang viết…</b>' : ''}${b.loi ? ` · <span style="color:var(--er)">lần trước dừng: ${esc(b.loi.slice(0, 80))}</span>` : ''}</div></div>`).join('')
+      : '<p class="sub">Chưa có bài nào. Lập dàn bài (Bước 1) hoặc chạy 🧠 quy trình là bài được lưu vào đây.</p>'}`,
+    (n, el) => n === 'mo_kho' ? post('/api/bai_viet/mo', {}) : n === 'xem' ? chiTietBai(el.dataset.ma) : null);
+}
+async function chiTietBai(ma){
+  let b; try{ b = await api('/api/bai_viet/chi_tiet?ma=' + encodeURIComponent(ma)) }catch(e){ tb('Lỗi: ' + e.message); return }
+  const xong = b.tinh_trang === 'xong', so_buoc = (b.ban_goc || []).length + (b.sau_sac || []).length + (b.viet_lai || []).length;
+  const khoi = (ten, t) => t ? `<div style="margin:6px 0"><b>${esc(ten)}</b><pre style="white-space:pre-wrap;background:var(--bg);padding:8px;border-radius:6px;font-family:inherit;font-size:12.5px;margin:4px 0">${esc(t)}</pre></div>` : '';
+  const tat = b.dang_chay ? ' disabled title="Bài đang được viết"' : '';
+  hopKho(`<div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <span><button class="p" data-nut="ds">← Danh sách</button> <b>${esc(b.tieu_de)}${b.phan_so > 1 ? ` <span style="color:var(--purple)">— Phần ${b.phan_so}</span>` : ''}</b></span>
+      <span><button class="p" data-nut="mo">📂 Mở thư mục</button> <button class="p" data-nut="dong">Đóng</button></span></div>
+    <div class="sub" style="margin:4px 0">${esc(b.kenh || '')} · ${TT_BAI[b.tinh_trang][1]}${b.ho_so ? ' · hồ sơ ' + esc(b.ho_so) : ''}
+      ${b.chat_a ? ` · <a href="${esc(b.chat_a)}" target="_blank">chat A</a>` : ''}${b.chat_b ? ` · <a href="${esc(b.chat_b)}" target="_blank">chat B</a>` : ''}
+      ${b.loi ? `<br><span style="color:var(--er)">Lần trước dừng: ${esc(b.loi)}</span>` : ''}</div>
+    ${xong ? `<div style="margin-top:8px"><b>📄 Bài hoàn chỉnh (${b.so_tu} từ)</b>
+        <textarea id="kho_bai_text" readonly rows="16" style="width:100%;font-size:13px;margin-top:4px">${esc(b.kich_ban)}</textarea>
+        <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:6px">
+          <button class="p" data-nut="chep">📋 Chép bài</button>
+          <button class="p" data-nut="dua_vao" title="Đưa bài vào ô kết quả của thẻ Viết mới">➡ Đưa vào ô kết quả</button>
+          <button class="purple" data-nut="phan_tiep" style="margin-left:auto"${tat} title="Bài viral: Gemini lập dàn ý PHẦN ${b.phan_so + 1} nối tiếp các phần trước (không lặp ý) rồi viết trọn quy trình">➕ Viết phần ${b.phan_so + 1}</button></div></div>`
+      : `<div class="row" style="gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap">
+          <span class="sub" style="margin:0">${b.tinh_trang === 'dang' ? `Đã viết ${so_buoc} bước — viết tiếp từ bước còn thiếu, mở lại đúng chat cũ.` : 'Chưa có bài viết — viết từ dàn bài này theo 🧠 quy trình (model / số từ lấy ở khối 🧠).'}</span>
+          <button class="purple" data-nut="viet" style="margin-left:auto"${tat}>${b.tinh_trang === 'dang' ? '▶ Viết tiếp' : '✍ Viết bài'}</button></div>`}
+    <details ${xong ? '' : 'open'} style="margin-top:8px"><summary style="cursor:pointer"><b>📋 Dàn bài</b></summary>${khoi('', b.dan_bai) || '<p class="sub">(chưa có — Gemini sẽ lập khi viết)</p>'}</details>
+    ${so_buoc ? `<details style="margin-top:6px"><summary class="sub" style="cursor:pointer">Xem từng bước (bài gốc, sâu sắc, End, Hook, viết lại)</summary>
+      ${(b.ban_goc || []).map((t, i) => khoi(`Bài gốc phần ${i + 1}`, t)).join('')}${(b.sau_sac || []).map((t, i) => khoi(`Sâu sắc hơn phần ${i + 1}`, t)).join('')}
+      ${khoi('End', b.end)}${khoi('Hook', b.hook)}${(b.viet_lai || []).map((t, i) => khoi(`Viết lại dễ hiểu — khúc ${i + 1}`, t)).join('')}</details>` : ''}`,
+    async n => {
+      if(n === 'ds') return moKhoBai();
+      if(n === 'mo') return post('/api/bai_viet/mo', {ma});
+      if(n === 'chep'){ await navigator.clipboard.writeText(b.kich_ban || ''); return tb('Đã chép bài') }
+      if(n === 'dua_vao'){
+        $('#mpl_kb_moi_ra').value = b.kich_ban || ''; $('#box_kq_viet_moi').style.display = 'block';
+        $('#mpl_dem_tu_moi').textContent = b.so_tu + ' từ'; $('#hop_kho').remove(); return tb('Đã đưa bài vào ô kết quả');
+      }
+      if(n === 'viet' || n === 'phan_tiep'){
+        if(n === 'phan_tiep' && !confirm(`Viết PHẦN ${b.phan_so + 1} nối tiếp «${b.tieu_de}» trên Gemini Pro? (10-30 phút)`)) return;
+        chayBaiKho(n === 'viet' ? '/api/bai_viet/viet' : '/api/bai_viet/phan_tiep', ma, b.tinh_trang === 'dan_bai');
+      }
     });
+}
+async function chayBaiKho(url, ma, dung_so_tu){
+  if(QT_JOB){ tb('Đang chạy một quy trình khác — đợi xong hoặc bấm Dừng'); return }
+  const tt = $('#tt_quy_trinh'), nut = $('#nut_quy_trinh');
+  const tham = {ma, model: $('#qt_model').value};
+  if(dung_so_tu){ tham.so_tu_phan_1 = +$('#qt_tu_1').value || 300; tham.so_tu_phan = +$('#qt_tu').value || 500 }
+  $('#hop_kho') && $('#hop_kho').remove();
+  nut.disabled = true; $('#nut_qt_dung').style.display = ''; tt.classList.add('hien'); tt.textContent = 'Bắt đầu…';
+  tt.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  try{
+    const r = await post(url, tham);
+    QT_JOB = r.job;
+    await cho(r.job, tt, kq => hienKetQuaQT(kq, tt, false));
   }catch(e){ tt.textContent = 'Lỗi: ' + e.message }
   finally{ nut.disabled = false; $('#nut_qt_dung').style.display = 'none'; QT_JOB = null }
 }
@@ -993,6 +1080,8 @@ async function chayLapDanBai(){
       tt.textContent = `✅ Đã lập xong dàn bài gồm ${kq.so_phan} phần! Bạn có thể xem/chỉnh sửa nội dung từng phần bên dưới, sau đó bấm "Bước 2: Viết Kịch Bản Từng Phần".`;
       $('#box_dan_bai').style.display = 'block';
       $('#mpl_dan_bai_text').value = kq.dan_bai_text || '';
+      BAI_DAN_BAI_ID = kq.bai_id || null;
+      tt.textContent += ' 💾 Đã lưu dàn bài vào 📚 Bài đã viết.';
       $('#box_dan_bai').scrollIntoView({behavior: 'smooth', block: 'nearest'});
     });
   }catch(e){

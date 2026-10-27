@@ -387,13 +387,18 @@ def _thu_vien_minh_hoa(vid, bao=None):
         cau = cau or next((s for g, s in reversed(gio) if g <= t), "")
         if cau:
             cap.append((cau, f))
-    vi_du, quy_tac = [], []
-    for k in range(0, len(cap), 12):
-        lo = cap[k:k + 12]
-        if bao:
-            bao(f"Học cách kênh minh hoạ: khung {k + 1}-{k + len(lo)}/{len(cap)}…")
+    # 27/10 user ("mãi nó không xong 1 kênh"): các lô hỏi LẦN LƯỢT -> nay hỏi cùng lúc, mỗi lô một tab Gemini
+    cac_lo = [cap[k:k + 12] for k in range(0, len(cap), 12)]
+    if bao:
+        bao(f"Học cách kênh minh hoạ: {len(cap)} khung, {len(cac_lo)} lô hỏi cùng lúc…")
+
+    def hoi_lo(lo):
         ds = "\n".join(f"Frame {i + 1}: «{c}»" for i, (c, _) in enumerate(lo))
-        kq, _ = _hoi_kem_anh(_P_MINH_HOA.format(ds=ds), [f for _, f in lo], timeout=240)
+        return _hoi_kem_anh(_P_MINH_HOA.format(ds=ds), [f for _, f in lo], timeout=240)[0]
+    with ThreadPoolExecutor(max(1, len(cac_lo))) as ex:
+        tra_loi = list(ex.map(hoi_lo, cac_lo))
+    vi_du, quy_tac = [], []
+    for lo, kq in zip(cac_lo, tra_loi):
         j = rut_json(kq or "")
         if not isinstance(j, dict):
             continue
@@ -583,7 +588,9 @@ def tinh_bao_kenh(danh_sach_kenh, n_vid=10, bao=None):
         if bao:
             bao(f"{dau} Lấy khung hình trong video nổi nhất để đọc ADN hình ảnh…")
         khung = _khung_hinh(top_video["id"], dai_viral)
-        minh_hoa = _thu_vien_minh_hoa(top_video["id"], bao=(lambda m: bao(f"{dau} {m}")) if bao else None)
+        # 27/10: học cách minh hoạ chạy NỀN, cùng lúc với câu hỏi ADN bên dưới (hai việc không phụ thuộc nhau)
+        ex_mh = ThreadPoolExecutor(1)
+        tuong_lai_mh = ex_mh.submit(_thu_vien_minh_hoa, top_video["id"], (lambda m: bao(f"{dau} {m}")) if bao else None)
         thu_anh = os.path.join(CACHE_CHUNG, "doi_thu", "khung")
         os.makedirs(thu_anh, exist_ok=True)
         thumbs = [t for t in (_tai_anh(f"https://i.ytimg.com/vi/{v['id']}/hqdefault.jpg", os.path.join(thu_anh, f"{v['id']}_thumb.jpg"))
@@ -607,6 +614,13 @@ def tinh_bao_kenh(danh_sach_kenh, n_vid=10, bao=None):
             adn = rut_json(kq or "")
             if isinstance(adn, dict) and adn.get("visual_dna"):
                 break
+        try:
+            minh_hoa = tuong_lai_mh.result()
+        except Exception as e:                               # noqa: BLE001
+            log(f"    ! học cách minh hoạ {top_video['id']}: {str(e)[:100]}")
+            minh_hoa = {}
+        finally:
+            ex_mh.shutdown(wait=False)
         if not isinstance(adn, dict) or not adn.get("visual_dna"):
             ket_qua.append({"kenh_input": kenh_str, "kenh_ten": kenh_ten, "loi": "AI không trả phân tích ADN (thử lại)."})
             continue

@@ -1966,7 +1966,8 @@ $('#nutck_yt').onclick=()=>{veCookieYT();$('#hopck_yt').showModal()};
 const KT_TEN={gemini:['🤖 Gemini','Trang chính → 🍪 Cookie: xuất cookie Gemini mới rồi bấm "Gửi vào app" (đúng tên tài khoản)'],
   chatgpt:['💬 ChatGPT','Trang chính → 🍪 Cookie: xuất cookie ChatGPT mới rồi gửi lại (đúng tên tài khoản)'],
   youtube:['▶ YouTube','Bấm 🍪 Cookie YouTube ngay trên trang này, dán cookie mới'],
-  flow:['🎨 Hồ sơ Flow','Trang chính → 🎨 Hồ sơ Flow: bấm "Mở" hồ sơ đó, đăng nhập lại Google']};
+  flow:['🎨 Hồ sơ Flow','Trang chính → 🎨 Hồ sơ Flow: bấm "Mở" hồ sơ đó, đăng nhập lại Google'],
+  gemini_chrome:['🧠 Gemini trên Chrome (hồ sơ Flow)','Hồ sơ không tạo được chat Gemini sẽ tự bị bỏ qua 6 giờ. Mở hồ sơ đó, vào gemini.google.com xem tài khoản có dùng được Gemini không']};
 let henKT=null;
 async function veKT(){
   clearTimeout(henKT);let d;try{d=await api('/api/kiem_tra_het')}catch(e){$('#kt_ds').textContent='Lỗi: '+e.message;return}

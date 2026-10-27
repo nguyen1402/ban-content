@@ -658,6 +658,23 @@ def _kt_flow():
     return kq
 
 
+def _kt_gemini_chrome():
+    """27/10 user: "có 1 số tài khoản tôi không tạo chat được với gemini trong hồ sơ" -> thử thật một câu ngắn trên từng
+    hồ sơ, LẦN LƯỢT (một cửa sổ một lúc cho đỡ lag); Chrome nào mở ra để thử thì đóng êm lại sau đó."""
+    import flow_ve
+    import gemini_chrome as G
+    kq = {}
+    for ten, cong in G._ho_so():                           # noqa: SLF001
+        mo_san = G._dang_mo(cong)                           # noqa: SLF001
+        try:
+            ok, msg = G.kiem_tai_khoan(ten, cong, lam_moi=True)
+        finally:
+            if not mo_san:
+                flow_ve.dong_em(cong)
+        kq[ten] = {"ok": ok, "msg": msg}
+    return kq
+
+
 @app.post("/api/kiem_tra_het")
 def kiem_tra_het():
     """26/10 user ("trước khi chạy cần 1 nút kiểm tra coki nào có vấn đề"): kiểm tra song song Gemini, ChatGPT, YouTube,
@@ -676,9 +693,10 @@ def kiem_tra_het():
     def chay():
         from concurrent.futures import ThreadPoolExecutor
         try:
-            with ThreadPoolExecutor(4) as ex:
+            with ThreadPoolExecutor(5) as ex:
                 list(ex.map(lambda x: mot(*x), [("gemini", lambda: _kt_dv("gemini")), ("chatgpt", lambda: _kt_dv("chatgpt")),
-                                                ("youtube", lambda: {"cookies.txt": _kt_youtube()}), ("flow", _kt_flow)]))
+                                                ("youtube", lambda: {"cookies.txt": _kt_youtube()}), ("flow", _kt_flow),
+                                                ("gemini_chrome", _kt_gemini_chrome)]))
         finally:
             _KT_HET["dang"] = False
             _KT_HET["xong_luc"] = time.time()
@@ -2945,10 +2963,88 @@ def quy_trinh_chay():
                 so_tu_phan=max(100, int(d.get("so_tu_phan") or 500)),
                 y_tuong=d.get("y_tuong") if isinstance(d.get("y_tuong"), dict) else None,
                 model=d.get("model") if d.get("model") in ("flash", "pro") else "flash")
+    # 27/10: dàn bài lập ở Bước 1 đã có mục trong kho bài viết -> viết vào chính mục đó (dàn bài sửa tay thì cập nhật)
+    bai = Q.doc_bai(d.get("bai_id")) if d.get("bai_id") and not transcript else None
+    if bai and (bai.get("ban_goc") or bai.get("kich_ban")):
+        bai = None                                           # mục đó đã viết rồi: lượt này là bài mới
+    if bai:
+        bai["tieu_de"] = tieu_de or bai["tieu_de"]
+        bai["plugin"] = tham["plugin"] or bai.get("plugin") or {}
+        bai["dan_bai"] = tham["dan_bai_text"].strip()
+        bai["tham"] = {k: tham[k] for k in ("tong_tu", "so_tu_phan_1", "so_tu_phan", "model")}
+    return _job_quy_trinh(lambda bao, co: Q.chay(tieu_de, bao=bao, dung=lambda: co["dung"], bai=bai, **tham))
+
+
+def _job_quy_trinh(ham):
     co = {"dung": False}
-    job = _job_doi_thu(lambda bao: Q.chay(tieu_de, bao=bao, dung=lambda: co["dung"], **tham))
+    job = _job_doi_thu(lambda bao: ham(bao, co))
     TT_DOI_THU[job]["_co"] = co
     return json_ok({"job": job})
+
+
+# 27/10 user: kho bài viết — danh sách dàn bài / bài đã viết (kich_ban/bai_viet/<mã>/), viết tiếp bài dở, phần 2, 3…
+@app.get("/api/bai_viet")
+def bai_viet_ds():
+    import quy_trinh_viet as Q
+    return json_ok({"ds": Q.ds_bai(), "kho": Q.KHO})
+
+
+@app.get("/api/bai_viet/chi_tiet")
+def bai_viet_chi_tiet():
+    import quy_trinh_viet as Q
+    bai = Q.doc_bai(tham_so_q("ma"))
+    if not bai:
+        raise HTTPError(404, "không thấy bài")
+    return json_ok(Q.tom_tat(bai))
+
+
+def _chay_bai(bai, d):
+    import quy_trinh_viet as Q
+    t = dict(bai.get("tham") or {})
+    for k in ("so_tu_phan_1", "so_tu_phan", "tong_tu"):
+        if int(d.get(k) or 0):
+            t[k] = int(d[k])
+    if d.get("model") in ("flash", "pro"):
+        t["model"] = d["model"]
+    bai["tham"] = t
+    return _job_quy_trinh(lambda bao, co: Q.chay(bai["tieu_de"], bai.get("plugin") or {}, bai=bai, bao=bao,
+                                                 dung=lambda: co["dung"], tong_tu=t.get("tong_tu"),
+                                                 so_tu_phan_1=max(100, int(t.get("so_tu_phan_1") or 300)),
+                                                 so_tu_phan=max(100, int(t.get("so_tu_phan") or 500)),
+                                                 model=t.get("model") or "flash"))
+
+
+@app.post("/api/bai_viet/viet")
+def bai_viet_viet():
+    """Viết bài từ dàn bài đã lưu / viết tiếp bài dở (mở lại đúng chat A, B theo ID)."""
+    import quy_trinh_viet as Q
+    d = request.json or {}
+    bai = Q.doc_bai(d.get("ma"))
+    if not bai:
+        raise HTTPError(404, "không thấy bài")
+    return _chay_bai(bai, d)
+
+
+@app.post("/api/bai_viet/phan_tiep")
+def bai_viet_phan_tiep():
+    """Bài viral -> tạo bài phần kế tiếp (phần 2, 3…) rồi chạy quy trình cho nó."""
+    import quy_trinh_viet as Q
+    d = request.json or {}
+    try:
+        bai = Q.tao_phan_tiep(d.get("ma"))
+    except RuntimeError as e:
+        raise HTTPError(400, str(e))
+    return _chay_bai(bai, d)
+
+
+@app.post("/api/bai_viet/mo")
+def bai_viet_mo():
+    import quy_trinh_viet as Q
+    ma = (request.json or {}).get("ma")
+    thu = Q._thu_muc(ma) if ma else Q.KHO                   # noqa: SLF001
+    os.makedirs(thu, exist_ok=True)
+    os.startfile(thu)
+    return json_ok({"ok": True})
 
 
 @app.post("/api/quy_trinh/dung")
@@ -2981,8 +3077,14 @@ def doi_thu_lap_dan_bai():
     if not tieu_de:
         raise HTTPError(400, "thiếu tiêu đề hoặc ý tưởng kịch bản mới")
     y_tuong = d.get("y_tuong") if isinstance(d.get("y_tuong"), dict) else None
-    return json_ok({"job": _job_doi_thu(lambda bao: doi_thu.lap_dan_bai_kenh(tieu_de, plugin, so_tu_mong_muon=so_tu, bao=bao,
-                                                                      y_tuong=y_tuong))})
+
+    def lam(bao):
+        import quy_trinh_viet as Q
+        kq = doi_thu.lap_dan_bai_kenh(tieu_de, plugin, so_tu_mong_muon=so_tu, bao=bao, y_tuong=y_tuong)
+        # 27/10 user: dàn bài phải có chỗ lưu (thoát app vẫn còn, lần sau viết tiếp) -> một mục trong kho bài viết
+        kq["bai_id"] = Q.tao_bai(tieu_de, plugin, dan_bai=kq.get("dan_bai_text") or "", tham={"tong_tu": so_tu})["ma"]
+        return kq
+    return json_ok({"job": _job_doi_thu(lam)})
 
 
 @app.post("/api/doi_thu/plugin/viet_theo_dan_bai")
