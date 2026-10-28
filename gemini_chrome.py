@@ -8,6 +8,7 @@ Dùng lại các hồ sơ Chrome của Flow (flow_ve: ~/BanContent/flow_chrome/<
   3. Chat thường (27/10 user bỏ "Temporary chat"), gõ câu lệnh, bấm gửi, chờ nút Stop tắt và chữ trả lời đứng
      yên, đọc chữ của khung trả lời cuối.
 Đo 26/10 trên acc1: đã đăng nhập sẵn, model mặc định Flash, trả JSON đúng; trò chuyện tạm giữ URL /app (không lưu)."""
+import atexit
 import json
 import os
 import subprocess
@@ -33,6 +34,85 @@ NGHI = {}                    # hồ sơ -> nghỉ tới (đăng xuất / hết l
 _DANG = {}                   # hồ sơ -> số câu đang hỏi
 _KHOA = threading.Lock()
 _KHOA_MO = threading.Lock()
+# 27/10 user: "khi bật tab chrome khi hỏi tôi chỉ muốn nó hiển thị bên dưới dạng ẩn nhưng khi tôi ấn nói mới hiện lên, khi
+# nó xong việc tự end task đó đi" -> Chrome do Gemini TỰ MỞ: thu nhỏ xuống thanh tác vụ; hết câu hỏi DONG_SAU giây (không còn
+# tab Gemini / Flow nào) thì đóng êm (Browser.close). Chrome đã mở sẵn (người dùng / Flow) thì không đụng.
+_TU_MO = set()                                               # cổng DevTools của Chrome do Gemini tự mở (tiến trình này)
+DONG_SAU = 20
+# 27/10 user: "vẫn có chỗ xong việc không tự đóng chrome" (hoan_thien.log: các câu CUỐI trả lời xong thì tiến trình con
+# dung_hoan_chinh kết thúc — luồng hẹn đóng chết theo) -> danh sách Chrome tự mở ghi ra file DÙNG CHUNG mọi tiến trình;
+# tiến trình kết thúc thì đóng ngay Chrome của nó đã rảnh; app chính (may_chu) dọn định kỳ don_chrome_ranh().
+TU_MO_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", "gemini_tu_mo.json")   # {cổng: lúc mở}
+_KHOA_TU_MO = threading.Lock()
+_TRONG_TU = {}                                               # cổng -> lúc thấy rảnh lần đầu (don_chrome_ranh)
+
+
+def _ds_tu_mo():
+    from common import doc_json
+    return {int(k): v for k, v in (doc_json(TU_MO_FILE, {}) or {}).items()}
+
+
+def _dat_tu_mo(cong, co):
+    from common import ghi_json
+    with _KHOA_TU_MO:
+        d = _ds_tu_mo()
+        if co:
+            d[int(cong)] = time.time()
+        else:
+            d.pop(int(cong), None)
+        os.makedirs(os.path.dirname(TU_MO_FILE), exist_ok=True)
+        ghi_json(TU_MO_FILE, {str(k): v for k, v in d.items()})
+    (_TU_MO.add if co else _TU_MO.discard)(cong)
+
+
+def _ranh(cong):
+    """Chrome chỉ còn tab trống (không tab Gemini đang hỏi, không Flow) -> True; đã đóng -> None; đang dùng -> False."""
+    try:
+        trang = [t for t in _json(cong) if t.get("type") == "page"]
+    except OSError:
+        return None
+    return all(t.get("url", "").startswith(("about:blank", "chrome://newtab")) for t in trang)
+
+
+def _dong(cong, ly_do):
+    import flow_ve
+    ten = next((t for t, c in _ho_so() if c == cong), cong)
+    _dat_tu_mo(cong, False)
+    flow_ve.dong_em(cong)
+    log(f"    Gemini Chrome '{ten}': {ly_do} — đã đóng Chrome")
+
+
+def don_chrome_ranh():
+    """Dọn định kỳ (app chính gọi): Chrome do Gemini tự mở (ở BẤT KỲ tiến trình nào) mà rảnh liên tục >= DONG_SAU giây
+    -> đóng êm. Rảnh = chỉ còn tab trống, nên Chrome đang hỏi / Flow đang dùng không bị đụng."""
+    for cong in list(_ds_tu_mo()):
+        r = _ranh(cong)
+        if r is None:
+            _dat_tu_mo(cong, False)
+            _TRONG_TU.pop(cong, None)
+        elif not r:
+            _TRONG_TU.pop(cong, None)
+        elif time.time() - _TRONG_TU.setdefault(cong, time.time()) >= DONG_SAU:
+            _TRONG_TU.pop(cong, None)
+            _dong(cong, "rảnh, hỏi xong")
+
+
+def _dong_khi_thoat():
+    """Tiến trình kết thúc: Chrome nó tự mở mà đã rảnh thì đóng ngay (luồng hẹn đóng sắp chết theo tiến trình)."""
+    for cong in list(_TU_MO):
+        try:
+            for _ in range(10):                              # tab Gemini vừa đóng có khi chưa kịp biến khỏi danh sách
+                r = _ranh(cong)
+                if r is not False:
+                    break
+                time.sleep(0.5)
+            if r:
+                _dong(cong, "tiến trình xong việc")
+        except Exception as e:                               # noqa: BLE001
+            log(f"    (đóng Chrome Gemini khi thoát lỗi: {str(e)[:100]})")
+
+
+atexit.register(_dong_khi_thoat)
 
 # 27/10 user: "có 1 số tài khoản tôi không tạo chat được với gemini trong hồ sơ… check nếu dùng được mới sử dụng" ->
 # trước khi dùng một hồ sơ: hỏi thật một câu ngắn; được thì nhớ DUNG_GIU giây, hỏng thì bỏ qua hồ
@@ -141,11 +221,57 @@ def _mo_chrome(ten, cong):
             time.sleep(0.5)
             try:
                 _json(cong)
-                log(f"    Gemini Chrome: mở hồ sơ '{ten}'")
-                return True
             except OSError:
                 continue
+            log(f"    Gemini Chrome: mở hồ sơ '{ten}' (thu nhỏ — bấm trên thanh tác vụ để xem)")
+            _dat_tu_mo(cong, True)
+            _cua_so(cong, "minimized")
+            return True
         return False
+
+
+def _cua_so(cong, dat=None):
+    """Trạng thái cửa sổ Chrome ('minimized' | 'normal' | 'maximized' | '') — dat: đặt trạng thái đó."""
+    from anh_google import _WS
+    try:
+        trang = [t for t in _json(cong) if t.get("type") == "page"]
+        if not trang:
+            return ""
+        w = _WS(_json(cong, "/version")["webSocketDebuggerUrl"])
+        try:
+            wid = w.goi("Browser.getWindowForTarget", targetId=trang[0]["id"])["windowId"]
+            if dat:
+                w.goi("Browser.setWindowBounds", windowId=wid, bounds={"windowState": dat})
+                return dat
+            return w.goi("Browser.getWindowBounds", windowId=wid)["bounds"].get("windowState", "")
+        finally:
+            w.dong()
+    except Exception:                                        # noqa: BLE001
+        return ""
+
+
+def _hen_dong(cong):
+    """Hẹn đóng Chrome do Gemini tự mở sau DONG_SAU giây (câu hỏi kế tiếp tới kịp thì dùng lại, không đóng)."""
+    if cong in _TU_MO:
+        t = threading.Timer(DONG_SAU, _dong_neu_ranh, (cong,))
+        t.daemon = True
+        t.start()
+
+
+def _dong_neu_ranh(cong):
+    with _KHOA:
+        if cong not in _TU_MO:
+            return
+        ten = next((t for t, c in _ho_so() if c == cong), None)
+        if ten and _DANG.get(ten):
+            return
+        r = _ranh(cong)
+        if r is None:
+            _dat_tu_mo(cong, False)                          # đã bị đóng
+            return
+        if not r:
+            return                                           # còn tab Gemini đang hỏi / Flow đang dùng cửa sổ này
+    _dong(cong, "hỏi xong")
 
 
 def _cho(ws, bieu_thuc, giay, buoc=0.5):
@@ -218,7 +344,10 @@ def _hien_neu_trong(cong, tid):
     try:
         khac = [t for t in _json(cong) if t.get("type") == "page" and t.get("id") != tid]
         if all(t.get("url", "").startswith(("about:blank", "chrome://newtab", "https://gemini.google.com")) for t in khac):
+            nho = _cua_so(cong) == "minimized"
             urllib.request.urlopen(f"http://127.0.0.1:{cong}/json/activate/{tid}", timeout=5).read()
+            if nho:                                          # chọn tab có thể bật cửa sổ lên: giữ thu nhỏ
+                _cua_so(cong, "minimized")
     except Exception:                                        # noqa: BLE001
         pass
 
@@ -392,6 +521,7 @@ def _hoi_tab(ten, cong, prompt, timeout, files=None):
             _json(cong, "/close/" + tab["id"])
         except Exception:                                    # noqa: BLE001
             pass
+        _hen_dong(cong)
 
 
 def _dang_mo(cong):
@@ -510,6 +640,7 @@ def _dong_tab(cong, tab, ws):
         _json(cong, "/close/" + tab["id"])
     except Exception:                                        # noqa: BLE001
         pass
+    _hen_dong(cong)
 
 
 def hang_tai_khoan(ten, cong, lam_moi=False):
