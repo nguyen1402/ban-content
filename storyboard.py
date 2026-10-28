@@ -205,6 +205,10 @@ def _canh(sb, cid):
     return next((c for c in sb.get("canh") or [] if c["id"] == cid), None)
 
 
+VAI_PHU_KHOA_TU = 3          # 28/10 user: vai phụ xuất hiện / được nhắc từ bấy nhiêu câu -> khoá nhân vật như NV1
+VAI_PHU_KHOA_TOI_DA = 4      #   tối đa bấy nhiêu vai phụ (nhiều câu nhất) được vẽ ảnh mẫu
+
+
 def chi_nv_chinh(cd):
     """Chế độ chỉ đồng nhất nhân vật chính (con rối cần ảnh bối cảnh làm nền nên luôn đầy đủ)."""
     return (cd or {}).get("dong_nhat", "nv_chinh") == "nv_chinh" and not (cd or {}).get("con_roi")
@@ -385,8 +389,8 @@ for EVERY distinct real-life situation the narration evokes (office, crowded bus
 café, hospital corridor, rooftop at night…) — never a single empty room for the whole film.
 Supporting characters use the same art style but must be instantly distinguishable from NV1 and from each other
 (different hair, build, outfit colors, accessories).
-SETTING: when the script is Vietnamese and does not say otherwise, the story happens in present-day VIETNAM — Vietnamese
-tube houses, narrow alleys, motorbikes, plastic stools, street food stalls, Vietnamese apartments, offices and buses;
+SETTING: the story happens WHERE THE SCRIPT SAYS (a Vietnamese script about America shows American places and people).
+Only when it gives no place, it happens in present-day VIETNAM — Vietnamese tube houses, narrow alleys, motorbikes, plastic stools, street food stalls, Vietnamese apartments, offices and buses;
 never American or European streets and buildings.
 Usually 3-8 characters and 2-8 props. LOCATIONS: a narration needs about ONE location per 3-4 sentences (20 sentences ->
 at least 5 locations, e.g. bedroom, apartment corridor, bus, office, street, family table) because every abstract line
@@ -417,14 +421,17 @@ Return:
        with exact garments, colors and footwear; accessories. Only visible facts. Never a real famous person.
      - "NV2", "NV3"… = supporting characters that come back several times (the people the narrator talks about, mother,
        boss, best friend, a recurring
-       group like "nhóm đồng nghiệp"). "mo_ta_en" = ONE short identity tag, 12-25 words (age, build, hair, ONE signature
-       outfit color, one accessory) so the viewer recognizes them — clearly different from NV1 and from each other.
+       group like "nhóm đồng nghiệp"). "so_cau" = in how many sentences of the script they appear or are mentioned.
+       "mo_ta_en": when so_cau >= {nguong_phu} they are LOCKED like NV1 (a reference sheet is drawn) -> the same FIXED
+       visual identity, 60-90 words, every visible fact; otherwise ONE short identity tag, 12-25 words (age, build,
+       hair, ONE signature outfit color, one accessory). Always clearly different from NV1 and from each other.
        People who appear only once are NOT assets.
      - each item: "id", "loai": "nhan_vat", "ten" (short name in the script's language), "mo_ta_vi" (1 Vietnamese
        sentence), "mo_ta_en".
   Usually 1-5 characters. No locations, no props.
-SETTING: when the script is Vietnamese and does not say otherwise, people are present-day Vietnamese.
-Only JSON: {{"phong_cach_chung": "...", "assets": [{{"id": "NV1", "loai": "nhan_vat", "vai": "nguoi_ke", "ten": "...", "mo_ta_vi": "...", "mo_ta_en": "..."}}]}}
+SETTING: people belong to the country and era WHERE THE STORY HAPPENS (read it from the script — a Vietnamese script
+about America has American people); only when the script gives no place, they are present-day Vietnamese.
+Only JSON: {{"phong_cach_chung": "...", "assets": [{{"id": "NV1", "loai": "nhan_vat", "vai": "nguoi_ke", "ten": "...", "mo_ta_vi": "...", "mo_ta_en": "..."}}, {{"id": "NV2", "loai": "nhan_vat", "so_cau": 5, "ten": "...", "mo_ta_vi": "...", "mo_ta_en": "..."}}]}}
 
 SCRIPT:
 {kb}"""
@@ -524,7 +531,8 @@ You MUST adopt this EXACT character identity for the main character NV1 (as defi
         j = None
         for _ in range(3):
             j = rut_json(hoi_llm(_P_ASSET_NV.format(phong_cach=pc, user_nv_rule=user_nv_rule, kb=kb[:24000],
-                                                    luat_nv1=_LUAT_NV1[cd.get("nv_chinh_la", "tu_dong")]), timeout=300) or "")
+                                                    luat_nv1=_LUAT_NV1[cd.get("nv_chinh_la", "tu_dong")],
+                                                    nguong_phu=VAI_PHU_KHOA_TU), timeout=300) or "")
             if isinstance(j, dict) and j.get("assets"):
                 break
     else:
@@ -532,6 +540,16 @@ You MUST adopt this EXACT character identity for the main character NV1 (as defi
     if not isinstance(j, dict) or not j.get("assets"):
         raise ValueError("AI không trả danh sách assets (thử lại)")
     cu = {a["id"]: a for a in sb.get("assets") or []}
+    # 28/10 user: vai phụ nhắc tới nhiều (>= VAI_PHU_KHOA_TU câu) cũng khoá như NV1 (ảnh mẫu + gắn tham chiếu), tối đa
+    # VAI_PHU_KHOA_TOI_DA vai nhiều câu nhất (mỗi ảnh Flow chỉ nhận 3 tham chiếu)
+    def _so_cau(a):
+        try:
+            return int(a.get("so_cau") or 0)
+        except (TypeError, ValueError):
+            return 0
+    khoa_phu = {str(a.get("id") or "").strip().upper() for a in sorted(
+        (a for a in j.get("assets") or [] if isinstance(a, dict) and str(a.get("id") or "").upper() != "NV1"
+         and _so_cau(a) >= VAI_PHU_KHOA_TU), key=_so_cau, reverse=True)[:VAI_PHU_KHOA_TOI_DA]} if isinstance(j, dict) else set()
     ra = []
     for a in j["assets"]:
         if not isinstance(a, dict) or not str(a.get("mo_ta_en") or "").strip():
@@ -543,7 +561,7 @@ You MUST adopt this EXACT character identity for the main character NV1 (as defi
             continue
         x = {"id": aid, "loai": loai, "ten": str(a.get("ten") or aid).strip(), "mo_ta_vi": str(a.get("mo_ta_vi") or "").strip(),
              "mo_ta_en": str(a["mo_ta_en"]).strip(), "bien_the": [], "chon": 0, "tt": "cho", "loi": ""}
-        if chi_nv_chinh(cd) and aid != "NV1":
+        if chi_nv_chinh(cd) and aid != "NV1" and aid not in khoa_phu:
             x["phu"] = True
         if aid == "NV1" and (a.get("vai") == "nguoi_ke" or cd.get("nv_chinh_la") == "nguoi_ke"):
             x["vai"] = "nguoi_ke"
@@ -572,7 +590,8 @@ You MUST adopt this EXACT character identity for the main character NV1 (as defi
         sb["phong_cach_chung"] = (pc if tu_chon else str(j.get("phong_cach_chung") or pc)).strip().rstrip(".") + "."
         sb["assets"] = ra
     luu(sid)
-    bao(f"Có {len(ra)} assets: " + ", ".join(f"{a['id']} {a['ten']}" + (" (vai phụ, không vẽ mẫu)" if a.get("phu") else "")
+    bao(f"Có {len(ra)} assets: " + ", ".join(f"{a['id']} {a['ten']}" + (" (vai phụ ít xuất hiện, không vẽ mẫu)" if a.get("phu")
+                                                                      else " (vai phụ khoá ảnh mẫu)" if a["id"] in khoa_phu else "")
                                            for a in ra))
 
 
@@ -746,6 +765,14 @@ def _bible(sb, chi=None):
     return "\n".join(f"- {a['id']} ({a['loai']}{', THE NARRATOR / HOST' if a.get('vai') == 'nguoi_ke' else ''}) "
                      f"{a['ten']}: {a['mo_ta_en']}" for a in sb.get("assets") or []
                      if a["loai"] != "phong_cach" and (chi is None or a["id"] in chi))
+
+
+def _luat_noi_dung():
+    """28/10 user ("cách tạo hình ảnh này cũng đẩy sang cho storyboard"): câu ngoài truyện (kêu gọi like, chào kết, bài
+    học) vẽ cảnh của câu chuyện (LUAT_NGOAI_TRUYEN). 28/10 user ("quan trọng nhất vẫn là đồng nhất nhân vật … và phong
+    cách"): bỏ LUAT_THUC_TE (luật biển sâu của ✨) cho câu lệnh khỏi loãng."""
+    from common import LUAT_NGOAI_TRUYEN
+    return f"\nNARRATION RULE: {LUAT_NGOAI_TRUYEN}\n"
 
 
 def _luat_nguoi_ke(sb):
@@ -929,8 +956,9 @@ sentence listed below so that the viewer cannot stop watching until the end.
 GLOBAL STYLE (prepended automatically to every prompt — do not repeat it): {pc}
 CHARACTERS (their full look is appended automatically — call them "Name (NV1)"):
 {assets}
-Places and objects are NOT fixed: for each sentence invent the concrete place that shows it best (present-day Vietnam
-for a Vietnamese script unless it says otherwise). Only the art style and the characters stay the same.
+Places and objects are NOT fixed: for each sentence invent the concrete place that shows it best — in the country, city
+and era WHERE THE STORY HAPPENS (read it from the script; the script being in Vietnamese does NOT make it Vietnam: a story
+in America shows American places and people). Only the art style and the characters stay the same.
 
 RETENTION RHYTHM — every sentence has a role ("nhip"):
   - hook (the first sentences): stop the scroll. The strongest emotion, close-up or medium close-up, an unusual angle,
@@ -1035,7 +1063,7 @@ def lap_moi_cau(sid, bao, chi=None):
         """Hỏi song song các lô; lô hỏng / sót câu / phá nhịp thì hỏi lại một lượt -> {chỉ số câu: kết quả}."""
         def p(l, nhac=""):
             return _P_MOI_CAU.format(pc=sb.get("phong_cach_chung") or "", assets=_bible(sb), luat_bc_gm=_LUAT_BC_GM,
-                                     them=_luat_nguoi_ke(sb) + them + nhac, kb=kb,
+                                     them=_luat_nguoi_ke(sb) + _luat_noi_dung() + them + nhac, kb=kb,
                                      ds="\n".join(f"{i + 1} — {_goi_y_nhip(i, n)} — {cau[i]}" for i in l))
         ra, lai = {}, []
 
@@ -1188,7 +1216,7 @@ def lap_anh_canh(sid, ids, bao, _lan=0):
                 + (f"\n  (Previous scene {t['id']} ended with: {t['tom_tat_vi']})" if t else ""))
     prompts = [_P_ANH.format(pc=sb.get("phong_cach_chung") or "", assets=_bible(sb), ds="\n\n".join(mo_ta(c) for c in l),
                              luat_bc_gm=_LUAT_BC_GM)
-               + _luat_con_roi_anh(sb) + _luat_nguoi_ke(sb) for l in lo]
+               + _luat_con_roi_anh(sb) + _luat_nguoi_ke(sb) + _luat_noi_dung() for l in lo]
     kq = hoi_nhieu(prompts, timeout=300)
     thieu = []
     for k, l in enumerate(lo):
@@ -1789,7 +1817,21 @@ def _chon_chuyen_dong(c, so, gan_day):
     return it_dung[0]
 
 
-def _ap_chuyen_dong(seg, d, kieu, KP):
+# 28/10 user ("cách tạo hình ảnh này cũng đẩy sang cho storyboard"): "Đa dạng" dùng chung Ken Burns mượt của ✨
+# (chinh_sua/chuyen_dong: ease nhiều keyframe, biên độ theo độ dài ảnh, không phóng sẵn 116-122%) — kiểu vẫn chọn theo nhịp
+_KIEU_KB = {"zoom_vao": "vao", "zoom_ra": "ra", "sang_trai": "trai", "sang_phai": "phai", "len_tren": "len",
+            "xuong_duoi": "xuong", "zoom_cheo": "cheo_vao", "lui_troi": "cheo_ra"}
+
+
+def _ap_chuyen_dong(seg, d, kieu, KP, k=0):
+    try:
+        import sys
+        sys.path.insert(0, os.path.join(ROOT, "chinh_sua"))
+        import chuyen_dong
+        chuyen_dong.ken_burns(seg, d, k, KP, _KIEU_KB.get(kieu))
+        return
+    except ImportError:
+        pass
     _, s0, s1, (x0, y0), (x1, y1) = CHUYEN_DONG[kieu]
     cuoi = max(1, d - 1000)
     seg.add_keyframe(KP.uniform_scale, 0, s0)
@@ -1857,7 +1899,7 @@ def xuat_capcut(sid, ten_nhap=None, giay_anh=None, co_video=True, co_giong=True,
             if chuyen_dong == "da_dang":
                 kieu = _chon_chuyen_dong(c, n, gan_day)
                 gan_day.append(kieu)
-                _ap_chuyen_dong(seg, moi, kieu, KP)
+                _ap_chuyen_dong(seg, moi, kieu, KP, n)
             elif chuyen_dong == "zoom":                      # cách cũ: xen kẽ phóng vào / thu ra nhẹ
                 vao, ra = (1.0, 1.08) if (n % 2 == 0) else (1.08, 1.0)
                 seg.add_keyframe(KP.uniform_scale, 0, vao)

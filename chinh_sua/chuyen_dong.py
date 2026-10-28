@@ -39,7 +39,7 @@ def _diem(d_us):
 
 def chon_kieu(k, huong=None):
     """Kiểu chuyển động cho ảnh thứ k: theo `huong` nếu có, không thì xoay vòng nhưng tránh 2 kiểu vừa dùng."""
-    if huong in ("vao", "ra", "trai", "phai", "len", "xuong"):
+    if huong in KIEU:                                        # 28/10: storyboard chọn cả kiểu trôi chéo theo nhịp
         kieu = huong
     else:
         kieu = next((KIEU[(k + j) % len(KIEU)] for j in range(len(KIEU)) if KIEU[(k + j) % len(KIEU)] not in _GAN[-2:]),
