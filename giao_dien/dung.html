@@ -86,7 +86,7 @@ video,iframe{width:100%;border-radius:8px;background:#000;display:block}
   <button class="p" id="nut_kt_het" title="Kiểm tra trước khi chạy: mọi tài khoản Gemini, ChatGPT (hỏi thử 1 câu), cookie YouTube (thử lấy 1 video), hồ sơ Flow (lỗi lần chạy trước) — cái nào hỏng thì báo để bạn gửi lại cookie">🩺 Kiểm tra tài khoản</button>
   <button class="p" id="nutck_yt" title="Cài đặt Cookie YouTube để tránh bị chặn Bot và tải video 1080p/720p ổn định">🍪 Cookie YouTube</button>
   <button id="tutim" title="Tự tìm footage SẠCH (Pexels, Pixabay, Mixkit, Coverr, Wikimedia) theo mô tả mọi cảnh, chấm điểm, tải trong ngân sách phút, khớp đoạn; cảnh thiếu thì ảnh Google bù; rồi tạo bản nháp (đoạn trỏ video gốc). Cảnh bạn đã tự dựng giữ nguyên.">🤖 Tự tìm + tải + khớp + bản nháp</button><label class="sub" title="Xong bước 🤖 thì máy chủ TỰ chạy tiếp ✨ Hoàn thiện bản nháp (diễn cảnh, ảnh AI, nhạc) — một mạch tới bản cuối, đóng trang cũng được."><input type="checkbox" id="lienht"> rồi hoàn thiện luôn</label><label class="sub" title="Bỏ tick: KHÔNG tìm/tải kho video free (Pexels, Pixabay, Mixkit, Coverr) — chỉ video YouTube (Google Videos + tìm YouTube). Clip stock đã tải từ trước vẫn dùng."><input type="checkbox" id="dungstock"> dùng kho video free</label>
-  <button id="hoanthien" title="Chạy bước HOÀN THIỆN (skill chỉnh sửa) trên kế hoạch hiện tại: căn giờ theo giọng đọc, thẻ ảnh highlight 65% kèm chữ nhấn mạnh ở mọi chỗ dẫn chứng/so sánh/nhấn mạnh, phủ màu đổi chương, chuyển cảnh -> bản nháp CapCut mới tên <tên>_hoan_chinh.">✨ Hoàn thiện bản nháp</button><button class="p" id="mo_chen_anh" title="Chọn câu lời, viết mô tả, vẽ ảnh (Gemini), xem trước rồi giữ; bấm Chèn để thêm thẳng các ảnh đã giữ vào bản nháp CapCut đúng mốc giờ.">🎨 Tạo ảnh chèn bản nháp</button><button class="p" id="mo_ke_hoach_ai" title="Danh sách chỗ dùng hình AI thay footage (AI đề xuất): mỗi chỗ chọn 🖼 Ảnh AI (0 điểm) hoặc 🎬 Veo (12 điểm/clip), bỏ / sửa / thêm, góp ý để AI viết lại — chỗ đã đánh dấu thì 🤖 không băm footage vào nữa; ✨ làm đúng danh sách này.">📝 Chỗ ảnh AI &amp; Veo</button><button class="p" id="mo_anh_ai" title="Xem từng ảnh AI & video hook Veo 3 của lần ✨ gần nhất cùng câu mô tả; sửa câu, vẽ lại / tạo lại video, xem trước rồi Lưu (thay thế bản cũ) hoặc Bỏ qua.">🖼 Ảnh &amp; 🎬 Video AI</button><label class="sub" title="Thêm nhạc nền sạch không bản quyền (tự ghép theo chương, -24dB êm nhẹ)"><input type="checkbox" id="co_nhac" checked> 🎵 Nhạc</label><label class="sub" title="Thêm SFX chuyển cảnh whoosh và điểm nhấn hit tinh gọn"><input type="checkbox" id="co_sfx" checked> 🔊 SFX</label><label class="sub" title="✨ tự tạo ~6 video hook kịch tính bằng Google Flow (Omni 1.1 Flash 10 s 720p, 12 điểm/clip, mỗi clip 2-3 cảnh cắt) phủ KÍN ~1 phút đầu. Mỗi tài khoản tối đa 50 điểm/ngày, dùng hết điểm một tài khoản rồi đóng Chrome sang tài khoản khác, tối đa 4 tài khoản cùng lúc — thiếu điểm thì mai bấm tiếp. Cũng tạo clip Veo cho các chỗ 🎬 Veo trong 📝 (sau hook). Clip đã tạo được dùng lại, không tốn điểm lần nữa. Bỏ tick: không tạo mới (clip đã có vẫn dùng; chỗ thiếu clip thì vẽ ảnh AI thay)."><input type="checkbox" id="co_hook"> 🎬 Tạo video Veo</label>
+  <button id="hinhai" title="BƯỚC 1 (27/10): tạo hình AI TRƯỚC — video hook Veo + clip 🎬 Veo thân bài (chỉ khi tick 🎬 Tạo video Veo, tốn điểm Flow) và vẽ ảnh 🖼 AI theo 📝. Chưa băm, chưa dựng. Chỗ không ra hình (hết điểm / lỗi) thì bước băm tự lấp footage.">🎨 Tạo hình AI</button><button id="hoanthien" title="BƯỚC CUỐI: GHÉP một lần ra bản nháp CapCut mới tên <tên>_hoan_chinh — footage đã băm + hình AI đã tạo ở 🎨 (không tạo Veo mới; chỗ Veo chưa có clip để footage), căn giờ theo giọng đọc, chuyển cảnh, nhạc / SFX.">✨ Hoàn thiện bản nháp</button><button class="p" id="mo_chen_anh" title="Chọn câu lời, viết mô tả, vẽ ảnh (Gemini), xem trước rồi giữ; bấm Chèn để thêm thẳng các ảnh đã giữ vào bản nháp CapCut đúng mốc giờ.">🎨 Tạo ảnh chèn bản nháp</button><button class="p" id="mo_ke_hoach_ai" title="BẠN tự đánh dấu chỗ dùng hình AI thay footage: mỗi chỗ chọn 🖼 Ảnh AI (0 điểm) hoặc 🎬 Veo (12 điểm/clip 8 s); bấm ✍️ để AI viết câu lệnh cho đúng các chỗ đó, xem / sửa rồi Lưu — chỗ đã đánh dấu thì 🤖 không băm footage vào nữa; ✨ làm đúng danh sách này.">📝 Chỗ ảnh AI &amp; Veo</button><button class="p" id="mo_anh_ai" title="Xem từng ảnh AI & video hook Veo 3 của lần ✨ gần nhất cùng câu mô tả; sửa câu, vẽ lại / tạo lại video, xem trước rồi Lưu (thay thế bản cũ) hoặc Bỏ qua.">🖼 Ảnh &amp; 🎬 Video AI</button><label class="sub" title="Thêm nhạc nền sạch không bản quyền (tự ghép theo chương, -24dB êm nhẹ)"><input type="checkbox" id="co_nhac" checked> 🎵 Nhạc</label><label class="sub" title="Thêm SFX chuyển cảnh whoosh và điểm nhấn hit tinh gọn"><input type="checkbox" id="co_sfx" checked> 🔊 SFX</label><label class="sub" title="Bước 🎨 Tạo hình AI tự tạo ~6 video hook kịch tính bằng Google Flow (Omni 1.1 Flash 8 s 720p, 12 điểm/clip, mỗi clip 2-3 cảnh cắt) phủ KÍN ~1 phút đầu. Mỗi tài khoản tối đa 50 điểm/ngày, dùng hết điểm một tài khoản rồi đóng Chrome sang tài khoản khác, tối đa 4 tài khoản cùng lúc — thiếu điểm thì mai bấm tiếp. Cũng tạo clip Veo cho các chỗ 🎬 Veo trong 📝 (sau hook). Clip đã tạo được dùng lại, không tốn điểm lần nữa. Bỏ tick: không tạo mới (clip đã có vẫn dùng; chỗ thiếu clip thì lấp footage)."><input type="checkbox" id="co_hook"> 🎬 Tạo video Veo</label><span class="sub" id="veo_con" style="display:none;margin:0 0 0 6px"></span>
   <button class="p" id="taonhap" title="Tạo bản nháp từ kế hoạch hiện có của mọi cảnh (đoạn trỏ video gốc)">📦 Chỉ tạo bản nháp</button>
 </header>
 <div class="khung">
@@ -336,16 +336,18 @@ video,iframe{width:100%;border-radius:8px;background:#000;display:block}
     <h2 style="margin:0;font-size:16px">📝 Chỗ ảnh AI &amp; Veo <span class="sub" style="font-weight:400" id="kh_tom"></span></h2>
     <button class="p" onclick="$('#hop_kh_ai').close()" style="padding:2px 8px">✕</button>
   </div>
-  <p class="sub" style="margin-bottom:10px">Toàn bộ lời đọc theo câu. Ô <b>xanh</b> = chỗ dùng hình AI thay footage (phủ từ câu đầu tới câu cuối của ô): chọn <b>🖼 Ảnh AI</b> (0 điểm) hay <b>🎬 Veo</b> (1 clip 10 s, 12 điểm), bỏ tick <b>Dùng</b> để bỏ, sửa câu mô tả / câu lệnh (tiếng Anh). Câu chưa có: bấm <b>＋ ở đây</b> — để trống thì AI viết giúp lúc ✨. Chỗ đã đánh dấu thì bước 🤖 <b>không băm footage</b> vào nữa; thiếu clip Veo (hết điểm) thì ✨ vẽ ảnh AI thay. Đoạn <b>hook</b> (nền tím) đã là video Veo. Xong bấm <b>💾 Lưu</b>.</p>
+  <p class="sub" style="margin-bottom:10px">Toàn bộ lời đọc theo câu. <b>Bạn tự chọn chỗ</b> — AI không tự chọn nữa: bấm <b>＋ 🖼 ở đây</b> (ảnh AI, 0 điểm) hoặc <b>＋ 🎬 ở đây</b> (1 clip Veo 8 s, 12 điểm) ở câu bắt đầu, chỉnh <b>câu →</b> để phủ tới câu cuối (tối đa 3 câu). Đánh dấu xong bấm <b>✍️ AI viết câu lệnh</b>: AI chỉ viết câu mô tả ảnh / câu lệnh Veo (tiếng Anh, theo hồ sơ câu chuyện) cho đúng các chỗ đó — xem, sửa, rồi <b>💾 Lưu</b> trước khi chạy ✨. Ô câu lệnh để trống = AI viết lại ở lần ✍️ sau. Sau đó bấm <b>🎨 Tạo hình AI</b>: chỗ đã ra hình thì bước băm <b>không băm footage</b> vào; chỗ Veo không ra clip (hết điểm / lỗi) thì băm footage lấp vào. Đoạn <b>hook</b> (nền tím) đã là video Veo.</p>
   <div style="display:grid;gap:6px;margin-bottom:10px;padding:8px;border:1px dashed var(--line);border-radius:8px">
-    <span class="sub" style="margin:0">💬 <b>Góp ý cho AI</b> — viết ý bạn (vd «chương 2 thêm Veo ở đoạn đuổi bắt, bỏ ảnh ở câu 40-45, Veo cần cảnh mưa đêm»), AI viết lại cả danh sách theo đó:</span>
+    <span class="sub" style="margin:0">💬 <b>Góp ý câu lệnh</b> — viết ý bạn (vd «Veo câu 30 cần cảnh mưa đêm, ảnh câu 42 chụp gần hơn»), AI viết lại câu lệnh theo đó (chỗ bạn chọn giữ nguyên):</span>
     <textarea id="kh_gop_y" rows="2" style="width:100%" placeholder="Góp ý của bạn…"></textarea>
     <div class="row" style="gap:8px"><button id="kh_gop_y_btn">✍️ AI sửa theo góp ý</button><span class="sub" id="kh_gop_y_tt" style="margin:0"></span></div>
   </div>
+  <div id="kh_diem" class="sub" style="margin:0 0 8px;padding:6px 8px;border-radius:8px;background:#8e24aa14"></div>
   <div id="ds_kh_ai" style="display:grid;gap:4px"></div>
   <div class="row" style="margin-top:14px;justify-content:flex-end;gap:8px">
     <span class="sub" id="kh_tt" style="flex:1"></span>
-    <button class="p" id="kh_lap">🔄 AI đề xuất lại</button>
+    <button class="p" id="kh_xoa_het" title="Bỏ mọi chỗ đã đánh dấu (chưa lưu cho tới khi bấm 💾 Lưu)">🧹 Xoá hết</button>
+    <button id="kh_viet" style="background:var(--ac);color:#fff" title="Lưu danh sách rồi hỏi AI viết câu lệnh cho các chỗ đã đánh dấu mà chưa có câu lệnh">✍️ AI viết câu lệnh</button>
     <button id="kh_luu" style="background:var(--ok);color:#fff">💾 Lưu</button>
     <button class="p" onclick="$('#hop_kh_ai').close()">Đóng</button>
   </div>
@@ -360,7 +362,7 @@ video,iframe{width:100%;border-radius:8px;background:#000;display:block}
     <button class="p on" id="btn_loc_tat_ca" style="border-radius:16px;padding:3px 12px">Tất cả (<span id="dem_tat_ca">0</span>)</button>
     <button class="p" id="btn_loc_video" style="border-radius:16px;padding:3px 12px">🎬 Video Veo 3 (<span id="dem_video">0</span>)</button>
     <button class="p" id="btn_loc_anh" style="border-radius:16px;padding:3px 12px">🖼 Ảnh AI (<span id="dem_anh">0</span>)</button>
-    <button id="btn_tao_tat_ca_hook" style="background:linear-gradient(135deg,#1a73e8,#8e24aa);color:#fff;border-radius:16px;padding:3px 12px;font-size:12px;font-weight:600" title="Tạo tự động toàn bộ video hook bằng Google Flow (Omni 1.1 Flash 720p 10s = 12đ/clip; mỗi tài khoản tối đa 50đ/ngày, tối đa 4 tài khoản cùng lúc) và lưu vào thư mục hook/">⚡ Tạo toàn bộ video hook (12đ/clip)</button>
+    <button id="btn_tao_tat_ca_hook" style="background:linear-gradient(135deg,#1a73e8,#8e24aa);color:#fff;border-radius:16px;padding:3px 12px;font-size:12px;font-weight:600" title="Tạo tự động toàn bộ video hook bằng Google Flow (Omni 1.1 Flash 720p 8s = 12đ/clip; mỗi tài khoản tối đa 50đ/ngày, tối đa 4 tài khoản cùng lúc) và lưu vào thư mục hook/">⚡ Tạo toàn bộ video hook (12đ/clip 8 s)</button>
     <button class="p" id="btn_mo_thu_kho_ai" title="Mở thư mục kho video B-roll của dự án: ra/<dự_án>/kho/video" style="margin-left:auto;padding:3px 10px;font-size:12px;font-weight:600">📂 Mở Kho video B-roll</button>
     <button class="p" id="btn_mo_thu_hook" title="Mở thư mục lưu các video hook: ra/<dự_án>/hook" style="padding:3px 10px;font-size:12px">📂 Mở thư mục Video Hook</button>
     <button class="p" id="btn_mo_thu_duan" title="Mở toàn bộ thư mục dữ liệu dự án: ra/<dự_án>" style="padding:3px 10px;font-size:12px">📂 Mở thư mục Dự án</button>
@@ -579,8 +581,10 @@ $('#ca_giu').onclick=async()=>{if(!caThu)return;try{await post('/api/chen_anh/gi
 $('#ca_chen').onclick=async()=>{const nhap=$('#ca_nhap').value;if(!nhap)return tb('Chưa có bản nháp');
   if(!confirm(`Chèn các ảnh đã giữ (chưa chèn) vào bản nháp "${nhap}"?\nĐÓNG bản nháp này trong CapCut trước, nếu không CapCut sẽ ghi đè mất.`))return;
   try{const r=await post('/api/chen_anh/chen',{du_an:DU,nhap});tb(`Đã chèn ${r.so} ảnh vào "${nhap}" (track ${r.track}) — mở lại bản nháp trong CapCut`);napChenAnh()}catch(e){tb('Lỗi: '+e.message)}};
-// 19/10 user: danh sách chỗ vẽ ảnh AI — AI đề xuất, người dùng thêm / bỏ / sửa
-let khAI=[],khCau=[],henKH=null,khHook=0,khClip=null;
+// 19/10 user: danh sách chỗ vẽ ảnh AI — 27/10 user: NGƯỜI DÙNG tự đánh dấu, AI chỉ viết câu lệnh (✍️)
+let khAI=[],khCau=[],henKH=null,khHook=0,khClip=null,khNap=false,khDiem={clip:12,con:null,hook:0,hookDK:false,coClip:[]},khHookDK=false,khHookGio=[0,0];
+function datHookKH(){const[that,uoc]=khHookGio;khHook=that;khHookDK=false;   // 27/10 user: tích 🎬 mà chưa có câu lệnh hook -> trừ đoạn hook DỰ KIẾN
+  if(!that&&$('#co_hook')?.checked&&uoc>0){khHook=uoc;khHookDK=true}}
 function veKH(){
   const theoDau={};khAI.forEach((y,k)=>{theoDau[y.cau]=theoDau[y.cau]||[];theoDau[y.cau].push(k)});
   const phu=new Set();khAI.forEach(y=>{if(!y.bo)for(let i=y.cau;i<=(y.den_cau||y.cau);i++)phu.add(i)});
@@ -592,10 +596,11 @@ function veKH(){
         <select data-loai style="padding:1px 4px"><option value="anh"${veo?'':' selected'}>🖼 Ảnh AI</option><option value="veo"${veo?' selected':''}>🎬 Veo</option></select>
         <span class="sub">câu ${y.cau} → <input type="number" data-den value="${y.den_cau||y.cau}" min="${y.cau}" max="${y.cau+2}" style="width:56px"> ${y.tay?'· <i>bạn thêm</i>':''}</span>
         <button class="er" data-xoa style="padding:1px 7px;margin-left:auto" title="Xoá hẳn chỗ này">✕</button></div>
-      ${veo?`<textarea data-veo rows="3" style="width:100%" placeholder="Câu lệnh video Veo (tiếng Anh) — để trống: AI viết lúc ✨">${esc(y.veo_en||'')}</textarea>`:''}
-      <textarea data-mt rows="2" style="width:100%" placeholder="${veo?'Mô tả ảnh dự phòng (khi không tạo được clip) — để trống: AI viết':'Để trống: AI viết mô tả lúc ✨'}">${esc(y.ve_1||'')}</textarea></div>`}).join('');
+      ${veo&&y.loi_veo?`<div class="sub" style="margin:0;color:#c62828">⚠ Lần 🎨 trước không ra clip: ${esc(y.loi_veo)}</div>`:''}
+      ${veo?`<textarea data-veo rows="3" style="width:100%" placeholder="Câu lệnh video Veo (tiếng Anh) — để trống rồi bấm ✍️ AI viết câu lệnh">${esc(y.veo_en||'')}</textarea>`:''}
+      ${veo?'':`<textarea data-mt rows="2" style="width:100%" placeholder="Mô tả ảnh (tiếng Anh) — để trống rồi bấm ✍️ AI viết câu lệnh">${esc(y.ve_1||'')}</textarea>${chuoiKH(y)}`}</div>`}).join('');   // 27/10: Veo hỏng lấp footage — không còn ảnh dự phòng
     if(trongHook(c))return `<div style="display:grid;grid-template-columns:44px 1fr auto;gap:6px;align-items:start;background:#8e24aa1f;border-radius:6px;padding:2px 4px">
-      <span class="sub">${fmt(c.t0)}</span><span>${c.i}. ${esc(c.text)}</span><span class="sub" style="margin:0">🎬 hook</span></div>`;
+      <span class="sub">${fmt(c.t0)}</span><span>${c.i}. ${esc(c.text)}</span><span class="sub" style="margin:0">🎬 hook${khHookDK?' (dự kiến)':''}</span></div>${o?`<div class="sub" style="margin:2px 0 0 28px;color:#c62828">⚠ Chỗ dưới đây nằm trong đoạn hook Veo — ✨ bỏ qua, AI không viết câu lệnh. Bấm ✕ để xoá.</div>${o}`:''}`;
     return `<div style="display:grid;grid-template-columns:44px 1fr auto;gap:6px;align-items:start;${phu.has(c.i)?'background:#1a9d5c14;':''}border-radius:6px;padding:2px 4px">
       <span class="sub">${fmt(c.t0)}</span><span>${c.i}. ${esc(c.text)}</span>
       ${phu.has(c.i)?'':`<span><button class="p" data-them="${c.i}" style="padding:1px 8px;font-size:12px">＋ 🖼 ở đây</button> <button class="p" data-them-veo="${c.i}" style="padding:1px 8px;font-size:12px">＋ 🎬 ở đây</button></span>`}</div>${o}`}).join('');
@@ -608,19 +613,39 @@ function veKH(){
     khAI.push({cau:i,den_cau:i,ve_1:'',tay:true,loai:'anh'});khAI.sort((a,b)=>a.cau-b.cau);veKH()});
   $('#ds_kh_ai').querySelectorAll('[data-them-veo]').forEach(b=>b.onclick=()=>{docKH();const i=+b.dataset.themVeo;
     khAI.push({cau:i,den_cau:i,ve_1:'',veo_en:'',tay:true,loai:'veo'});khAI.sort((a,b)=>a.cau-b.cau);veKH()});
-  const dung=khAI.filter(y=>!y.bo),nVeo=dung.filter(y=>y.loai==='veo').length;
-  $('#kh_tom').textContent=`— ${dung.length-nVeo} chỗ 🖼 ảnh AI, ${nVeo} chỗ 🎬 Veo / ${khCau.length} câu`+(khClip!=null?` · hôm nay còn điểm cho ${khClip} clip Veo (hook tạo trước)`:'');
+  const theoI={};khCau.forEach(c=>theoI[c.i]=c);
+  const dung=khAI.filter(y=>!y.bo&&!(theoI[y.cau]&&trongHook(theoI[y.cau]))),nVeo=dung.filter(y=>y.loai==='veo').length;   // chỗ trong hook không tính
+  const nHook=khCau.filter(trongHook).length;
+  $('#kh_tom').textContent=`— ${dung.length-nVeo} chỗ 🖼 ảnh AI, ${nVeo} chỗ 🎬 Veo / ${khCau.length} câu`+(nHook?` · câu 1-${nHook} là hook Veo${khHookDK?' (dự kiến)':''}`:'');
+  // 27/10 user: "lẽ ra khi tôi tích bạn phải tính điểm luôn cho tôi để tôi biết" — tính lại mỗi lần thêm / bỏ / đổi chỗ 🎬
+  const veoMoi=dung.filter(y=>y.loai==='veo'&&!khDiem.coClip.includes(y.cau)).length,hookCan=khHook>0?khDiem.hook:0;
+  const can=(veoMoi+hookCan)*khDiem.clip,coDiem=(khClip||0)*khDiem.clip;
+  $('#kh_diem').innerHTML=`💰 Cần <b>${can} điểm</b> = ${veoMoi} clip Veo thân bài${nVeo>veoMoi?` (${nVeo-veoMoi} chỗ đã có clip)`:''}`+(hookCan?` + ${hookCan} clip hook${khDiem.hookDK?' dự kiến':''}`:'')+` × ${khDiem.clip} điểm`
+    +(khDiem.con!=null?` · hôm nay còn <b>${khDiem.con} điểm</b> (đủ cho ${khClip} clip)`+(can>coDiem?` → <b style="color:#c62828">THIẾU ${can-coDiem} điểm</b>: chỗ thiếu lấp footage, mai bấm 🎨 tiếp`:` → <b style="color:var(--ok)">đủ</b>, dư ${coDiem-can} điểm`):'')
+    +(!$('#co_hook')?.checked&&can?' · <i>chưa tích 🎬 Tạo video Veo — 🎨 sẽ không tạo clip nào</i>':'');
 }
+function chuoiKH(y){   // 27/10: ảnh nối tiếp (ve_2, ve_3…) AI viết cho chỗ dài > 5 s — sửa được
+  const n=Object.keys(y).map(k=>(k.match(/^ve_(\d+)$/)||[])[1]).filter(Boolean).map(Number).filter(k=>k>1).sort((a,b)=>a-b);
+  return n.map(k=>`<div class="row" style="gap:6px;align-items:start"><span class="sub" style="margin:0;min-width:84px">ảnh ${k}${y['moc_'+k]?` · «${esc(y['moc_'+k])}»`:''}</span><textarea data-ve-n="${k}" rows="1" style="flex:1">${esc(y['ve_'+k]||'')}</textarea></div>`).join('')}
 function docKH(){$('#ds_kh_ai').querySelectorAll('[data-kh]').forEach(o=>{const y=khAI[+o.dataset.kh];if(!y)return;
-  y.ve_1=o.querySelector('[data-mt]').value.trim();const v=o.querySelector('[data-veo]');if(v)y.veo_en=v.value.trim();y.den_cau=Math.max(y.cau,Math.min(y.cau+2,+o.querySelector('[data-den]').value||y.cau))})}
+  const mt=o.querySelector('[data-mt]');if(mt)y.ve_1=mt.value.trim();const v=o.querySelector('[data-veo]');if(v)y.veo_en=v.value.trim();
+  o.querySelectorAll('[data-ve-n]').forEach(t=>{const k=t.dataset.veN,g=t.value.trim();if(g)y['ve_'+k]=g;else{delete y['ve_'+k];delete y['moc_'+k];delete y['huong_'+k]}});y.den_cau=Math.max(y.cau,Math.min(y.cau+2,+o.querySelector('[data-den]').value||y.cau))})}
 async function napKH(){clearTimeout(henKH);let r;try{r=await api('/api/anh_ai_ke_hoach?du_an='+encodeURIComponent(DU))}catch(e){$('#kh_tt').textContent='Lỗi: '+e.message;return}
-  khCau=r.cau||[];khHook=+r.het_hook||0;khClip=r.clip_con;
-  if(r.dang){$('#kh_tt').textContent='AI đang đề xuất (đọc bản thô + hỏi Gemini, vài phút)…';$('#ds_kh_ai').innerHTML='';henKH=setTimeout(napKH,4000);return}
-  if(!r.co){$('#kh_tt').textContent=r.loi?('✖ AI đề xuất lỗi: '+r.loi):'Chưa có danh sách — bấm 🔄 AI đề xuất (cần giọng đọc; có bản thô thì đánh dấu thêm chỗ footage yếu).';$('#ds_kh_ai').innerHTML='';return}
+  khCau=r.cau||[];khHookGio=[+r.het_hook||0,+r.het_hook_dk||0];datHookKH();khClip=r.clip_con;
+  khDiem={clip:+r.diem_clip||12,con:r.diem_con,hook:+r.hook_can||0,hookDK:!!r.hook_dk,coClip:r.veo_co_clip||[]};
+  if(r.dang){$('#kh_tt').textContent='Đang nạp câu lời…';$('#ds_kh_ai').innerHTML='';henKH=setTimeout(napKH,3000);return}
+  if(!r.co){if(!khNap&&!r.loi){khNap=true;try{await post('/api/anh_ai_ke_hoach/lap',{du_an:DU});return napKH()}catch(e){}}   // nạp câu lời (không hỏi AI)
+    $('#kh_tt').textContent=r.loi?('✖ Nạp câu lời lỗi: '+r.loi):'Chưa có câu lời — cần giọng đọc (kich_ban.srt) hoặc bản thô.';$('#ds_kh_ai').innerHTML='';return}
   $('#kh_tt').textContent='';khAI=r.ds||[];veKH()}
-$('#mo_ke_hoach_ai').onclick=()=>{$('#hop_kh_ai').showModal();napKH()};
-$('#kh_lap').onclick=async()=>{if(khAI.length&&!confirm('AI đề xuất lại từ đầu? Các chỗ bạn đã sửa / thêm sẽ mất.'))return;
-  try{await post('/api/anh_ai_ke_hoach/lap',{du_an:DU,lam_lai:true});napKH()}catch(e){tb('Lỗi: '+e.message)}};
+$('#mo_ke_hoach_ai').onclick=()=>{khNap=false;$('#hop_kh_ai').showModal();napKH()};
+$('#kh_xoa_het').onclick=()=>{if(khAI.length&&!confirm(`Bỏ cả ${khAI.length} chỗ đã đánh dấu? (bấm 💾 Lưu mới ghi lại)`))return;khAI=[];veKH()};
+$('#kh_viet').onclick=async()=>{docKH();const dung=khAI.filter(y=>!y.bo);if(!dung.length)return tb('Chưa đánh dấu chỗ nào — bấm ＋ 🖼 / ＋ 🎬 ở câu bạn muốn');
+  const b=$('#kh_viet');b.disabled=true;$('#kh_tt').textContent=`AI đang viết câu lệnh cho các chỗ chưa có (${dung.length} chỗ đánh dấu)… (1-3 phút)`;
+  try{await post('/api/anh_ai_ke_hoach/luu',{du_an:DU,ds:khAI});const r=await post('/api/anh_ai_ke_hoach/cau_lenh',{du_an:DU,het_hook:khHook});
+    for(;;){await new Promise(z=>setTimeout(z,2500));const t=await api('/api/doi_thu/tt?job='+r.job);
+      if(t.dang)continue;if(t.loi){$('#kh_tt').textContent='✖ '+t.loi;break}
+      const k=t.kq||{};await napKH();$('#kh_tt').textContent=`✔ AI viết ${k.anh||0} chỗ ảnh, ${k.veo||0} câu lệnh Veo (đã lưu)`+((k.hook||[]).length?` · bỏ qua câu ${k.hook.join(', ')} (trong hook)`:'')+((k.thieu||[]).length?` — còn thiếu ở câu ${k.thieu.join(', ')}: bấm ✍️ lần nữa`:' — xem, sửa rồi 💾 Lưu');break}}
+  catch(e){$('#kh_tt').textContent='Lỗi: '+e.message}finally{b.disabled=false}};
 $('#kh_gop_y_btn').onclick=async()=>{const y_kien=$('#kh_gop_y').value.trim();if(!y_kien)return tb('Viết góp ý trước');docKH();
   const b=$('#kh_gop_y_btn');b.disabled=true;$('#kh_gop_y_tt').textContent='AI đang viết lại theo góp ý… (1-3 phút)';
   try{const r=await post('/api/anh_ai_ke_hoach/gop_y',{du_an:DU,y_kien,ds:khAI});
@@ -628,7 +653,7 @@ $('#kh_gop_y_btn').onclick=async()=>{const y_kien=$('#kh_gop_y').value.trim();if
       if(t.dang)continue;if(t.loi){$('#kh_gop_y_tt').textContent='✖ '+t.loi;break}
       $('#kh_gop_y_tt').textContent='✔ Đã viết lại theo góp ý (đã lưu) — xem lại bên dưới';await napKH();break}}
   catch(e){$('#kh_gop_y_tt').textContent='Lỗi: '+e.message}finally{b.disabled=false}};
-$('#kh_luu').onclick=async()=>{docKH();try{const r=await post('/api/anh_ai_ke_hoach/luu',{du_an:DU,ds:khAI});tb(`Đã lưu ${r.so} chỗ — chạy ✨ để vẽ`)}catch(e){tb('Lỗi: '+e.message)}};
+$('#kh_luu').onclick=async()=>{docKH();try{const r=await post('/api/anh_ai_ke_hoach/luu',{du_an:DU,ds:khAI});tb(`Đã lưu ${r.so} chỗ — chạy ✨ để vẽ`);veoCon(false)}catch(e){tb('Lỗi: '+e.message)}};
 // 25/10 user: 🎯 tự chọn nguồn trên YouTube — xem kết quả như YouTube, tích video -> tải trọn + băm theo cảnh quay
 let ctDs=[],ctCd=null,ctTrang=1,ctKq=[],ctHen=null;
 // 26/10 user ("tích xong bấm sang chỗ khác lại mất"): GIỎ tích giữ qua mọi chủ thể / lần tìm / trang kết quả, lưu theo
@@ -782,7 +807,7 @@ async function moAnhAI(){
           <select class="fv_s" data-hk-model style="padding:4px 8px;font-size:12px">
             <option value="Veo 3.1 - Fast">Veo 3.1 - Fast (~20đ)</option>
             <option value="Veo 3.1 - Lite">Veo 3.1 - Lite (~10đ)</option>
-            <option value="Omni 1.1 Flash">Omni 1.1 Flash (~15đ)</option>
+            <option value="Omni 1.1 Flash">Omni 1.1 Flash (~12đ 8 s)</option>
             <option value="Veo 3.1 - Quality">Veo 3.1 - Quality (~100đ)</option>
           </select>
           <button data-hk-tao style="background:linear-gradient(135deg,#1a73e8,#8e24aa);color:#fff;font-weight:600;padding:4px 10px">🎬 Tạo lại video</button>
@@ -874,7 +899,7 @@ async function moAnhAI(){
   }
   if ($('#btn_tao_tat_ca_hook')) {
     $('#btn_tao_tat_ca_hook').onclick = async () => {
-      if (!confirm('Tạo toàn bộ video hook bằng Google Flow (Omni 1.1 Flash 10s ~15 điểm/clip)?\nCác clip đã có sẽ được dùng lại, chỉ tạo các clip còn thiếu.')) return;
+      if (!confirm('Tạo toàn bộ video hook bằng Google Flow (Omni 1.1 Flash 8s ~12 điểm/clip)?\nCác clip đã có sẽ được dùng lại, chỉ tạo các clip còn thiếu.')) return;
       const b = $('#btn_tao_tat_ca_hook');
       b.disabled = true;
       b.textContent = '⏳ Đang khởi tạo Flow…';
@@ -896,7 +921,7 @@ async function moAnhAI(){
         tb('Lỗi: ' + err.message);
       }
       b.disabled = false;
-      b.textContent = '⚡ Tạo toàn bộ video hook (~15đ/clip)';
+      b.textContent = '⚡ Tạo toàn bộ video hook (~12đ/clip 8 s)';
     };
   }
 
@@ -1189,7 +1214,7 @@ async function theoDoiGoiY(){
   const b=$('#goiytatca');
   const b2=$('#tudong');
   if(t.dang){b.disabled=true;b2.disabled=true;
-    const nd=t.buoc==='nhap'?'📦 Đang tạo bản nháp…':t.buoc==='doc_manh'?`⏳ Đọc mảnh kho ${t.xong||0}/${t.tong||'…'}`:`✨ Đang khớp cảnh ${t.xong||0}/${t.tong||'…'}`;
+    const nd=t.buoc==='hinh_ai'?'🎨 Đang tạo hình AI…':t.buoc==='anh_ve'?'🖼 Đang vẽ ảnh AI bù chỗ thiếu…':t.buoc==='nhap'?'📦 Đang tạo bản nháp…':t.buoc==='doc_manh'?`⏳ Đọc mảnh kho ${t.xong||0}/${t.tong||'…'}`:`✨ Đang khớp cảnh ${t.xong||0}/${t.tong||'…'}`;
     b.textContent=nd;b2.textContent='⚡ '+nd;henGY=setTimeout(theoDoiGoiY,2000);
     if((t.xong||0)%5===0){await napLaiDung();veDsCanh()}return}
   b.disabled=false;b2.disabled=false;b.textContent='✨ Gợi ý cho mọi cảnh chưa dựng';b2.textContent='⚡ Tự chọn đoạn + bản nháp + hoàn thiện';
@@ -1203,12 +1228,15 @@ $('#tudong').onclick=async()=>{const ten=$('#tennhap').value.trim()||DU;
   const ten_ht=ten.replace(/_dung$|_tu_dong$/,'')+'_hoan_chinh';
   const co_nhac=!!$('#co_nhac')?.checked,co_sfx=!!$('#co_sfx')?.checked,co_hook=!!$('#co_hook')?.checked;
   const kem=[co_nhac?'🎵 nhạc':'',co_sfx?'🔊 SFX':'',co_hook?'🎬 hook Veo3':''].filter(Boolean).join(', ')||'không nhạc / SFX / hook';
-  if(!confirm(`1) Tự chọn đoạn cho mọi cảnh CHƯA dựng (cảnh bạn đã dựng giữ nguyên) -> bản nháp thô "${ten}".
-2) Rồi TỰ chạy ✨ Hoàn thiện -> bản nháp "${ten_ht}": ảnh AI theo 📝, chuyển cảnh, ${kem}.
+  const g=await ghiHinhAI();
+  if(!confirm(`1) 🎨 Tạo hình AI trước theo 📝:\n${g}
+2) Tự chọn đoạn footage cho mọi cảnh CHƯA dựng mà chưa có hình AI (cảnh bạn đã dựng giữ nguyên); chỗ footage THIẾU -> vẽ ảnh AI thay trên Flow (0 điểm) -> bản nháp thô "${ten}".
+3) Rồi TỰ ✨ ghép -> bản nháp "${ten_ht}": hình AI + footage, chuyển cảnh, ${kem}.
 
 Ghi đè nếu trùng tên. Hoàn thiện mất khoảng 10-30 phút. Tiếp tục?`))return;
-  try{await post('/api/dung/goi_y',{du_an:DU,ten_nhap:ten,hoan_thien:true,ten_ht,co_nhac,co_sfx,co_hook});theoDoiGoiY()}catch(e){tb('Lỗi: '+e.message)}};
+  try{await post('/api/dung/goi_y',{du_an:DU,ten_nhap:ten,hoan_thien:true,ten_ht,co_nhac,co_sfx,co_hook,hinh_ai_truoc:true,ve_bu:true});theoDoiGoiY()}catch(e){tb('Lỗi: '+e.message)}};
 const TEN_BUOC={
+  hinh_ai:'🎨 tạo hình AI (Veo + ảnh)',
   bat_dau:'bắt đầu',
   chia_chu_de:'chia chủ đề',
   tim_chu_de:'tìm theo chủ đề',
@@ -1256,7 +1284,28 @@ $('#lienht').onchange=()=>{try{localStorage.setItem('lienht',$('#lienht').checke
 try{$('#dungstock').checked=localStorage.getItem('dungstock')==='1'}catch(e){$('#dungstock').checked=false}
 $('#dungstock').onchange=()=>{try{localStorage.setItem('dungstock',$('#dungstock').checked?'1':'0')}catch(e){}};
 try{$('#co_hook').checked=localStorage.getItem('co_hook')==='1'}catch(e){$('#co_hook').checked=false}
-$('#co_hook').onchange=()=>{try{localStorage.setItem('co_hook',$('#co_hook').checked?'1':'0')}catch(e){}};
+// 27/10 user: "khi tôi tích veo phải thông báo cho tôi biết có thể tạo được còn lại bao nhiêu veo trên ngày nữa"
+async function veoCon(baoLon){const e=$('#veo_con');if(!$('#co_hook').checked){e.style.display='none';return}
+  let r;try{r=await api('/api/veo_con?du_an='+encodeURIComponent(DU))}catch(x){e.style.display='';e.textContent='(không đọc được điểm Flow)';return}
+  const tk=(r.tai_khoan||[]).filter(x=>x.clip>0).map(x=>`${x.ten} ${x.clip}`).join(', ');
+  const can=r.hook_can+r.than_can,thieu=can-r.con;
+  e.style.display='';e.style.color=thieu>0?'#c62828':'';
+  e.textContent=`hôm nay còn ${r.diem_con} điểm (${r.con} clip Veo) · dự án cần ${can*r.diem_clip} điểm = ${can} clip (hook ${r.hook_can}${r.hook_dk?' dự kiến':''} + thân bài ${r.than_can})`
+    +(thieu>0?` → thiếu ${thieu*r.diem_clip} điểm`:` → dư ${(r.con-can)*r.diem_clip} điểm`);
+  e.title=`Mỗi clip ${r.diem_clip} điểm, mỗi tài khoản tối đa 50 điểm/chu kỳ (tính từ giờ reset của tài khoản).
+Còn theo tài khoản: ${tk||'hết điểm ở mọi tài khoản'}`
+    +`
+Hook: còn ${r.hook_can}/${r.hook_tong} clip phải tạo${r.hook_dk?' (ước theo ~60 s đầu, chưa có câu lệnh hook)':''}. Thân bài: ${r.than_can} chỗ 🎬 trong 📝 chưa có clip.`;
+  if(baoLon)alert(`🎬 Hôm nay còn ${r.diem_con} điểm = tạo được ${r.con} clip Veo (${r.diem_clip} điểm/clip).
+${tk?'Theo tài khoản: '+tk:'Mọi tài khoản đã hết điểm chu kỳ này.'}
+
+Dự án này cần ${can*r.diem_clip} điểm = ${can} clip: hook ${r.hook_can}${r.hook_dk?' (dự kiến)':''} + thân bài ${r.than_can} (chỗ 🎬 trong 📝).
+`
+    +(thieu>0?`→ THIẾU ${thieu*r.diem_clip} điểm (${thieu} clip): hook tạo trước; chỗ không đủ điểm thì ✨ vẽ ảnh AI thay (0 điểm), mai bấm ✨ lại để tạo tiếp.`:`→ Đủ, còn dư ${(r.con-can)*r.diem_clip} điểm (${r.con-can} clip).`))}
+try{veoCon(false)}catch(e){}
+$('#co_hook').onchange=ev=>{try{localStorage.setItem('co_hook',$('#co_hook').checked?'1':'0')}catch(e){}
+  veoCon($('#co_hook').checked&&!!ev);   // hộp thông báo chỉ khi chính bạn bấm tích
+  if($('#hop_kh_ai').open){docKH();datHookKH();veKH()}};   // 27/10: bảng 📝 đang mở -> trừ / bỏ trừ câu hook ngay
 try{$('#chedo_tim').value=localStorage.getItem('chedo_tim')||'chu_de'}catch(e){}
 $('#chedo_tim').onchange=()=>{try{localStorage.setItem('chedo_tim',$('#chedo_tim').value)}catch(e){}};
 
@@ -1498,10 +1547,10 @@ $('#tutim').onclick=async()=>{
   const moTaChedo=chedo==='chu_de'?'theo CHỦ ĐỀ (tải từng khoảng 20-40s)':'theo CẢNH (tải cả video)';
   if(!confirm(`Tự tìm + tải ${moTaChedo} tối đa ~${ns} phút video (lố ≤10%), khớp đoạn cho mọi cảnh CHƯA dựng, ảnh Google bù chỗ thiếu, rồi tạo bản nháp "${ten}".`+
     (stock?'':'\n\nKho video free: TẮT — chỉ tải video YouTube.')+
-    (lien?`\n\nXONG sẽ TỰ chạy tiếp ✨ Hoàn thiện -> bản nháp "${tenHT}" (diễn cảnh, ảnh AI, nhạc). Đóng bản nháp đó trong CapCut nếu đang mở.`:'')+
+    (lien?`\n\nTRƯỚC khi tìm: 🎨 tạo hình AI theo 📝 (chỗ đã có hình thì không băm footage).\n${await ghiHinhAI()}\nXONG sẽ TỰ ✨ ghép -> bản nháp "${tenHT}". Đóng bản nháp đó trong CapCut nếu đang mở.`:'')+
     `\n\nCảnh bạn đã tự dựng giữ nguyên. Tiếp tục?`))return;
   try{
-    await post('/api/dung/tu_dong',{du_an:DU,ngan_sach:ns,ten_nhap:ten,hoan_thien:lien,ten_ht:tenHT,dung_stock:stock,che_do:chedo,co_hook:!!$('#co_hook')?.checked});
+    await post('/api/dung/tu_dong',{du_an:DU,ngan_sach:ns,ten_nhap:ten,hoan_thien:lien,ten_ht:tenHT,dung_stock:stock,che_do:chedo,co_hook:!!$('#co_hook')?.checked,hinh_ai_truoc:lien,ve_bu:true});
     if(lien)$('#hoanthien').dataset.cho='1';
     theoDoiTuDong();
   }catch(e){tb('Lỗi: '+e.message)}};
@@ -1936,15 +1985,33 @@ window.addEventListener('beforeunload',e=>{if(daSua){e.preventDefault();e.return
 let henHT=null;
 async function theoDoiHoanThien(){
   clearTimeout(henHT);let t;try{t=await api('/api/dung/hoan_thien_tt?du_an='+encodeURIComponent(DU))}catch(e){return}
-  const b=$('#hoanthien');
-  if(t.dang){b.disabled=true;b.textContent='✨ '+(t.buoc||'đang chạy')+'…';b.title=t.cuoi||'';henHT=setTimeout(theoDoiHoanThien,3000);return}
-  b.disabled=false;b.textContent='✨ Hoàn thiện bản nháp';
+  const b=$('#hoanthien'),bh=$('#hinhai'),nut=t.hinh_ai?bh:b;   // 27/10: 🎨 chạy chung tiến trình với ✨
+  if(t.dang){b.disabled=true;bh.disabled=true;nut.textContent=(t.hinh_ai?'🎨 ':'✨ ')+(t.buoc||'đang chạy')+'…';nut.title=t.cuoi||'';henHT=setTimeout(theoDoiHoanThien,3000);return}
+  b.disabled=false;bh.disabled=false;b.textContent='✨ Hoàn thiện bản nháp';bh.textContent='🎨 Tạo hình AI';
   if(b.dataset.cho){delete b.dataset.cho;
-    if(t.loi)tb('Hoàn thiện lỗi: '+t.loi);else if(t.xong)tb(`Xong: bản nháp "${t.ten}" đã có trong CapCut`)}
+    if(t.loi)tb((t.hinh_ai?'Tạo hình AI lỗi: ':'Hoàn thiện lỗi: ')+t.loi);
+    else if(t.xong&&t.hinh_ai){tb('🎨 Xong: '+(t.cuoi||'đã tạo hình AI'));veoCon(false);
+      alert('🎨 Xong bước tạo hình AI.\n'+(t.cuoi||'')+'\n\nBước tiếp: băm footage vào chỗ còn trống (⚡ / 🤖), rồi ✨ ghép bản hoàn chỉnh. Xem / làm lại từng hình ở 🖼 Ảnh & 🎬 Video AI.')}
+    else if(t.xong)tb(`Xong: bản nháp "${t.ten}" đã có trong CapCut`)}
 }
 $('#mo_anh_ai').onclick=moAnhAI;
+// 27/10 user: "tạo Veo + ảnh trước (bước riêng), chỗ Veo hỏng thì lấp footage, rồi băm footage vào chỗ trống và ghép một lần"
+async function ghiHinhAI(){let g='';
+  try{const r=await api('/api/anh_ai_ke_hoach?du_an='+encodeURIComponent(DU)),d=(r.ds||[]).filter(y=>!y.bo),nVeo=d.filter(y=>y.loai==='veo').length;
+    const thieu=d.filter(y=>!((y.loai==='veo'?y.veo_en:y.ve_1)||'').trim()).length;
+    g=d.length?`📝 ${d.length-nVeo} chỗ 🖼 ảnh AI, ${nVeo} chỗ 🎬 Veo bạn đánh dấu`+(thieu?` — ${thieu} chỗ CHƯA có câu lệnh: AI viết rồi tạo luôn (muốn xem / sửa trước thì Huỷ, mở 📝 bấm ✍️).`:'.'):'📝 Chưa đánh dấu chỗ ảnh AI / Veo nào.'}catch(e){}
+  if($('#co_hook').checked){try{const v=await api('/api/veo_con?du_an='+encodeURIComponent(DU)),can=v.hook_can+v.than_can;
+    g+=`\n🎬 Tạo Veo: cần ${can*v.diem_clip} điểm = ${can} clip (hook ${v.hook_can}${v.hook_dk?' dự kiến':''} + thân bài ${v.than_can}), hôm nay còn ${v.diem_con} điểm (${v.con} clip)`+(can>v.con?` — THIẾU ${(can-v.con)*v.diem_clip} điểm: chỗ thiếu sẽ lấp footage, mai bấm 🎨 lại để tạo tiếp.`:'.')}catch(e){}}
+  else g+='\n🎬 Không tick «Tạo video Veo»: KHÔNG tạo clip mới (chỉ dùng clip đã có), chỗ Veo chưa có clip sẽ lấp footage.';
+  return g}
+$('#hinhai').onclick=async()=>{const g=await ghiHinhAI();
+  if(!confirm(`🎨 Tạo hình AI trước (chưa băm, chưa dựng):\n\n${g}\n\nXong thì băm footage vào chỗ còn trống rồi ✨ ghép. Tiếp tục?`))return;
+  try{await post('/api/dung/hinh_ai',{du_an:DU,co_hook:!!$('#co_hook')?.checked});$('#hoanthien').dataset.cho='1';theoDoiHoanThien()}catch(e){tb('Lỗi: '+e.message)}};
 $('#hoanthien').onclick=async()=>{const goc=($('#tennhap').value.trim()||DU).replace(/_dung$|_tu_dong$/,'');const ten=goc+'_hoan_chinh';
-  if(!confirm(`Hoàn thiện bản nháp từ kế hoạch hiện tại → bản nháp CapCut "${ten}" (ghi đè nếu trùng tên).\n\nGồm: căn giờ theo giọng đọc, ảnh AI, thẻ ảnh highlight + chữ nhấn mạnh, phủ màu, chuyển cảnh. Mất khoảng 10-30 phút (tìm ảnh Google — nếu Google hỏi captcha, giải ở cửa sổ Chrome tìm ảnh). Tiếp tục?`))return;
+  let ghiKH='';try{const r=await api('/api/anh_ai_ke_hoach?du_an='+encodeURIComponent(DU)),d=(r.ds||[]).filter(y=>!y.bo);   // 27/10: chỗ ảnh / Veo do bạn đánh dấu
+    const thieu=d.filter(y=>!((y.loai==='veo'?y.veo_en:y.ve_1)||'').trim()).length;
+    ghiKH=d.length?`\n\n📝 ${d.length} chỗ ảnh AI / Veo bạn đánh dấu`+(thieu?` — ${thieu} chỗ CHƯA có câu lệnh: AI viết rồi vẽ luôn (muốn xem / sửa trước thì Huỷ, mở 📝 bấm ✍️).`:'.'):'\n\n📝 Chưa đánh dấu chỗ ảnh AI / Veo nào — không vẽ ảnh AI.'}catch(e){}
+  if(!confirm(`✨ GHÉP bản hoàn chỉnh → bản nháp CapCut "${ten}" (ghi đè nếu trùng tên).\n\nGồm: footage đã băm + hình AI đã tạo ở 🎨 (không tạo Veo mới — chỗ Veo chưa có clip để footage), căn giờ theo giọng đọc, chuyển cảnh. Chưa chạy 🎨 thì bấm 🎨 Tạo hình AI trước.${ghiKH} Tiếp tục?`))return;
   try{const co_nhac=!!$('#co_nhac')?.checked,co_sfx=!!$('#co_sfx')?.checked;await post('/api/dung/hoan_thien',{du_an:DU,ten,co_nhac,co_sfx,co_hook:!!$('#co_hook')?.checked});$('#hoanthien').dataset.cho='1';theoDoiHoanThien()}catch(e){tb('Lỗi: '+e.message)}};
 // ---------- 🍪 Cookie YouTube
 async function veCookieYT(){

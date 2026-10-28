@@ -36,6 +36,11 @@ CHU_BAT = False
 #: 12/10 user: lớp ẢNH PHỦ minh hoạ khi cần (chinh_sua/lop_phu.py). Tắt bằng --khong-lop-phu.
 HOOK_VEO_BAT = False        # 23/10 user: ✨ tự tạo video hook bằng Flow (hook_video.tao_video) đè lên ~60 s đầu —
 #                             CHỈ khi tick ô «🎬 Video hook Flow» (--co-hook-veo)
+# 27/10 user: "tạo Veo + ảnh trước (bước riêng), chỗ Veo hỏng thì lấp footage, rồi băm footage vào chỗ trống và ghép một
+# lần ra bản hoàn chỉnh" -> tạo clip Veo (hook + thân bài) và vẽ ảnh AI ở bước 🎨 (--chi-hinh-ai, tao_hinh_ai); ✨ chỉ GHÉP
+# hình đã có, không gọi Flow tạo Veo; chỗ Veo / khúc hook không có clip để footage (bước 🤖 đã băm vào), KHÔNG vẽ ảnh thay.
+# Kiểu cũ (✨ tự tạo Veo, thiếu clip vẽ ảnh AI thay): GHEP_HINH_CO_SAN = False
+GHEP_HINH_CO_SAN = True
 NHAN_VAT_BAT = False       # 22/10 user: TẮT ảnh Google người thật (dễ nhầm người) -> người thật chỉ được vẽ ảnh AI DIỄN BIẾN
 #                            việc họ làm, không lộ mặt (luật trong dieu_phoi._P_AI). Bật True = thẻ ảnh thật lop_phu.lap_nhan_vat
 LOP_PHU_BAT = False        # 13/10 user: ẨN thẻ highlight ("hiện tại chưa cần dùng tới") — bật lại: True / bỏ --khong-lop-phu
@@ -72,12 +77,18 @@ def ap_veo(de, cau, hook_ds):
     if veo:
         try:
             import veo_canh
-            lich, khong = veo_canh.lich(_da, veo, cau, tao_moi=HOOK_VEO_BAT)
+            lich, khong = veo_canh.lich(_da, veo, cau, tao_moi=HOOK_VEO_BAT and not GHEP_HINH_CO_SAN)
         except Exception as e:                               # noqa: BLE001
             log(f"    ! Veo thân bài: {type(e).__name__}: {str(e)[:150]}")
             khong = veo
         da = {id(x) for x in veo} - {id(x) for x in khong}
+        if GHEP_HINH_CO_SAN:                                 # 27/10: chỗ Veo không có clip -> footage (🤖 đã băm vào)
+            da = {id(x) for x in veo}
+            if khong:
+                log(f"    {len(khong)} chỗ 🎬 Veo chưa có clip -> để footage (tạo clip ở bước 🎨 Tạo hình AI)")
         de = [x for x in de if id(x) not in da]              # chỗ không có clip giữ lại làm ảnh AI
+    if GHEP_HINH_CO_SAN:                                     # 27/10: khúc hook chưa có clip -> footage, không vẽ ảnh thay
+        return sorted(de, key=lambda z: int(z.get("cau") or 0)), lich
     try:
         import hook_video
         hk = hook_video.doc(_da)
@@ -543,6 +554,10 @@ def chon_nhac(chuong, am):
     return ra
 
 
+SFX_MUC_HIT = -20.0          # 27/10: độ to trung bình (dB) của tiếng hit sau khi chỉnh âm lượng (giọng đọc ~-17 dB)
+SFX_MUC_WHOOSH = -24.0       # 27/10: whoosh đổi chương
+
+
 def chon_sfx(sfx, am):
     # Chỉ giữ whoosh (chuyển cảnh) và hit (nhấn mạnh cao trào), loại bỏ pop/ting
     theo = {"whoosh": [], "hit": []}
@@ -567,9 +582,12 @@ def chon_sfx(sfx, am):
         v = sorted(ds, key=lambda z: z["file"])[k % len(ds)]
         s["file"] = v["file"]
         s["dai"] = min(v["dai"], 2.2)
-        muc_tieu = -22 if kieu == "whoosh" else -16
+        # 27/10 user ("sfx nhưng nó có ra âm thanh đâu?"): đo casauthabien — công thức cũ 0.35 × … kẹp 0.65 cho hit ~8 dB
+        # và whoosh ~16 dB DƯỚI giọng đọc (giọng ~-17 dB) -> nghe như không có. Nay đưa ĐỘ TO TRUNG BÌNH của SFX về đúng
+        # mục tiêu (hit -20 dB, whoosh -24 dB so với giọng -17 dB), cho phép tăng tới x3 (file whoosh gốc chỉ -29 dB)
+        muc_tieu = SFX_MUC_WHOOSH if kieu == "whoosh" else SFX_MUC_HIT
         do_to = v.get("do_to_db", -18)
-        s["vol"] = round(max(0.12, min(0.65, 0.35 * 10 ** ((muc_tieu - do_to) / 20))), 3)
+        s["vol"] = round(max(0.05, min(3.0, 10 ** ((muc_tieu - do_to) / 20))), 3)
         ra.append(s)
         cuoi_t = s["t"]
     return ra
@@ -577,28 +595,10 @@ def chon_sfx(sfx, am):
 
 # --------------------------------------------------------------------------- dựng dự án CapCut
 def chuyen_dong_anh(seg, d, k, KP, ph=1.0):
-    """Keyframe chuyển động cho ảnh tĩnh: luân phiên phóng vào, thu ra, lia trái, lia phải, phóng vào lệch.
-    ph: hệ số phóng nền (19/10: ảnh Gemini 1.2 — giấu dấu ✦ ở góc)."""
-    kieu = k % 5
-    if kieu == 0:                                             # phóng vào giữa
-        seg.add_keyframe(KP.uniform_scale, 0, 1.0 * ph)
-        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.18 * ph)
-    elif kieu == 1:                                           # thu ra
-        seg.add_keyframe(KP.uniform_scale, 0, 1.18 * ph)
-        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.0 * ph)
-    elif kieu == 2:                                           # lia từ phải sang trái
-        seg.add_keyframe(KP.uniform_scale, 0, 1.14 * ph)
-        seg.add_keyframe(KP.position_x, 0, 0.06)
-        seg.add_keyframe(KP.position_x, d - 1000, -0.06)
-    elif kieu == 3:                                           # lia từ trái sang phải
-        seg.add_keyframe(KP.uniform_scale, 0, 1.14 * ph)
-        seg.add_keyframe(KP.position_x, 0, -0.06)
-        seg.add_keyframe(KP.position_x, d - 1000, 0.06)
-    else:                                                     # phóng vào kèm lia nhẹ lên
-        seg.add_keyframe(KP.uniform_scale, 0, 1.05 * ph)
-        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.20 * ph)
-        seg.add_keyframe(KP.position_y, 0, -0.03)
-        seg.add_keyframe(KP.position_y, d - 1000, 0.03)
+    """Keyframe chuyển động cho ảnh tĩnh. 28/10 user: không phóng nền 120% nữa (logo đã xoá), chuyển động đa dạng + mượt
+    -> chuyen_dong.ken_burns (8 kiểu, ease kéo dài qua điểm cắt). `ph` (hệ số giấu logo cũ) không dùng nữa."""
+    import chuyen_dong
+    chuyen_dong.ken_burns(seg, d, k, KP)
 
 
 CHU_PHU_DEN = 0.6           # 19/10 user: độ đậm lớp phủ đen dưới chữ số liệu / mốc năm
@@ -653,38 +653,10 @@ def dat_chu_phu(script, ds, KP):
 
 
 def chuyen_dong_anh_ai(seg, d, k, KP, huong=None):
-    """Chuyển động lia máy Ken Burns chậm rãi, điện ảnh cho chuỗi ảnh AI.
-    19/10 user: nền phóng 120% (giấu dấu ✦ Gemini ở góc phải dưới — ảnh không còn bị làm mờ chỗ dấu).
-    22/10 user: `huong` (điều phối ghi theo HÀNH ĐỘNG của ảnh): trai / phai / len / xuong / vao / ra; không có -> luân phiên."""
-    if huong in ("vao", "ra"):
-        a_, b_ = (1.18, 1.30) if huong == "vao" else (1.30, 1.18)
-        seg.add_keyframe(KP.uniform_scale, 0, a_)
-        seg.add_keyframe(KP.uniform_scale, d - 1000, b_)
-        return
-    if huong in ("trai", "phai", "len", "xuong"):
-        seg.add_keyframe(KP.uniform_scale, 0, 1.24)
-        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.26)
-        kp = KP.position_x if huong in ("trai", "phai") else KP.position_y
-        a_ = {"trai": 0.03, "phai": -0.03, "len": -0.03, "xuong": 0.03}[huong]
-        seg.add_keyframe(kp, 0, a_)
-        seg.add_keyframe(kp, d - 1000, -a_)
-        return
-    kieu = k % 4
-    if kieu == 0:                                             # zoom in chậm rãi
-        seg.add_keyframe(KP.uniform_scale, 0, 1.20)
-        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.27)
-    elif kieu == 1:                                           # zoom out nhẹ nhàng
-        seg.add_keyframe(KP.uniform_scale, 0, 1.27)
-        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.20)
-    elif kieu == 2:                                           # lia chậm từ trái sang phải
-        seg.add_keyframe(KP.uniform_scale, 0, 1.24)
-        seg.add_keyframe(KP.position_x, 0, -0.025)
-        seg.add_keyframe(KP.position_x, d - 1000, 0.025)
-    else:                                                     # đẩy nhẹ vào kèm lia góc
-        seg.add_keyframe(KP.uniform_scale, 0, 1.21)
-        seg.add_keyframe(KP.uniform_scale, d - 1000, 1.26)
-        seg.add_keyframe(KP.position_x, 0, 0.02)
-        seg.add_keyframe(KP.position_x, d - 1000, -0.02)
+    """Chuyển động cho chuỗi ảnh AI. 22/10 user: `huong` (trai / phai / len / xuong / vao / ra theo HÀNH ĐỘNG của ảnh);
+    28/10 user: bỏ nền phóng 120% (logo ✦ đã xoá) -> chuyen_dong.ken_burns (đa dạng + mượt)."""
+    import chuyen_dong
+    chuyen_dong.ken_burns(seg, d, k, KP, huong)
 
 
 def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
@@ -960,6 +932,48 @@ def doi_chuyen_canh_nhay(kh):
     return n
 
 
+def tao_hinh_ai(cau):
+    """27/10 user: BƯỚC 🎨 TẠO HÌNH AI (riêng, trước khi băm footage): clip hook Veo (khi tick 🎬) -> câu lệnh còn thiếu của
+    các chỗ 📝 -> clip Veo thân bài (khi tick 🎬) -> vẽ ảnh AI các chỗ 🖼. Không dựng bản nháp. Ghi hinh_ai.json (ảnh đã
+    vẽ theo từng chỗ) để bước 🤖 chỉ bỏ trống chỗ ĐÃ có hình (chỗ Veo hỏng / ảnh hỏng thì băm footage vào)."""
+    import cho_phu
+    import dieu_phoi
+    import minh_hoa
+    import veo_canh
+    from common import DU_AN as _da
+    n_hook = 0
+    if HOOK_VEO_BAT:
+        try:
+            import hook_video
+            n_hook = len(hook_video.tao_video(_da))
+        except Exception as e:                               # noqa: BLE001
+            log(f"    ! video hook: {type(e).__name__}: {str(e)[:150]}")
+    else:
+        log("[🎨] không tick 🎬 Tạo video Veo -> không tạo clip mới (hook / Veo thân bài chỉ dùng clip đã có)")
+    het = max((b for _, b in cho_phu.khoang_hook(OUT)), default=0.0)
+    cho_phu.dong_bo_cau(OUT, cau)                            # chỗ 📝 neo theo giây -> đúng số câu đang dùng
+    try:
+        veo_canh.viet_lenh(OUT, cau, tu_giay=het)
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! Veo: viết câu lệnh lỗi: {str(e)[:120]}")
+    de = [x for x in dieu_phoi.hoi(cau, OUT, co_the=False) if x.get("kieu") == "tai_hien"]
+    veo = [x for x in de if x.get("loai") == "veo"]
+    lich = []
+    if veo:
+        try:
+            lich, _ = veo_canh.lich(_da, veo, cau, tao_moi=HOOK_VEO_BAT)
+        except Exception as e:                               # noqa: BLE001
+            log(f"    ! Veo thân bài: {type(e).__name__}: {str(e)[:150]}")
+    anh = [x for x in de if x.get("loai") != "veo"]
+    ve = minh_hoa.lap(cau, [], anh)[1] if anh else []          # (lớp HUD, ảnh AI) — ảnh lưu theo câu lệnh, ✨ dùng lại
+    co = {int(v["cau"]): len(v["ds_anh"]) for v in ve if v.get("ds_anh")}
+    ghi_json(os.path.join(OUT, cho_phu.HINH_AI), {"anh": [{"cau": int(x["cau"]), "den_cau": int(x.get("den_cau") or x["cau"]),
+                                                          "ve_1": x.get("ve_1"), "so_anh": co.get(int(x["cau"]), 0)}
+                                                         for x in anh]})
+    log(f"[🎨] xong: hook {n_hook} clip, Veo thân bài {len(lich)}/{len(veo)} chỗ có clip, ảnh AI {len(co)}/{len(anh)} chỗ"
+        " — chỗ chưa có hình thì bước 🤖 băm footage vào")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ten", default="Chim canh cut - ban tho v6 hoan chinh")
@@ -968,6 +982,8 @@ def main():
     ap.add_argument("--chi-lap-ke-hoach", action="store_true")
     ap.add_argument("--chi-de-xuat-ai", action="store_true",
                     help="19/10: chỉ lập danh sách chỗ vẽ ảnh AI (ra/<dự án>/anh_ai_ke_hoach.json) để duyệt, chưa vẽ / dựng")
+    ap.add_argument("--chi-hinh-ai", action="store_true",
+                    help="27/10: bước 🎨 — chỉ tạo clip Veo (hook + thân bài, khi --co-hook-veo) và vẽ ảnh AI theo 📝, chưa dựng")
     ap.add_argument("--co-ban-do-canh", action="store_true",
                     help="kiểu cũ: thay đoạn đầu MỌI cảnh địa điểm bằng bản đồ vệ tinh (mặc định tắt từ 14/10)")
     ap.add_argument("--khong-ban-do", action="store_true", help="dự án mới: không thay cảnh địa điểm bằng bản đồ vệ tinh")
@@ -1003,7 +1019,7 @@ def main():
     LOP_PHU_BAT = (LOP_PHU_BAT or a.co_lop_phu) and not a.khong_lop_phu
 
     giong_chung = None
-    if a.chi_de_xuat_ai and not os.path.isfile(os.path.join(OUT, "ket_qua.json")) \
+    if (a.chi_de_xuat_ai or a.chi_hinh_ai) and not os.path.isfile(os.path.join(OUT, "ket_qua.json")) \
             and not os.path.isfile(os.path.join(OUT, "dung.json")):
         # 25/10 user ("📝 Chỗ vẽ ảnh AI không nhận"): dự án mới có giọng đọc, CHƯA dựng bản thô -> trước đây lỗi
         # FileNotFoundError ket_qua.json (giao diện chỉ hiện lại "Chưa có danh sách"). Đề xuất chỗ vẽ chỉ cần câu lời +
@@ -1013,6 +1029,9 @@ def main():
             raise SystemExit("chưa có giọng đọc (kich_ban.srt) — đọc giọng hoặc dựng bản thô trước")
         ghi_srt(cau, os.path.join(OUT, "kich_ban_cau.srt"))
         log(f"[1] chưa có bản thô: lấy {len(cau)} câu từ kich_ban.srt của giọng đọc")
+        if a.chi_hinh_ai:
+            tao_hinh_ai(cau)
+            return
         import dieu_phoi
         dieu_phoi.hoi(cau, OUT, co_the=LOP_PHU_BAT)
         log("[ĐX] xong danh sách chỗ vẽ ảnh AI")
@@ -1031,12 +1050,15 @@ def main():
     log(f"[1] dự án thô: {len(canh)} cảnh, {sum(len(c['_os']) for c in canh)} đoạn hình, {tong:.0f}s; "
         f"{len(cau)} câu -> ra/kich_ban_cau.srt")
 
+    if a.chi_hinh_ai:
+        tao_hinh_ai(cau)
+        return
     if a.chi_de_xuat_ai:
         import dieu_phoi
         dieu_phoi.hoi(cau, OUT, co_the=LOP_PHU_BAT)
         log("[ĐX] xong danh sách chỗ vẽ ảnh AI")
         return
-    if HOOK_VEO_BAT and giong_chung:                         # 23/10 user: video hook Flow cho đoạn mở đầu (tick ô 🎬)
+    if HOOK_VEO_BAT and giong_chung and not GHEP_HINH_CO_SAN:   # 23/10 user: video hook Flow cho đoạn mở đầu (tick ô 🎬)
         try:
             import hook_video
             from common import DU_AN as _da
@@ -1103,6 +1125,8 @@ def main():
         if DIEU_PHOI_BAT and (HIEU_UNG_BAT or LOP_PHU_BAT):
             import dieu_phoi
             try:                                             # 27/10: chỗ 🎬 Veo chưa có câu lệnh -> AI viết trước
+                import cho_phu
+                cho_phu.dong_bo_cau(OUT, cau)                # chỗ 📝 neo theo giây -> đúng số câu của bản thô
                 import veo_canh
                 veo_canh.viet_lenh(OUT, cau)
             except Exception as e:                           # noqa: BLE001

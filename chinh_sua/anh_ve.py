@@ -81,8 +81,20 @@ _DANG = {}                  # nhãn tài khoản -> số lượt vẽ đang ch�
 _KHOA_DANG = __import__("threading").Lock()
 
 
+# 27/10 user ("vẽ trên flow luôn 0 mất điểm nào"): ảnh AI vẽ bằng Google Flow TRƯỚC (0 điểm, nhiều hồ sơ); Flow không
+# vẽ được (chưa có hồ sơ / mọi hồ sơ lỗi) mới lùi về Gemini cookie. Kiểu cũ (15/10: Gemini trước, Flow cuối): False
+FLOW_TRUOC = True
+
+
 def so_luong_ve():
-    """Số luồng vẽ song song nên dùng = số tài khoản Gemini còn dùng được (3..LUONG_VE_TOI_DA)."""
+    """Số luồng vẽ song song nên dùng = số tài khoản Gemini còn dùng được (3..LUONG_VE_TOI_DA); Flow trước thì theo Flow."""
+    if FLOW_TRUOC:
+        try:
+            import flow_ve
+            if flow_ve.co_ho_so():
+                return flow_ve.so_luong_ve()
+        except Exception:                                    # noqa: BLE001
+            pass
     n = sum(1 for a in _tai_khoan() if a.get("label") not in _HONG and _dung_duoc(a.get("label")))
     return max(3, min(LUONG_VE_TOI_DA, n))
 
@@ -567,13 +579,20 @@ def soat(f, cau, ve, timeout=90):
     return True, ""
 
 
-def _qua_flow(prompt, thu, ten):
+def _qua_flow(prompt, thu, ten, tep=None):
     """Vẽ qua Google Flow (hồ sơ Chrome riêng, 0 điểm) — 15/10 user: chỉ dùng khi MỌI tài khoản Gemini (cookie) đã hết
-    điểm hoặc đều lỗi. Chưa có hồ sơ Flow -> None."""
+    điểm hoặc đều lỗi (27/10: FLOW_TRUOC -> dùng TRƯỚC). tep: ảnh mẫu gắn làm tham chiếu. Chưa có hồ sơ Flow -> None."""
     try:
         import flow_ve
         if not flow_ve.co_ho_so():
             return None
+        if FLOW_TRUOC:
+            f = flow_ve.ve(prompt, thu, ten, tham_chieu=list(tep) if tep else None)
+            if not f:
+                log("    ! Flow không vẽ được -> thử Gemini (cookie)")
+            else:                                            # 27/10: đường Flow trước đây giữ nguyên dấu ✦ góc phải dưới
+                xoa_logo(f)                                  # (tính ngược logo như đường Gemini; XOA_LOGO tắt thì bỏ qua)
+            return f
         if not getattr(_qua_flow, "da_bao", False):
             log("    Gemini (cookie) hết điểm / lỗi hết -> chuyển sang vẽ bằng Flow")
             _qua_flow.da_bao = True
@@ -589,6 +608,10 @@ def _qua_flow(prompt, thu, ten):
 def ve_prompt(prompt, thu, ten, tep=None, timeout=150, do_credit=True):
     """Vẽ theo câu lệnh đầy đủ (kèm ảnh mẫu `tep` nếu có) -> đường dẫn ảnh hoặc None; xoay tài khoản khi lỗi."""
     os.makedirs(thu, exist_ok=True)
+    if FLOW_TRUOC:                                           # 27/10 user: Flow trước (0 điểm), hỏng mới sang Gemini
+        f = _qua_flow(prompt, thu, ten, tep)
+        if f:
+            return f
     for a in _lan_luot(_xep_tai_khoan(do_credit)):
         nhan = a.get("label")
         if nhan in _HONG:
@@ -613,7 +636,7 @@ def ve_prompt(prompt, thu, ten, tep=None, timeout=150, do_credit=True):
         if _KHONG_VE_DUOC.search(str(ly or "")):              # tài khoản không được vẽ -> bỏ hẳn trong lượt này
             _HONG.add(nhan)
     # 15/10 user: Gemini (cookie) TRƯỚC; chỉ khi mọi tài khoản Gemini hết điểm / lỗi mới chuyển sang Flow
-    return _qua_flow(prompt, thu, ten)
+    return None if FLOW_TRUOC else _qua_flow(prompt, thu, ten)   # 27/10: Flow đã thử trước
 
 
 def ve(mo_ta, thu, ten, timeout=120):

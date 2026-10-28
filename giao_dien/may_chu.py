@@ -902,6 +902,17 @@ def flow_doc_diem():
     return json_ok({"ok": True})
 
 
+@app.post("/api/flow/da_sua")
+def flow_da_sua():
+    """28/10 user: hồ sơ lỗi đã được kiểm tra / sửa -> cho làm việc lại ngay (kể cả lượt vẽ đang chạy)."""
+    import flow_ve
+    ten = str((request.json or {}).get("ten") or "").strip()
+    if not ten:
+        raise HTTPError(400, "thiếu hồ sơ")
+    flow_ve.da_sua(ten)
+    return json_ok({"ok": True})
+
+
 @app.post("/api/flow/hien_tat_ca")
 def flow_hien_tat_ca():
     import flow_ve
@@ -2004,7 +2015,8 @@ def diem_anh():
 
 
 procs_ht = {}                                            # dự án -> Popen "hoàn thiện bản nháp" (skill)
-BUOC_HT = [("[3] dự án CapCut", "xong"), ("[2] kế hoạch", "đặt lên bản nháp"), ("[LP]", "tìm ảnh highlight"),
+BUOC_HT = [("[🎨] xong", "xong hình AI"), ("[🎨]", "tạo hình AI"), ("video hook", "tạo video hook Veo"),
+           ("Veo thân bài", "tạo Veo thân bài"), ("chuỗi ảnh AI", "vẽ ảnh AI"), ("[3] dự án CapCut", "xong"), ("[2] kế hoạch", "đặt lên bản nháp"), ("[LP]", "tìm ảnh highlight"),
            ("lớp ảnh phủ", "tìm ảnh highlight"), ("[HU]", "bản đồ đường đi"), ("Remotion dựng", "render bản đồ"),
            ("[KH]", "chia chương"), ("[1] dự án thô", "đọc dự án"), ("căn giờ từng chữ", "căn giờ theo giọng"),
            ("vệ tinh", "bản đồ vệ tinh")]
@@ -2025,8 +2037,9 @@ def _in(dong):
             pass
 
 
-def _chay_hoan_thien(t, ten, co_nhac=False, co_sfx=False, co_hook=False):
-    """Khởi chạy skill hoàn thiện ở nền -> tên bản nháp; ném RuntimeError nếu đang chạy."""
+def _chay_hoan_thien(t, ten, co_nhac=False, co_sfx=False, co_hook=False, chi_hinh_ai=False):
+    """Khởi chạy skill hoàn thiện ở nền -> tên bản nháp; ném RuntimeError nếu đang chạy.
+    chi_hinh_ai: 27/10 bước 🎨 Tạo hình AI (Veo + ảnh, chưa dựng) — cùng tiến trình / log với ✨ để giao diện theo dõi."""
     p = procs_ht.get(t)
     if p and p.poll() is None:
         raise RuntimeError("đang hoàn thiện — chờ xong")
@@ -2040,10 +2053,13 @@ def _chay_hoan_thien(t, ten, co_nhac=False, co_sfx=False, co_hook=False):
         cmd.append("--co-sfx")
     if co_hook:                                              # 23/10 user: ô tick 🎬 Video hook Flow
         cmd.append("--co-hook-veo")
+    if chi_hinh_ai:
+        cmd.append("--chi-hinh-ai")
     procs_ht[t] = subprocess.Popen(cmd,
                                    cwd=os.path.join(ROOT, "chinh_sua"), stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                    env=env, creationflags=0x08000000 if os.name == "nt" else 0)
     procs_ht[t].ten_nhap = ten
+    procs_ht[t].hinh_ai = chi_hinh_ai
 
     def chep(p=procs_ht[t]):
         """15/10 user: log ✨ vừa ghi file (giao diện đọc) vừa IN RA CONSOLE (lọc dòng nhiễu kỹ thuật)."""
@@ -2057,6 +2073,12 @@ def _chay_hoan_thien(t, ten, co_nhac=False, co_sfx=False, co_hook=False):
                 _in(f"[✨ {t}] {dong.rstrip()}")
         log_f.close()
         _in(f"[✨ {t}] — kết thúc (mã {p.wait()})")
+        if chi_hinh_ai:                                      # 27/10: giữ log 🎨 riêng (✨ sau ghi đè hoan_thien.log)
+            try:
+                import shutil
+                shutil.copyfile(_log_ht(t), os.path.join(os.path.dirname(_log_ht(t)), "hinh_ai.log"))
+            except OSError:
+                pass
     threading.Thread(target=chep, daemon=True).start()
     return ten
 
@@ -2241,13 +2263,73 @@ def anh_ai_ke_hoach():
         het_hook = max((b for _, b in cho_phu.khoang_hook(out)), default=0.0)
     except Exception:                                        # noqa: BLE001
         pass
+    try:                                                     # 27/10 user: tích 🎬 mà chưa có câu lệnh hook -> ước đoạn hook
+        het_hook_dk = het_hook or cho_phu.het_hook_du_kien(out)
+    except Exception:                                        # noqa: BLE001
+        het_hook_dk = het_hook
+    if da.get("duyet") is False:                             # 27/10 user: danh sách AI tự đề xuất (chưa lưu) không tính
+        da = {"ds": []}
+    elif isinstance(da.get("ds"), list):                     # 27/10: chỗ 📝 neo theo giây -> số câu theo danh sách đang hiện
+        try:
+            import cho_phu
+            da = cho_phu.dong_bo_cau(out, cho_phu.doc_cau(out)) or da
+        except Exception:                                    # noqa: BLE001
+            pass
+    # 27/10 user ("lẽ ra khi tôi tích bạn phải tính điểm luôn cho tôi để tôi biết"): điểm còn + clip hook còn phải tạo +
+    # chỗ 🎬 đã có clip -> giao diện 📝 tính điểm ngay khi đánh dấu
+    diem_clip, diem_con, hook_can, hook_dk, veo_co_clip = 12, None, 0, False, []
+    try:
+        import flow_ve
+        import flow_video
+        import hook_video
+        import veo_canh
+        diem_clip = flow_video.uoc_diem("Omni 1.1 Flash", "720p")
+        diem_con = sum(int(h["diem_con"]) for h in flow_ve.ds_ho_so() if not h["dang_nghi"])
+        hook_can, _, hook_dk = hook_video.so_clip_can(t)
+        veo_co_clip = [int(y["cau"]) for y in da.get("ds") or [] if isinstance(y, dict) and y.get("loai") == "veo"
+                       and str(y.get("veo_en") or "").strip() and os.path.isfile(os.path.join(out, "veo", veo_canh._ten(
+                           str(y["veo_en"]).strip()) + ".mp4"))]                                  # noqa: SLF001
+    except Exception:                                        # noqa: BLE001
+        pass
     return json_ok({"co": isinstance(da.get("ds"), list), "ds": da.get("ds") or [], "cau": _cau_srt(out),
-                    "dang": dang, "loi": loi, "clip_con": clip_con, "het_hook": het_hook})
+                    "dang": dang, "loi": loi, "clip_con": clip_con, "het_hook": het_hook,
+                    "het_hook_dk": het_hook_dk, "diem_clip": diem_clip, "diem_con": diem_con, "hook_can": hook_can,
+                    "hook_dk": hook_dk, "veo_co_clip": veo_co_clip})
+
+
+@app.get("/api/veo_con")
+def veo_con():
+    """27/10 user ("khi tôi tích veo phải thông báo cho tôi biết có thể tạo được còn lại bao nhiêu veo trên ngày nữa"):
+    số clip Veo (Omni 1.1 Flash 720p 10 s) còn tạo được trong chu kỳ điểm hiện tại của từng tài khoản + số clip hook /
+    thân bài 🎬 của dự án CÒN PHẢI TẠO (clip đã có không tính)."""
+    import cho_phu
+    import flow_ve
+    import flow_video
+    import hook_video
+    import veo_canh
+    t = slug(tham_so_q("du_an"))
+    can = flow_video.uoc_diem("Omni 1.1 Flash", "720p")
+    tk = [{"ten": h["ten"], "clip": int(h["diem_con"] // can), "diem": int(h["diem_con"]), "reset": h.get("reset") or "00:00"}
+          for h in flow_ve.ds_ho_so() if not h["dang_nghi"]]
+    hook_can = hook_tong = than_can = 0
+    hook_dk = False
+    if t:
+        out = common.thu_muc_du_an(t)[1]
+        try:
+            hook_can, hook_tong, hook_dk = hook_video.so_clip_can(t)
+            het = max((b for _, b in cho_phu.khoang_hook(out)), default=0.0) or cho_phu.het_hook_du_kien(out)
+            than_can = veo_canh.so_clip_can(out, cho_phu.doc_cau(out), het)
+        except Exception as e:                               # noqa: BLE001
+            common.log(f"! đếm clip Veo cần tạo: {str(e)[:120]}")
+    con = sum(x["clip"] for x in tk)
+    return json_ok({"con": con, "diem_con": sum(x["diem"] for x in tk), "diem_clip": can, "tai_khoan": tk, "hook_can": hook_can, "hook_tong": hook_tong,
+                    "hook_dk": hook_dk, "than_can": than_can, "du": con - hook_can - than_can})
 
 
 @app.post("/api/anh_ai_ke_hoach/lap")
 def lap_anh_ai_ke_hoach():
-    """AI (lại) đề xuất danh sách: chạy ✨ ở chế độ --chi-de-xuat-ai (không vẽ, không dựng)."""
+    """Nạp câu lời cho 📝: chạy ✨ ở chế độ --chi-de-xuat-ai (không vẽ, không dựng). 27/10 user: AI không tự chọn chỗ nữa
+    (dieu_phoi.AI_CHON_CHO) -> chỉ ghi kich_ban_cau.srt + danh sách rỗng, không hỏi AI."""
     t = slug((request.json or {}).get("du_an", ""))
     if not t:
         raise HTTPError(400, "thiếu dự án")
@@ -2281,12 +2363,25 @@ def luu_anh_ai_ke_hoach():
             den = max(i, int(y.get("den_cau") or i))
         except (TypeError, ValueError):
             continue
-        z = {k: v for k, v in y.items() if k in ("thoi_dai", "tieu_de", "moc", "bo", "tay", "loai", "veo_en")
+        z = {k: v for k, v in y.items() if k in ("thoi_dai", "tieu_de", "moc", "bo", "tay", "loai", "veo_en", "loi_veo")
              or re.match(r"(ve|moc|huong)_\d+$", str(k))}   # 23/10: chuỗi ảnh nối tiếp không giới hạn số ảnh
         z.update(cau=i, den_cau=den)
         ds.append(z)
     common.ghi_json(p, dict(da, ds=sorted(ds, key=lambda z: z["cau"]), duyet=True))
+    import cho_phu                                           # 27/10: neo mỗi chỗ theo giây của danh sách câu đang hiện
+    cho_phu.dong_bo_cau(os.path.dirname(p), cho_phu.doc_cau(os.path.dirname(p)))
     return json_ok({"ok": True, "so": len(ds)})
+
+
+@app.post("/api/anh_ai_ke_hoach/cau_lenh")
+def cau_lenh_anh_ai_ke_hoach():
+    """27/10 user: các chỗ ảnh AI / Veo người dùng đã đánh dấu -> AI viết câu lệnh (chạy nền, trả job); xem / sửa ở 📝."""
+    import gop_y
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    return json_ok({"job": _job_doi_thu(lambda bao: gop_y.cau_lenh(t, bool(d.get("lam_lai")), float(d.get("het_hook") or 0)))})
 
 
 @app.post("/api/anh_ai_ke_hoach/gop_y")
@@ -3133,6 +3228,31 @@ def dung_hoan_thien():
         raise HTTPError(409, str(e))
 
 
+def _hinh_ai_truoc(t, co_hook):
+    """27/10 user: ⚡ chạy một mạch = 🎨 Tạo hình AI TRƯỚC (chờ xong) rồi mới băm footage vào chỗ trống + ✨ ghép."""
+    def chay():
+        _chay_hoan_thien(t, "", co_hook=co_hook, chi_hinh_ai=True)
+        procs_ht[t].wait()
+        if procs_ht[t].returncode:
+            raise RuntimeError("🎨 Tạo hình AI lỗi (xem hoan_thien.log)")
+    return chay
+
+
+@app.post("/api/dung/hinh_ai")
+def dung_hinh_ai():
+    """27/10 user: BƯỚC 🎨 TẠO HÌNH AI riêng — clip Veo hook + thân bài (khi tick 🎬, tốn điểm Flow) và ảnh AI theo 📝, chưa
+    băm / dựng. Chỗ không ra hình thì bước 🤖 băm footage vào."""
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    try:
+        _chay_hoan_thien(t, "", co_hook=bool(d.get("co_hook")), chi_hinh_ai=True)
+    except RuntimeError as e:
+        raise HTTPError(409, str(e))
+    return json_ok({"ok": True})
+
+
 @app.get("/api/dung/hoan_thien_tt")
 def dung_hoan_thien_tt():
     t = slug(tham_so_q("du_an"))
@@ -3153,7 +3273,8 @@ def dung_hoan_thien_tt():
     if p and not dang and p.returncode != 0:
         loi = next((x for x in reversed(dong) if "Error" in x or "Traceback" in x), "lỗi (xem hoan_thien.log)")[:300]
     return json_ok({"dang": dang, "buoc": buoc, "cuoi": dong[-1][:160] if dong else "", "loi": loi,
-                    "xong": bool(p and not dang and p.returncode == 0), "ten": getattr(p, "ten_nhap", "")})
+                    "xong": bool(p and not dang and p.returncode == 0), "ten": getattr(p, "ten_nhap", ""),
+                    "hinh_ai": bool(getattr(p, "hinh_ai", False))})
 
 
 @app.post("/api/dung/tu_dong")
@@ -3169,6 +3290,8 @@ def dung_tu_dong():
         tu_dong_tim.chay_nen(t, float(d.get("ngan_sach") or tu_dong_tim.NGAN_SACH_PHUT),
                              (d.get("ten_nhap") or "").strip() or None,
                              sau=(lambda: _chay_hoan_thien(t, ten_ht, co_hook=bool(d.get("co_hook")))) if d.get("hoan_thien") else None,
+                             truoc=_hinh_ai_truoc(t, bool(d.get("co_hook"))) if d.get("hinh_ai_truoc") else None,
+                             ve_bu=bool(d.get("ve_bu")),
                              dung_stock=bool(d.get("dung_stock", True)),
                              che_do=che_do)
     except ValueError as e:
@@ -3419,7 +3542,9 @@ def dung_goi_y():
         ten_ht = (d.get("ten_ht") or f"{t}_hoan_chinh").strip()
         goi_y.goi_y_nen(t, ten_nhap=(d.get("ten_nhap") or "").strip() or None,
                         sau=(lambda: _chay_hoan_thien(t, ten_ht, co_nhac=bool(d.get("co_nhac")), co_sfx=bool(d.get("co_sfx")),
-                                                      co_hook=bool(d.get("co_hook")))) if d.get("hoan_thien") else None)
+                                                      co_hook=bool(d.get("co_hook")))) if d.get("hoan_thien") else None,
+                        truoc=_hinh_ai_truoc(t, bool(d.get("co_hook"))) if d.get("hinh_ai_truoc") else None,
+                        ve_bu=bool(d.get("ve_bu")))
     except ValueError as e:
         raise HTTPError(400, str(e))
     return json_ok({"ok": True, "nen": True})
@@ -3772,6 +3897,17 @@ def main():
     url = f"http://127.0.0.1:{cong}/"
     print("Giao diện:", url, flush=True)
     bat_nhan_cookie()
+
+    def don_chrome():
+        # 27/10 user: Chrome do Gemini tự mở (kể cả ở tiến trình con chạy dự án / bản hoàn chỉnh) xong việc thì tự đóng
+        import gemini_chrome
+        while True:
+            time.sleep(15)
+            try:
+                gemini_chrome.don_chrome_ranh()
+            except Exception as e:                           # noqa: BLE001
+                print("    (dọn Chrome Gemini lỗi:", str(e)[:120], ")", flush=True)
+    threading.Thread(target=don_chrome, daemon=True).start()
     if "--khong-mo" not in sys.argv:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
     srv.serve_forever()

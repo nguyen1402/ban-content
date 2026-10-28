@@ -253,10 +253,10 @@ let flowHen=null;
 async function veFlow(){let d;try{d=await api('/api/flow')}catch(e){$('#flowds').textContent='Lỗi: '+e.message;return}
   const thu=d.thu||{};let dang=false;
   $('#flowds').innerHTML=d.ho_so.length?d.ho_so.map(h=>{const t=thu[h.ten]||{};if(t.dang)dang=true;
-    const tt=h.dang_nghi?'<span style="color:#c62828">● tạm nghỉ: '+escH(h.loi||'')+'</span>':(h.loi?'<span style="color:#c62828">● '+escH(h.loi)+'</span>':'<span style="color:#2e7d32">● sẵn sàng</span>');
+    const tt=h.cho_sua?'<span style="color:#c62828;font-weight:600">● DỪNG — chờ bạn kiểm tra: '+escH(h.loi||'')+'</span><button data-fl="da_sua|'+escH(h.ten)+'" style="padding:2px 8px;background:var(--ok);color:#fff" title="Đã kiểm tra / sửa xong hồ sơ này — cho làm việc lại ngay">✅ Đã sửa xong</button>':h.dang_nghi?'<span style="color:#c62828">● tạm nghỉ: '+escH(h.loi||'')+'</span>':(h.loi?'<span style="color:#c62828">● '+escH(h.loi)+'</span>':'<span style="color:#2e7d32">● sẵn sàng</span>');
     const kq=t.dang?'<span class="sub" style="margin:0">đang thử… (mở ẩn, tạo 1 ảnh, ~30-60 giây)</span>':(t.kq?'<a href="'+t.kq+'" target="_blank">✔ ảnh thử</a>':(t.loi?'<span style="color:#c62828">✖ '+escH(t.loi)+'</span>':''));
     return '<div class="row" style="gap:8px;margin:4px 0"><b>'+escH(h.ten)+'</b>'+tt+'<span class="sub" style="margin:0">'+(h.so_anh||0)+' ảnh</span>'+
-      '<span class="sub" style="margin:0" title="Điểm video còn dùng trong ngày (hạn 50/ngày, Omni 720p 10 s = 12 điểm)">🎬 còn '+(h.diem_con??50)+'/50đ (~'+Math.floor((h.diem_con??50)/12)+' clip)</span>'+
+      '<span class="sub" style="margin:0" title="Điểm video còn dùng trong ngày (hạn 50/ngày, Omni 720p 8 s = 12 điểm)">🎬 còn '+(h.diem_con??50)+'/50đ (~'+Math.floor((h.diem_con??50)/12)+' clip)</span>'+
       (h.reset?'<span class="sub" style="margin:0;color:var(--ok)" title="Flow: Credits refresh daily at … (đọc lúc '+(h.doc_luc?new Date(h.doc_luc*1000).toLocaleString('vi-VN'):'?')+')">⏰ reset '+escH(h.reset)+' hằng ngày'+(h.diem_flow!=null?' · Flow báo '+h.diem_flow+'đ':'')+'</span>':'<span class="sub" style="margin:0">⏰ chưa đọc giờ reset</span>')+
       (h.loi_diem?'<span style="color:#c62828;font-size:12px">✖ đọc điểm: '+escH(h.loi_diem)+'</span>':'')+
       '<button data-fl="doc_diem|'+escH(h.ten)+'" style="padding:2px 8px" title="Đọc điểm thật + giờ reset của hồ sơ này">🔄</button>'+
@@ -271,7 +271,7 @@ $('#flowtao').onclick=async()=>{const ten=$('#flowten').value.trim();if(!ten)ret
   try{await post('/api/flow/tao',{ten});$('#flowten').value='';tb('Đã mở Chrome — đăng nhập Flow rồi đóng cửa sổ');veFlow()}catch(e){tb('Lỗi: '+e.message)}};
 $('#flowds').onclick=async e=>{const b=e.target.closest('[data-fl]');if(!b)return;const [vc,ten]=b.dataset.fl.split('|');
   if(vc==='xoa'&&!confirm('Xoá hồ sơ Chrome Flow "'+ten+'" (cả phiên đăng nhập trong đó)?'))return;
-  try{await post('/api/flow/'+vc,{ten});if(vc==='mo')tb('Đã mở Chrome của hồ sơ — đăng nhập xong thì đóng cửa sổ');veFlow()}catch(er){tb('Lỗi: '+er.message)}};
+  try{await post('/api/flow/'+vc,{ten});if(vc==='mo')tb('Đã mở Chrome của hồ sơ — đăng nhập xong thì đóng cửa sổ');if(vc==='da_sua')tb('Hồ sơ "'+ten+'" làm việc lại');veFlow()}catch(er){tb('Lỗi: '+er.message)}};
 $('#flow_btn_hien_all').onclick=async()=>{
   try{const r=await post('/api/flow/hien_tat_ca',{});tb(`Đã đưa ${r.so_cua_so||0} cửa sổ Chrome lên màn hình!`);}catch(e){tb('Lỗi: '+e.message);}
 };
@@ -591,7 +591,9 @@ async function poll(){
     return `<span class="chip ${b.tt}" title="${esc(b.ghi_chu||'')}"><i></i>${n}${b.ghi_chu?' · '+esc(b.ghi_chu):''}${tg}</span>`}).join('');
   const lg=$('#log');lg.style.display=t.log.length?'block':'none';lg.textContent=t.log.join('\n');lg.scrollTop=lg.scrollHeight;
   $('#chay').style.display=t.dang_chay?'none':'';$('#lamlai').style.display=t.dang_chay?'none':'';$('#dondu').style.display=t.dang_chay?'none':'';$('#dung').style.display=t.dang_chay?'':'none';
-  $('#trangthai_dau').textContent=t.dang_chay?'⏳ đang chạy…':'';
+  // 27/10 user ("không hiện log làm việc"): #trangthai_dau đã bỏ khỏi trang ở 50242f0 -> dòng này ném lỗi, poll dừng sau
+  // lần đầu (log trống nên ẩn, chip bước đứng im) -> chỉ ghi khi phần tử còn
+  const ttd=$('#trangthai_dau');if(ttd)ttd.textContent=t.dang_chay?'⏳ đang chạy…':'';
   if(t.dang_chay){hen=setTimeout(poll,2000);if(Date.now()%10000<2100)napGiongCanh()}else{await napTuKhoa();napGiongCanh()}
 }
 const yt=q=>'https://www.youtube.com/results?search_query='+encodeURIComponent(q);

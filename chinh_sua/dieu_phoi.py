@@ -13,7 +13,7 @@ import hashlib
 import os
 import re
 
-from common import doc_json, ghi_json, hoi_nhieu, log, rut_json
+from common import LUAT_NGOAI_TRUYEN, LUAT_THUC_TE, LUAT_YOUTUBE, doc_json, ghi_json, hoi_nhieu, log, rut_json
 
 CAU_MOI_DOAN = 20
 KIEU = {"the", "nhan_vat", "ban_do_ve", "khoanh_vung", "duong_di", "lan_rong", "dien_canh", "cau_tao", "quy_trinh", "vong_doi", "mo_phong",
@@ -100,6 +100,13 @@ NARRATION:
 
 VE_AI_HOAN_THIEN = True     # 22/10 user: BẬT LẠI ảnh AI diễn biến ở ✨ (kho video + ảnh AI mô tả diễn biến, đúng thời đại);
 #                             danh sách 📝 Chỗ vẽ ảnh AI để duyệt. (19/10 từng tắt, chuyển sang nút 🎨 tự tạo.)
+# 27/10 user: "cái chỗ ảnh và veo ý, giờ tôi không muốn hỏi AI nữa, tôi muốn tôi chỉ định luôn chỗ nào dùng ảnh chỗ nào
+# dùng veo và việc khi tôi chỉ định rồi thì mang đi hỏi AI câu lệnh tạo thôi" -> AI KHÔNG tự chọn chỗ ảnh AI / Veo nữa:
+# danh sách 📝 bắt đầu RỖNG, người dùng tự đánh dấu; AI chỉ viết câu lệnh cho đúng các chỗ đó (viet_lenh). Bật lại: True
+AI_CHON_CHO = False
+# 27/10 user ("chỗ Veo hỏng thì lấp footage"): chỗ 🎬 Veo KHÔNG cần ảnh AI dự phòng nữa -> AI không viết ve_1 cho chỗ Veo,
+# chỗ Veo chưa có ve_1 vẫn giữ trong danh sách để bước Veo tạo clip. Kiểu cũ (Veo hỏng vẽ ảnh thay): True
+VEO_ANH_DU_PHONG = False
 AI_DIEU_PHOI = "gemini"      # 19/10 user: lên kế hoạch ảnh bằng Gemini (ChatGPT hay bỏ đối tượng bị ngắm); hỏng -> ChatGPT
 KIEU_TAT = {"khoanh_vung", "duong_di", "lan_rong", "ban_do_ve"}   # 26/10 user: "không vẽ bản đồ nữa" — TẮT mọi lớp bản đồ
 #                             (vệ tinh khoanh vùng, đường đi A->B, lan rộng, bản đồ AI vẽ). Bật lại: KIEU_TAT = set()
@@ -133,14 +140,17 @@ def _khong_hop_ai(x, c):
 
 _P_HO_SO = """Read this documentary narration (Vietnamese) and write a STORY BIBLE so that every AI image of the video looks
 like the same real story. Only VISIBLE recurring things: places, animals, people, vehicles, key objects.
-  * "boi_canh": the real settings — for each: "noi" (place as named) and "mo_ta_en" (English: landscape, vegetation,
-    terrain, climate, typical light).
+  * "boi_canh": the real settings — for each: "noi" (place as named in the script), "noi_en" (English place name WITH
+    region and COUNTRY, e.g. "Gulf of Mexico seabed off Louisiana, United States"), "nguoi_en" (who appears there: the
+    locals / crew of THAT country, e.g. "American marine scientists and US research-ship crew"; "" if no people) and
+    "mo_ta_en" (English: landscape, vegetation, terrain, climate, typical light, typical buildings / vehicles / signs).
   * "nhan_vat": recurring subjects — for each: "ten" (as named in the script) and "mo_ta_en" (English, FIXED look reused in
     every image, SHORT (max 12 words): species / number / colour / one key marking or clothing / vehicle colour; invent plausible
     fixed details when the script does not say). Note changes of look over time explicitly. People wear ordinary clothes
     of their role and era unless the script says otherwise. A REAL, NAMED person gets ONLY their role and era clothing
     (e.g. "official in a dark suit", "activist in a rain jacket") — never a face, age or likeness, never their name.
-Only JSON: {{"boi_canh": [{{"noi": "...", "mo_ta_en": "..."}}], "nhan_vat": [{{"ten": "...", "mo_ta_en": "..."}}]}}
+Only JSON: {{"boi_canh": [{{"noi": "...", "noi_en": "...", "nguoi_en": "...", "mo_ta_en": "..."}}],
+ "nhan_vat": [{{"ten": "...", "mo_ta_en": "..."}}]}}
 
 NARRATION:
 {kb}"""
@@ -150,7 +160,8 @@ def ho_so(cau, out):
     """19/10 user (ảnh lệch bối cảnh / nhân vật đổi dạng giữa các ảnh): MỘT lần hỏi cho cả kịch bản -> khối chữ
     "STORY BIBLE" gắn vào mọi lần điều phối. Lưu ra/<dự án>/ho_so_truyen.json theo băm kịch bản. Lỗi -> ""."""
     kb = " ".join(str(c.get("text") or "") for c in cau)[:30000]
-    k = hashlib.md5(("hs4|" + kb).encode("utf-8")).hexdigest()[:16]   # hs4 (22/10): người thật chỉ vai trò + trang phục
+    # hs5 (28/10 user: ảnh AI ra người / cảnh Việt Nam dù câu chuyện ở nước khác): bối cảnh có tên nơi tiếng Anh + QUỐC GIA
+    k = hashlib.md5(("hs5|" + kb).encode("utf-8")).hexdigest()[:16]   # hs4 (22/10): người thật chỉ vai trò + trang phục
     p_luu = os.path.join(out, "ho_so_truyen.json")
     da = doc_json(p_luu, {}) or {}
     j = da.get("ho_so") if da.get("_k") == k else None
@@ -173,11 +184,35 @@ def ho_so(cau, out):
                 "lần ✨ sau tự lập lại (và tự làm lại danh sách 📝 nếu bạn chưa duyệt)")
             return ""
         ghi_json(p_luu, {"_k": k, "ho_so": j})
-    dong = [f"  - SETTING {x.get('noi', '')}: {x.get('mo_ta_en', '')}" for x in j.get("boi_canh") or [] if isinstance(x, dict)]
+    dong = [f"  - SETTING {x.get('noi_en') or x.get('noi', '')}: {x.get('mo_ta_en', '')}"
+            + (f" People: {x['nguoi_en']}." if x.get("nguoi_en") else "") for x in j.get("boi_canh") or [] if isinstance(x, dict)]
     dong += [f"  - {x.get('ten', '')}: {x.get('mo_ta_en', '')}" for x in j.get("nhan_vat") or [] if isinstance(x, dict)]
     if not dong:
         return ""
     return ("STORY BIBLE — use these SHORT looks so the same subject looks the same in every image (keep shots simple):\n" + "\n".join(dong) + "\n")
+
+
+def boi_canh_cho(out, loi):
+    """28/10 user ("tạo ảnh bối cảnh phù hợp với địa điểm ở nội dung… nhiều ảnh xuất hiện người việt nam địa điểm việt nam
+    nhưng rõ ràng nội dung đang ở nước khác"): bối cảnh hồ sơ hợp với đoạn lời `loi` (tên nơi xuất hiện trong lời; không
+    thấy thì bối cảnh ĐẦU — nơi chính của câu chuyện) -> câu tiếng Anh "Location: … People: …" | "" (chưa có hồ sơ)."""
+    da = (doc_json(os.path.join(out, "ho_so_truyen.json"), {}) or {}).get("ho_so") or {}
+    bc = [x for x in da.get("boi_canh") or [] if isinstance(x, dict) and (x.get("noi_en") or x.get("noi"))]
+    if not bc:
+        return ""
+    t = str(loi or "").lower()
+
+    def khop(x):
+        # 28/10: khớp theo CỤM 2 TIẾNG của tên nơi ("vịnh mexico", "hải nam", "nhật bản") — trước đây từng tiếng lẻ: "bản"
+        # trong "bản thân" khớp "Nhật Bản" -> ảnh đoạn ăn xác đáy biển ra cá mập trong thuỷ cung Nhật
+        w = [m for m in re.split(r"[\s(),·-]+", str(x.get("noi") or "").lower()) if m and not m.isdigit()]
+        cum = {f"{a} {b}" for a, b in zip(w, w[1:])} - {"đáy biển", "độ sâu", "trên biển", "tàu nghiên", "nghiên cứu"}
+        return sum(1 for m in cum if re.search(r"(?<!\w)" + re.escape(m) + r"(?!\w)", t))
+    x = max(bc, key=khop) if any(khop(x) for x in bc) else bc[0]
+    noi = x.get("noi_en") or x.get("noi")
+    return (f"Location: {noi}. " + (f"People: {x['nguoi_en']}. " if x.get("nguoi_en") else "")
+            + "People, faces, clothing, buildings, vehicles, signs and landscape must match THIS place and country "
+              "(not Vietnam / Southeast Asia unless the location is there).")
 
 
 def _cau_footage_yeu(cau, out):
@@ -209,23 +244,24 @@ def hoi(cau, out, co_the=True, toan_bo=None):
     """[{cau(int), kieu, moc, ...}] — mỗi câu tối đa một lớp; câu nằm trong den_cau của sơ đồ trước thì bỏ lớp khác.
     toan_bo: mọi câu của kịch bản (cho hồ sơ câu chuyện) khi `cau` chỉ là một phần."""
     lots = [cau[i:i + CAU_MOI_DOAN] for i in range(0, len(cau), CAU_MOI_DOAN)]
-    hs = ho_so(toan_bo or cau, out) if VE_AI_HOAN_THIEN else ""
+    hs = ho_so(toan_bo or cau, out) if VE_AI_HOAN_THIEN and AI_CHON_CHO else ""
     ds_lot = [chr(10).join(f"{c['i']}. [{max(0.5, float(c.get('t1', 0)) - float(c.get('t0', 0))):.0f}s] {c['text']}" for c in lot)
               for lot in lots]
-    yeu = _cau_footage_yeu(cau, out) if VE_AI_HOAN_THIEN else set()
+    yeu = _cau_footage_yeu(cau, out) if VE_AI_HOAN_THIEN and AI_CHON_CHO else set()
     ds_lot_ai = [chr(10).join(f"{c['i']}. [{max(0.5, float(c.get('t1', 0)) - float(c.get('t0', 0))):.0f}s]"
                               f"{' (WEAK FOOTAGE)' if c['i'] in yeu else ''} {c['text']}" for c in lot) for lot in lots]
     if yeu:
         log(f"[ĐP] {len(yeu)} câu footage yếu ở bản thô -> lệnh ảnh AI ưu tiên")
     lop = bool(KIEU - KIEU_TAT - {"tai_hien", "dien_canh"})   # còn lớp minh hoạ nào bật (ngoài ảnh AI)?
     p_lop = [_P.format(ds=d) for d in ds_lot] if lop else []
-    p_hoi = p_lop + ([_P_AI.format(ho_so=hs, ds=d) for d in ds_lot_ai] if VE_AI_HOAN_THIEN else [])
+    p_hoi = p_lop + ([_P_AI.format(ho_so=hs, ds=d) for d in ds_lot_ai] if VE_AI_HOAN_THIEN and AI_CHON_CHO else [])
     khoa = [hashlib.md5(p.encode("utf-8")).hexdigest()[:16] for p in p_hoi]
     khoa_ai = set(khoa[len(p_lop):])
     p_luu = os.path.join(out, "dieu_phoi_hoi.json")
     da = doc_json(p_luu, {}) or {}
     can = [k for k, kk in enumerate(khoa) if rut_json(da.get(kk) or "") is None]
-    log(f"[ĐP] điều phối lớp minh hoạ + ảnh AI: hỏi {AI_DIEU_PHOI} {len(can)}/{len(p_hoi)} lệnh (còn lại dùng câu trả lời đã lưu)…")
+    if p_hoi:
+        log(f"[ĐP] điều phối lớp minh hoạ + ảnh AI: hỏi {AI_DIEU_PHOI} {len(can)}/{len(p_hoi)} lệnh (còn lại dùng câu trả lời đã lưu)…")
     if can:
         for k, r in zip(can, hoi_nhieu([p_hoi[k] for k in can], timeout=300, ai=AI_DIEU_PHOI)):
             if rut_json(r or "") is not None:
@@ -326,7 +362,8 @@ def hoi(cau, out, co_the=True, toan_bo=None):
             log(f"    bỏ {n0 - len(ra)} chỗ ảnh AI nằm trong đoạn hook (video Veo phủ)")
         return ra
     ra = bo_hook(ra)
-    ra = _gian_ai(ra, toan_bo or cau, yeu)
+    if AI_CHON_CHO:
+        ra = _gian_ai(ra, toan_bo or cau, yeu)
     if VE_AI_HOAN_THIEN:
         ra = _ap_ke_hoach_ai(ra, cau, out, toan_bo or cau, co_ho_so=bool(hs))
         ra = bo_hook(ra)
@@ -397,6 +434,23 @@ def _ap_ke_hoach_ai(ra, cau, out, toan_bo, co_ho_so=True):
     ai = [x for x in ra if x.get("kieu") == "tai_hien"]
     khac = [x for x in ra if x.get("kieu") != "tai_hien"]
     da = doc_json(p, {}) or {}
+    if da.get("duyet") is not False:                         # 27/10: chỗ 📝 neo theo giây -> số câu theo danh sách câu này
+        import cho_phu
+        da = cho_phu.dong_bo_cau(out, toan_bo) or da
+    if not AI_CHON_CHO:                                      # 27/10 user: chỗ ảnh / Veo do NGƯỜI DÙNG đánh dấu
+        if da.get("duyet") is False and da.get("ds"):        # danh sách cũ AI tự đề xuất, bạn chưa lưu lần nào -> bỏ
+            ghi_json(p[:-5] + ".ai_cu.json", da)
+            log(f"    bỏ danh sách 📝 cũ do AI tự đề xuất ({len(da['ds'])} chỗ, chưa duyệt — lưu ở {KE_HOACH_AI[:-5]}.ai_cu.json)")
+            da = {}
+        if not isinstance(da.get("ds"), list):
+            ghi_json(p, {"_k": k, "ds": [], "duyet": True})
+            log("    📝 chưa đánh dấu chỗ ảnh AI / Veo nào -> không vẽ ảnh AI (đánh dấu ở 📝 Chỗ ảnh AI & Veo)")
+            return khac
+        if da.get("_k") != k:
+            if da.get("_k") and da["ds"]:
+                log("    ! lời đọc đã đổi từ lần đánh dấu 📝 trước — xem lại số câu của các chỗ ảnh AI / Veo")
+            da["_k"] = k
+            ghi_json(p, da)
     # 22/10 user: danh sách lập lúc THIẾU hồ sơ câu chuyện mà người dùng CHƯA duyệt -> nay có hồ sơ thì lập lại cho đồng bộ
     lam_lai = da.get("co_ho_so") is False and co_ho_so and not da.get("duyet")
     if lam_lai:
@@ -404,49 +458,101 @@ def _ap_ke_hoach_ai(ra, cau, out, toan_bo, co_ho_so=True):
     if da.get("ds") and not da.get("duyet") and da.get("gian") != GIAN_PHIEN:   # 26/10: lập trước luật giãn ảnh AI
         lam_lai = True
         log("    danh sách 📝 (chưa duyệt) lập trước luật giãn ảnh AI -> lập lại")
-    if da.get("_k") != k or not isinstance(da.get("ds"), list) or lam_lai:
+    if AI_CHON_CHO and (da.get("_k") != k or not isinstance(da.get("ds"), list) or lam_lai):
         ds = [{f: v for f, v in x.items()                    # 23/10: ve_n / moc_n / huong_n không giới hạn số ảnh
                if (f in ("cau", "den_cau", "thoi_dai", "tieu_de", "moc") or re.match(r"(ve|moc|huong)_\d+$", f))
                and v not in (None, "")} for x in ai]
         ghi_json(p, {"_k": k, "ds": ds, "duyet": False, "co_ho_so": bool(co_ho_so), "gian": GIAN_PHIEN})
         log(f"    danh sách chỗ vẽ ảnh AI: {len(ds)} chỗ (sửa ở 📝 Chỗ vẽ ảnh AI)")
         return ra
+    if any(isinstance(y, dict) and not y.get("bo") and not str(y.get("ve_1") or "").strip()
+           and (VEO_ANH_DU_PHONG or y.get("loai") != "veo") for y in da["ds"]):
+        viet_lenh(toan_bo, out)                              # chỗ chưa có câu mô tả -> AI viết (lưu vào 📝)
+        da = doc_json(p, {}) or da
     ds = [dict(y) for y in da["ds"] if isinstance(y, dict) and not y.get("bo") and int(y.get("cau") or 0) in theo_i]
-    thieu = [y for y in ds if not str(y.get("ve_1") or "").strip()]
-    if thieu:
-        hs = ho_so(toan_bo, out)
-        t = (hoi_nhieu([_P_VE_TAY.format(ho_so=hs, ds="\n".join(
-            f"{y['cau']}: " + " ".join(theo_i[j]["text"] for j in range(int(y["cau"]), int(y.get("den_cau") or y["cau"]) + 1)
-                                        if j in theo_i) for y in thieu))], timeout=200, ai=AI_DIEU_PHOI) or [""])[0]
-        j = rut_json(t or "") or {}
-        for y in thieu:
-            y["ve_1"] = str((j.get(str(y["cau"])) if isinstance(j, dict) else "") or "").strip()
-        da_ds = [dict(z) for z in da["ds"]]
-        for z in da_ds:                                       # lưu câu mô tả vừa viết để người dùng thấy / sửa
-            m = next((y for y in thieu if y["cau"] == z.get("cau") and y.get("den_cau") == z.get("den_cau")), None)
-            if m and m["ve_1"]:
-                z["ve_1"] = m["ve_1"]
-        ghi_json(p, dict(da, ds=da_ds))
     td = [(int(y["cau"]), y["thoi_dai"]) for y in ds if y.get("thoi_dai")]
     moi = []
     for y in ds:
-        if not str(y.get("ve_1") or "").strip():
-            continue
+        if not str(y.get("ve_1") or "").strip() and not (y.get("loai") == "veo" and not VEO_ANH_DU_PHONG):
+            continue                                         # chỗ Veo không cần ảnh dự phòng: giữ cho bước Veo
         i = int(y["cau"])
         den = max(i, min(int(y.get("den_cau") or i), i + 2))
         moc = y.get("moc_1") or y.get("moc") or " ".join(str(theo_i[i]["text"]).split()[:4])
         if not y.get("thoi_dai") and td:                      # chỗ người dùng thêm: thời đại của chỗ gần nhất
             y["thoi_dai"] = min(td, key=lambda z: abs(z[0] - i))[1]
         moi.append(dict(y, kieu="tai_hien", cau=i, den_cau=den, moc=moc, moc_1=moc, tay=True))
-    log(f"    ảnh AI theo danh sách đã duyệt: {len(moi)} chỗ (AI đề xuất {len(ai)})")
+    log(f"    ảnh AI theo danh sách 📝: {len(moi)} chỗ" + (f" (AI đề xuất {len(ai)})" if AI_CHON_CHO else ""))
     return khac + moi
 
 
-_P_VE_TAY = """For each numbered narration line below (a documentary scene) write ONE simple English photo description,
-max 25 words: camera angle + main subject + what it does + where. One clear idea; include what the action is aimed at.
+_P_VE_CHO = """You write AI still-photo descriptions for a documentary video. The USER chose the places below, where AI photos
+replace the real footage; for each place (place number: [spoken seconds] narration) write the photos of that moment.
 {ho_so}
+- "ve_1": ONE simple English description, max 25 words: camera angle + main subject + what it does + where. One clear idea
+  a viewer understands in one second; include what the action is aimed at or about, with the narration's numbers.
+  Sensible camera: a person acting on something -> from behind them toward it; a moving vehicle -> from outside; an
+  object or detail -> close-up of the object itself.
+- NO photo stays on screen longer than 5 seconds: when the place is spoken longer, continue with "ve_2", "ve_3", … — the
+  SAME place and subjects at the NEXT moments of the action, each from a different framing (wide -> closer -> detail ->
+  another side), like ONE continuous filmed scene; "moc_n" (n >= 2) = 2-5 words copied verbatim from the narration where
+  photo n starts. "huong_n" (one per photo): trai | phai | len | xuong | vao | ra (camera move following the action).
+- REAL, NAMED people: never a recognisable face, likeness or name — show the action (from behind, hands, silhouettes,
+  wide shots). Take only the subject's short look and the place from the story bible, never paste the bible text.
+- """ + LUAT_YOUTUBE + """
+- """ + LUAT_THUC_TE + """
+- """ + LUAT_NGOAI_TRUYEN + """
+- "thoi_dai": the YEAR or period this moment happens in (e.g. 1904, 1960s), or present day. "tieu_de": short Vietnamese
+  title.
 {ds}
-Return ONLY JSON: {{"<number>": "<description>"}}"""
+Return ONLY JSON: {{"<place number>": {{"ve_1": "...", "huong_1": "vao", "ve_2": "...", "moc_2": "...", "huong_2": "ra",
+"thoi_dai": "...", "tieu_de": "..."}}}}"""
+
+
+def viet_lenh(cau, out, lam_lai=False, tu_giay=0.0):
+    """27/10 user: AI CHỈ viết câu lệnh cho các chỗ người dùng đã đánh dấu ở 📝 (🖼 ảnh: chuỗi ve_n / moc_n / huong_n;
+    🎬 Veo: ve_1 = ảnh dự phòng khi không tạo được clip — câu lệnh video do veo_canh.viet_lenh). Chỗ đã có câu mô tả giữ
+    nguyên (lam_lai=True: viết lại hết); chỗ bắt đầu trước tu_giay (đoạn hook Veo) bỏ qua. Lưu thẳng vào anh_ai_ke_hoach.json để người dùng xem / sửa. -> số chỗ đã viết."""
+    p = os.path.join(out, KE_HOACH_AI)
+    da = doc_json(p, {}) or {}
+    theo_i = {c["i"]: c for c in cau}
+    thieu = {}
+    for y in da.get("ds") or []:
+        if isinstance(y, dict) and not y.get("bo") and int(y.get("cau") or 0) in theo_i \
+                and float(theo_i[int(y["cau"])].get("t0") or 0) >= tu_giay - 0.3 \
+                and (VEO_ANH_DU_PHONG or y.get("loai") != "veo") \
+                and (lam_lai or not str(y.get("ve_1") or "").strip()):
+            thieu.setdefault(int(y["cau"]), y)
+    if not thieu:
+        return 0
+    log(f"[ĐP] AI viết câu mô tả ảnh cho {len(thieu)} chỗ bạn đánh dấu…")
+
+    def doan(y):
+        i = int(y["cau"])
+        cs = [theo_i[j] for j in range(i, max(i, min(int(y.get("den_cau") or i), i + 2)) + 1) if j in theo_i]
+        giay = max(0.5, float(cs[-1].get("t1") or 0) - float(cs[0].get("t0") or 0))
+        return f"{i}: [{giay:.0f}s] " + " ".join(c["text"] for c in cs)
+    t = (hoi_nhieu([_P_VE_CHO.format(ho_so=ho_so(cau, out), ds="\n".join(doan(y) for y in thieu.values()))],
+                   timeout=300, ai=AI_DIEU_PHOI) or [""])[0]
+    j = rut_json(t or "")
+    if not isinstance(j, dict):
+        log("[ĐP] ! AI không trả câu mô tả ảnh (thử lại sau)")
+        return 0
+    n = 0
+    for i, y in thieu.items():
+        x = j.get(str(i))
+        if isinstance(x, str):
+            x = {"ve_1": x}
+        if not isinstance(x, dict) or not str(x.get("ve_1") or "").strip():
+            continue
+        for f in [f for f in y if re.match(r"(ve|moc|huong)_\d+$", f)]:   # chuỗi cũ bỏ hẳn khi viết lại
+            del y[f]
+        for f, v in x.items():
+            if (f in ("thoi_dai", "tieu_de") or re.match(r"(ve|moc|huong)_\d+$", f)) and str(v or "").strip():
+                y[f] = str(v).strip()
+        n += 1
+    ghi_json(p, da)
+    log(f"[ĐP] đã viết câu mô tả ảnh cho {n}/{len(thieu)} chỗ (sửa ở 📝)")
+    return n
 
 
 def _bu_tieu_de(ra, out):

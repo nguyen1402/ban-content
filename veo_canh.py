@@ -7,13 +7,14 @@ dùng sửa). Tạo bằng flow_video.chay_theo_tai_khoan (hạn điểm/ngày, 
 lại. Chỗ không có clip (hết điểm / lỗi / không tick tạo) -> bên gọi vẽ ẢNH AI thay (0 điểm), không để màn đen."""
 import hashlib
 import os
+import re
 import sys
 
-from common import doc_json, ghi_json, hoi_llm, log, rut_json, thu_muc_du_an
+from common import LUAT_NGOAI_TRUYEN, LUAT_THUC_TE, doc_json, ghi_json, hoi_llm, log, rut_json, thu_muc_du_an
 
 VEO_MODEL = "Omni 1.1 Flash"
 VEO_PHAN_GIAI = "720p"
-VEO_GIAY = 10
+VEO_GIAY = 8                 # 28/10 user: Veo 8 s = 12 điểm (10 s = 15 điểm) — mặc định 8 s
 KE_HOACH_AI = "anh_ai_ke_hoach.json"
 
 _P_VEO = """You write AI VIDEO prompts (Google Veo / Flow, 10-second clips, 16:9) for scenes of a documentary narration.
@@ -24,8 +25,47 @@ moment (period-correct clothing, vehicles, buildings), a cinematic camera move, 
 characters, costumes, colour grade and light as the story profile. Real-looking live action, no text, no captions, no
 logos. Never show the face of a real named person (silhouettes, from behind, hands, wide shots). End every prompt with:
 "Natural ambient sound effects only, no dialogue, no voice-over, no music."
+Show the event exactly as the narration describes it, even if it is raw nature (carcasses, scavengers, decay) — do not soften
+or replace it; the editor blurs on-screen if needed. """ + LUAT_THUC_TE + " " + LUAT_NGOAI_TRUYEN + """
 {ds}
 Return ONLY JSON: {{"<scene number>": "<prompt>"}}"""
+
+
+# 28/10 user ("trường hợp nó không tạo cho mình thì lúc đó sửa câu lệnh khác để tạo"): Flow TỪ CHỐI NỘI DUNG -> AI viết lại
+# câu lệnh (giữ đúng khoảnh khắc, đổi cách tả chỗ dễ bị chặn) và thử lại MỘT lần; câu lệnh mới lưu vào 📝. Tắt: False
+VIET_LAI_KHI_BI_CHAN = True
+_P_VIET_LAI = """Google Veo REFUSED this AI video prompt for a documentary (Flow said: "{loi}").
+Rewrite it so Veo accepts it while showing the SAME moment of the narration (same subject, place, action and era): keep it
+real-looking live action, 2-3 shots with hard cuts, 50-100 words; describe the sensitive part more factually and less
+explicitly (e.g. wide or partly hidden view, natural-history tone) instead of removing it. Never a real person's face.
+End with: "Natural ambient sound effects only, no dialogue, no voice-over, no music."
+NARRATION: {loi_doc}
+REFUSED PROMPT: {lenh}
+Return ONLY the new prompt text."""
+
+
+def _bi_tu_choi(loi):
+    """Lỗi do Flow từ chối NỘI DUNG (không phải hết điểm / xác minh / chờ quá lâu)."""
+    loi = str(loi or "")
+    return "Flow báo" in loi and not re.search(r"credits|unusual|verify|captcha|quota", loi, re.I)
+
+
+def _viet_lai(out, y, cau_theo):
+    """AI viết lại câu lệnh bị chặn của chỗ y -> True nếu đã đổi (lưu luôn vào 📝)."""
+    i = int(y["cau"])
+    loi_doc = " ".join(cau_theo[j]["text"] for j in range(i, int(y.get("den_cau") or i) + 1) if j in cau_theo)
+    moi = (hoi_llm(_P_VIET_LAI.format(loi=str(y.get("_loi") or "")[:200], loi_doc=loi_doc, lenh=y["veo_en"]),
+                   timeout=180) or "").strip().strip('"')
+    if len(moi.split()) < 25 or moi == y["veo_en"]:
+        return False
+    da = doc_json(_p(out), {}) or {}
+    for z in da.get("ds") or []:
+        if isinstance(z, dict) and str(z.get("veo_en") or "").strip() == y["veo_en"].strip():
+            z["veo_en"] = moi
+    ghi_json(_p(out), da)
+    log(f"    Veo câu {i}: bị Flow từ chối -> AI viết lại câu lệnh, thử lại")
+    y["veo_en"] = moi
+    return True
 
 
 def _p(out):
@@ -42,12 +82,13 @@ def ho_so(out, cau):
         return ""
 
 
-def viet_lenh(out, cau):
+def viet_lenh(out, cau, tu_giay=0.0):
     """Chỗ 🎬 Veo chưa có câu lệnh -> AI viết một lượt, lưu vào danh sách 📝 (người dùng thấy / sửa)."""
     da = doc_json(_p(out), {}) or {}
     theo = {c["i"]: c for c in cau}
     thieu = [y for y in da.get("ds") or [] if isinstance(y, dict) and y.get("loai") == "veo" and not y.get("bo")
-             and not str(y.get("veo_en") or "").strip() and int(y.get("cau") or 0) in theo]
+             and not str(y.get("veo_en") or "").strip() and int(y.get("cau") or 0) in theo
+             and float(theo[int(y["cau"])].get("t0") or 0) >= tu_giay - 0.3]   # 27/10: chỗ trong đoạn hook Veo bỏ qua
     if not thieu:
         return 0
     ds = "\n".join(f"{y['cau']}: " + " ".join(theo[j]["text"] for j in range(int(y["cau"]), int(y.get("den_cau") or y["cau"]) + 1)
@@ -62,6 +103,15 @@ def viet_lenh(out, cau):
             n += 1
     ghi_json(_p(out), da)
     return n
+
+
+def _dai_clip(f):
+    """Độ dài (giây) của file clip; đọc lỗi -> VEO_GIAY."""
+    try:
+        import pycapcut as draft
+        return draft.VideoMaterial(f).duration / 1e6
+    except Exception:                                        # noqa: BLE001
+        return float(VEO_GIAY)
 
 
 def _ten(prompt):
@@ -109,8 +159,12 @@ def lich(du_an, cho, cau, tao_moi=False, bao=None):
 
         def tao(y, ho_so_, khe):
             ten = _ten(y["veo_en"].strip())
-            r = flow_video.tao(y["veo_en"].strip(), thu, ten + "_goc", model=VEO_MODEL, phan_giai=VEO_PHAN_GIAI,
-                               do_dai=f"{VEO_GIAY}s", so=1, ho_so=ho_so_, khe=khe, gioi_han=True, bao=lambda m: None)
+            try:
+                r = flow_video.tao(y["veo_en"].strip(), thu, ten + "_goc", model=VEO_MODEL, phan_giai=VEO_PHAN_GIAI,
+                                   do_dai=f"{VEO_GIAY}s", so=1, ho_so=ho_so_, khe=khe, gioi_han=True, bao=lambda m: None)
+            except Exception as e:                           # noqa: BLE001  27/10: giữ lý do cho 📝
+                y["_loi"] = f"{ho_so_}: {str(e)[:160]}"
+                raise
             if not r.get("tep"):
                 return None
             f = os.path.join(thu, ten + ".mp4")
@@ -120,6 +174,16 @@ def lich(du_an, cho, cau, tao_moi=False, bao=None):
         for y, f in zip(thieu, flow_video.chay_theo_tai_khoan(thieu, tao, can=can, bao=bao)):
             if f:
                 co[id(y)] = f
+        bi_chan = [y for y in thieu if id(y) not in co and _bi_tu_choi(y.get("_loi"))] if VIET_LAI_KHI_BI_CHAN else []
+        lai = [y for y in bi_chan if _viet_lai(out, y, theo)]
+        if lai:
+            bao(f"Veo thân bài: {len(lai)} câu lệnh bị Flow từ chối đã viết lại -> tạo lại")
+            for y in lai:
+                y.pop("_loi", None)
+            for y, f in zip(lai, flow_video.chay_theo_tai_khoan(lai, tao, can=can, bao=bao)):
+                if f:
+                    co[id(y)] = f
+        _ghi_loi(out, thieu, co, can)
     ra, khong = [], []
     for y in cho:
         f = co.get(id(y))
@@ -133,9 +197,44 @@ def lich(du_an, cho, cau, tao_moi=False, bao=None):
         ke = theo.get(cuoi["i"] + 1)
         if ke and 0 <= float(ke["t0"]) - het < 1.5:
             het = float(ke["t0"])
-        het = min(het, bd + VEO_GIAY)
+        het = min(het, bd + _dai_clip(f))                    # 28/10: độ dài THẬT của clip (cũ 10 s, mới 8 s)
         if het - bd >= 1.0:
             ra.append({"bd": round(bd, 2), "het": round(het, 2), "file": f, "am": "tieng_dong", "cau": i})
     if cho:
-        bao(f"Veo thân bài: {len(ra)}/{len(cho)} chỗ có clip" + (f", {len(khong)} chỗ vẽ ảnh AI thay" if khong else ""))
+        bao(f"Veo thân bài: {len(ra)}/{len(cho)} chỗ có clip" + (f", {len(khong)} chỗ chưa có clip (lấp footage)" if khong else ""))
     return ra, khong
+
+
+def _ghi_loi(out, thieu, co, can):
+    """27/10 user ("tại sao lại chưa hết điểm lại không tạo được"): lý do từng chỗ 🎬 không ra clip -> loi_veo trong 📝
+    (Flow từ chối nội dung / hết điểm / chưa tới lượt); chỗ ra clip thì xoá lý do cũ."""
+    import flow_video
+    da = doc_json(_p(out), {}) or {}
+    con = flow_video.clip_con_hom_nay(can)
+    theo = {str(y.get("veo_en") or "").strip(): y for y in thieu}
+    for z in da.get("ds") or []:
+        y = theo.get(str(z.get("veo_en") or "").strip()) if isinstance(z, dict) else None
+        if y is None:
+            continue
+        if id(y) in co:
+            z.pop("loi_veo", None)
+        else:
+            z["loi_veo"] = y.get("_loi") or ("hết điểm Flow (mọi tài khoản) — mai bấm 🎨 tiếp" if not con
+                                             else "chưa tới lượt / tài khoản bị bỏ giữa chừng — bấm 🎨 lại")
+    ghi_json(_p(out), da)
+
+
+def so_clip_can(out, cau, tu_giay=0.0):
+    """27/10 user: số clip Veo thân bài CÒN PHẢI TẠO = chỗ 🎬 Veo trong 📝 (không bỏ, sau đoạn hook) chưa có clip."""
+    da = doc_json(_p(out), {}) or {}
+    theo = {c["i"]: c for c in cau}
+    n = 0
+    for y in da.get("ds") or [] if da.get("duyet") is not False else []:
+        if not isinstance(y, dict) or y.get("loai") != "veo" or y.get("bo") or int(y.get("cau") or 0) not in theo \
+                or float(theo[int(y["cau"])].get("t0") or 0) < tu_giay - 0.3:
+            continue
+        v = str(y.get("veo_en") or "").strip()
+        f = os.path.join(out, "veo", _ten(v) + ".mp4") if v else ""
+        if not (f and os.path.isfile(f) and os.path.getsize(f) > 20000):
+            n += 1
+    return n

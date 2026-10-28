@@ -10,11 +10,17 @@ khung đầu. KHÔNG tạo video — người dùng chép / điền vào ô 🎞
 import hashlib
 import os
 
-from common import doc_json, ghi_json, hoi_llm, log, rut_json, thu_muc_du_an
+from common import LUAT_THUC_TE, doc_json, ghi_json, hoi_llm, log, rut_json, thu_muc_du_an
 
 HOOK_GIAY = 60.0            # 27/10 user: ~1 phút đầu TOÀN video Veo (trước 30 s, chỉ đè vài khoảnh khắc)
 SO_TOI_DA = 9
-HOOK_CLIP_GIAY = 10         # 23/10 user: Omni 1.1 Flash 10 s (27/10: 720p = 12 điểm/clip)
+HOOK_CLIP_GIAY = 8          # 28/10 user: "12 điểm là tạo 8s chứ không phải 10 s" — clip MỚI dài 8 s (12 điểm; 10 s = 15)
+HOOK_CLIP_GIAY_CU = 10      # khung / độ dài clip của hook lập trước 28/10 — giữ nguyên (đổi khung = mất câu lệnh + clip đã có)
+
+
+def cua_so(da):
+    """Độ dài KHUNG hook (giây) của dự án: lưu trong hook_video.json ("cua_so"); hook cũ chưa ghi = 10 s, hook mới = 8 s."""
+    return float(da.get("cua_so") or (HOOK_CLIP_GIAY_CU if da.get("ds") else HOOK_CLIP_GIAY))
 HOOK_MODEL = "Omni 1.1 Flash"
 HOOK_PHAN_GIAI = "720p"
 AM_TIENG_DONG = 0.3         # tiếng Veo của clip tiếng động: nhỏ dưới giọng đọc
@@ -36,6 +42,8 @@ For each clip:
     (storm, dusk, fog, underwater god rays…). The same characters, costumes, colour grade and light in every shot and
     every clip (follow the story profile). Real-looking live action, no text, no captions, no logos, no on-screen titles.
     Never show the face of a real named person (use silhouettes, from behind, hands, or wide shots).
+    Show exactly what the narration says, even raw nature (carcasses, scavengers, decay) — do not soften or replace it.
+    """ + LUAT_THUC_TE + """
   - "khung_dau": one English sentence describing a strong FIRST FRAME for the clip (can be generated as an image first
     and used as the Start frame);
   - "mo_ta_vi": short Vietnamese description of the clip (1-2 sentences) for the editor;
@@ -61,6 +69,8 @@ def lap(du_an, hoi_lai=False, giay=HOOK_GIAY, so=None):
     """-> {"ds": [{o, cau, text, t0, prompt_en, khung_dau, mo_ta_vi, giay}], "giay_hook"}. Lời hook không đổi và đã có -> dùng lại.
     27/10: hook chia thành các cửa sổ HOOK_CLIP_GIAY giây NỐI LIỀN (clip o đặt ở o*10 s) -> cả đoạn hook toàn video Veo."""
     out = thu_muc_du_an(du_an)[1]
+    W = cua_so(doc(du_an))                                   # 28/10: khung hook của dự án (cũ 10 s / mới 8 s)
+    W = int(W) if float(W).is_integer() else W
     canh = sorted(doc_json(os.path.join(out, "tu_khoa.json"), []) or [], key=lambda c: c["id"])
     if not canh:
         raise ValueError("dự án chưa có tu_khoa.json — đọc giọng trước")
@@ -72,14 +82,14 @@ def lap(du_an, hoi_lai=False, giay=HOOK_GIAY, so=None):
         hook.append(c)
     t_het = max(float(c.get("bat_dau") or 0) + float(c.get("dai") or 0) for c in hook)
     # đủ clip phủ hết hook; phần lẻ cuối <= 3 s để footage thường (không tốn 12 điểm cho 3 s)
-    so = int(so or min(SO_TOI_DA, max(1, -(-int(t_het - 3) // HOOK_CLIP_GIAY))))
+    so = int(so or min(SO_TOI_DA, max(1, -(-int(t_het - 3) // W))))
 
     def trong_o(o):                                          # câu đang được đọc trong cửa sổ o (câu dài trải nhiều cửa sổ)
-        a, z = o * HOOK_CLIP_GIAY, (o + 1) * HOOK_CLIP_GIAY if o < so - 1 else t_het + 1
+        a, z = o * W, (o + 1) * W if o < so - 1 else t_het + 1
         return [c for c in hook if float(c.get("bat_dau") or 0) < z
                 and float(c.get("bat_dau") or 0) + float(c.get("dai") or 0) > a] or [hook[-1]]
     ds_txt = "\n".join(
-        f"CLIP {o + 1} [{o * HOOK_CLIP_GIAY}-{(o + 1) * HOOK_CLIP_GIAY}s]:\n" + "\n".join(
+        f"CLIP {o + 1} [{o * W}-{(o + 1) * W}s]:\n" + "\n".join(
             f"  {c['id']}. [{float(c.get('bat_dau') or 0):.0f}s] {str(c.get('text') or '').strip()}"
             for c in trong_o(o)) for o in range(so))
     k = hashlib.md5(("hk3|" + ds_txt + f"|{so}").encode("utf-8")).hexdigest()[:16]
@@ -92,7 +102,7 @@ def lap(du_an, hoi_lai=False, giay=HOOK_GIAY, so=None):
         # 25/10: đọc lại giọng chỉ lệch GIỜ (lời giữ nguyên) -> giữ câu lệnh + clip đã tạo (không hỏi AI / tốn điểm Flow
         # lần nữa), chỉ dời mốc t0 theo giọng mới
         for y in da["ds"]:                                   # clip theo cửa sổ (có "o") giữ mốc o*10 s
-            y["t0"] = float(y["o"] * HOOK_CLIP_GIAY) if "o" in y else round(float(theo[y["cau"]].get("bat_dau") or 0), 1)
+            y["t0"] = float(y["o"] * W) if "o" in y else round(float(theo[y["cau"]].get("bat_dau") or 0), 1)
         da.update(_k=k, het_hook=round(t_het, 2))
         ghi_json(_p(du_an), da)
         return da
@@ -130,13 +140,13 @@ def lap(du_an, hoi_lai=False, giay=HOOK_GIAY, so=None):
         except (TypeError, ValueError):
             ci = trong[0]["id"]
         c = theo.get(ci) if ci in {z["id"] for z in trong} else trong[0]
-        g = HOOK_CLIP_GIAY
-        ra.append({"o": o, "cau": c["id"], "text": str(c.get("text") or ""), "t0": float(o * HOOK_CLIP_GIAY),
+        g = W
+        ra.append({"o": o, "cau": c["id"], "text": str(c.get("text") or ""), "t0": float(o * W),
                    "prompt_en": str(x["prompt_en"]).strip(), "khung_dau": str(x.get("khung_dau") or "").strip(),
                    "mo_ta_vi": str(x.get("mo_ta_vi") or "").strip(), "giay": g,
                    "am": "noi_chuyen" if str(x.get("am") or "").strip() == "noi_chuyen" else "tieng_dong"})
     ra.sort(key=lambda y: y["t0"])                           # thứ tự theo lời (AI có khi trả lộn)
-    kq = {"_k": k, "giay_hook": giay, "het_hook": round(t_het, 2), "ds": ra}
+    kq = {"_k": k, "giay_hook": giay, "het_hook": round(t_het, 2), "ds": ra, "cua_so": W}
     ghi_json(_p(du_an), kq)
     log(f"[hook] {len(ra)} câu lệnh video -> hook_video.json")
     return kq
@@ -150,7 +160,7 @@ def xep_lich(ds, het):
     ra, cuoi = [], 0.0
     for k, y in enumerate(ds):
         bd = max(float(y.get("t0") or 0), cuoi)
-        h = min(bd + HOOK_CLIP_GIAY, het)
+        h = min(bd + float(y.get("giay") or HOOK_CLIP_GIAY_CU), het)   # 28/10: độ dài THẬT của clip (cũ 10 s, mới 8 s)
         sau = next((float(z.get("t0") or 0) for z in ds[k + 1:] if float(z.get("t0") or 0) >= bd + 2.0), None)
         if sau is not None:
             h = min(h, sau)
@@ -238,6 +248,7 @@ def tao_video(du_an, bao=None):
             return None
         sach(r["tep"][0], f, y)                              # logo ✦ của video Flow
         y["file_prompt"] = y["prompt_en"]
+        y["giay"] = HOOK_CLIP_GIAY                           # 28/10: độ dài thật của clip (xếp lịch theo đó)
         bao(f"hook câu {y['cau']}: xong video ({r.get('diem')} điểm, hồ sơ {r.get('ho_so')})")
         return f
     tep = [co_san(y) for y in ds]                            # clip đã có: dùng lại, không mở tài khoản nào
@@ -257,3 +268,30 @@ def tao_video(du_an, bao=None):
     ra = xep_lich(ds, float(kq.get("het_hook") or kq.get("giay_hook") or HOOK_GIAY))
     bao(f"{len(ra)}/{len(ds)} video hook dùng được" + (f" (đặt {ra[0]['bd']:.1f}-{ra[-1]['het']:.1f} s)" if ra else ""))
     return ra
+
+
+def so_clip_can(du_an):
+    """27/10 user ("khi tôi tích veo phải thông báo cho tôi biết có thể tạo được còn lại bao nhiêu veo trên ngày"):
+    -> (số clip hook CÒN PHẢI TẠO, tổng clip hook, dự_kiến). Chưa có câu lệnh hook -> ước như lap: đủ cửa sổ
+    HOOK_CLIP_GIAY phủ đoạn hook dự kiến (phần lẻ cuối <= 3 s không tính)."""
+    import cho_phu
+    out = thu_muc_du_an(du_an)[1]
+    ds = [y for y in doc(du_an).get("ds") or [] if str(y.get("prompt_en") or "").strip()]
+    if not ds:
+        t_het = cho_phu.het_hook_du_kien(out)
+        so = min(SO_TOI_DA, max(1, -(-int(t_het - 3) // HOOK_CLIP_GIAY))) if t_het > 0 else 0
+        return so, so, True
+    co = sum(1 for y in ds if clip_co(y, out))
+    return len(ds) - co, len(ds), False
+
+
+def clip_co(y, out):
+    """Clip hook ĐÃ CÓ của khúc y (clip 💾 Lưu tay hoặc clip Flow theo băm câu lệnh, như co_san của tao_video) -> đường
+    dẫn | None. Không gọi Flow, không sửa gì."""
+    p = str(y.get("prompt_en") or "").strip()
+    cu = y.get("file") or ""
+    ten = "hook_" + hashlib.md5((HOOK_MODEL + HOOK_PHAN_GIAI + p).encode("utf-8")).hexdigest()[:12]
+    for f in ([cu] if cu and y.get("file_prompt", p) == p else []) + [os.path.join(out, "hook", ten + ".mp4")]:
+        if f and os.path.isfile(f) and os.path.getsize(f) > 20000:
+            return f
+    return None

@@ -12,7 +12,7 @@ import hashlib
 import json
 import os
 
-from common import ROOT, log
+from common import LUAT_THUC_TE, LUAT_YOUTUBE_ANH, ROOT, log
 
 AQ = os.path.dirname(os.path.abspath(__file__))
 PUB = os.path.join(ROOT, "remotion", "public")
@@ -34,7 +34,8 @@ def lenh_ve(ve, thoi_dai="", co_mau=False):
     """Câu lệnh vẽ đầy đủ của một ảnh AI tái hiện (✨ và nút 🎨 Vẽ lại trên giao diện dùng chung)."""
     import anh_ve
     p = (f"{str(ve).strip().rstrip('.')}. Wide 16:9 landscape photograph. {anh_ve.phong_cach(thoi_dai)} "
-         f"Absolutely NO text, NO letters, NO words.")      # 19/10 user: phong cách cố định + đúng thời đại
+         f"Absolutely NO text, NO letters, NO words. {LUAT_YOUTUBE_ANH} {LUAT_THUC_TE}")   # 19/10 user: phong cách cố định + đúng thời đại
+    #                                                       27/10 user: chặn máu me / ghê rợn / khoả thân (tên file ảnh không đổi)
     if co_mau:
         p = ("The attached image is an EARLIER shot of the same story. Any subject that also appears in this "
              "shot must look exactly the same (same species, body shape, colours, markings, clothing, vehicle), "

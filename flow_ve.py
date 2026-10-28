@@ -33,6 +33,27 @@ CONG_DAU = 9350
 TRANG = "https://flow.google.com/?hl=en"     # 15/10: ép giao diện TIẾNG ANH (tài khoản tiếng Việt hiện "Dự án mới")
 CHO_ANH = 240                # giây chờ một lượt tạo
 NGHI_LOI = 600               # hồ sơ lỗi xác minh: nghỉ bấy nhiêu giây
+# 28/10 user ("nếu tài khoản nào lỗi báo ra log hoặc báo đỏ hồ sơ, tôi sẽ tự vào kiểm tra thấy ok thôi bấm đã fix xong tiếp
+# tục cho nó làm việc"): hồ sơ lỗi (lỗi liên tiếp / xác minh / chống spam / đăng xuất) DỪNG HẲN tới khi người dùng bấm
+# "✅ Đã sửa xong" (da_sua) — không tự quay lại sau NGHI_LOI giây. "Hết lượt" trong ngày vẫn tự chờ hết hạn. Kiểu cũ: False
+CHO_NGUOI_SUA = True
+
+
+def _nghi(ten, giay, loi):
+    """Cho hồ sơ nghỉ vì lỗi: CHO_NGUOI_SUA -> dừng hẳn chờ người dùng (cho_sua) + log rõ; không thì nghỉ `giay` giây."""
+    if CHO_NGUOI_SUA:
+        _cap_nhat(ten, cho_sua=True, loi=str(loi)[:160])
+        log(f"    ⚠ Flow '{ten}' DỪNG: {str(loi)[:140]} — mở trang chính › 🌐 Flow, kiểm tra hồ sơ rồi bấm '✅ Đã sửa xong'")
+    else:
+        _cap_nhat(ten, nghi_den=time.time() + giay, loi=str(loi)[:160])
+
+
+def da_sua(ten):
+    """Người dùng đã kiểm tra / sửa hồ sơ -> cho làm việc lại ngay (xoá nghỉ, lỗi, đếm lỗi liên tiếp)."""
+    _cap_nhat(ten, cho_sua=False, nghi_den=0, loi="")
+    with _KHOA_GIU:
+        _LOI_LIEN[ten] = 0
+    log(f"    Flow '{ten}': người dùng báo đã sửa xong -> làm việc lại")
 _KHOA_SO = threading.Lock()
 _PHIEN = {}                  # tên -> _Phien
 _KHOA_PHIEN = {}             # tên -> Lock (mỗi hồ sơ một lượt tạo một lúc)
@@ -69,7 +90,11 @@ def _cong_anh(ten, n):
     with _KHOA_SO:
         d = _doc_so()
         m = d.setdefault(ten, {})
-        m.update(so_anh=int(m.get("so_anh") or 0) + n, dung_luc=time.time(), loi="")
+        m.update(so_anh=int(m.get("so_anh") or 0) + n, dung_luc=time.time())
+        if not m.get("cho_sua"):                             # 28/10: hồ sơ đang DỪNG chờ sửa giữ nguyên lý do
+            m["loi"] = ""
+        m["spam_lan"] = 0                                    # vẽ được ảnh -> đếm "unusual activity" lại từ đầu
+        m["dn_lan"] = 0                                      #   và đếm "đòi đăng nhập" lại từ đầu
         _ghi_so(d)
 
 
@@ -112,9 +137,12 @@ _BANG_TK = ("(() => { const c = document.querySelector('[aria-label=\"Credits di
 def doc_diem(ph):
     """27/10 user: bấm ảnh tài khoản (góc trên phải) -> đọc "N Google Flow credits" + "Credits refresh daily at 5:57 PM"
     -> {"diem": N, "reset": "17:57"} (ghi vào ho_so.json) | {} khi không đọc được. Đóng bảng sau khi đọc."""
-    xy = ph.js("(() => { const e = [...document.querySelectorAll('img')].find(i => /googleusercontent/.test(i.src)"
-               " && i.getBoundingClientRect().y < 120 && i.getBoundingClientRect().x > innerWidth * 0.6); if (!e) return null;"
-               " const r = e.getBoundingClientRect(); return [r.x + r.width / 2, r.y + r.height / 2] })()")
+    # 27/10 (đo acc1/acc5/acc9): Flow đổi giao diện — ảnh tài khoản là link trong khung "Account details", không còn ảnh
+    # googleusercontent -> trước đây KHÔNG BAO GIỜ đọc được điểm thật (acc1 Pro 1.000 điểm mà app tưởng còn 5). Chờ trang tải.
+    xy = ph.cho("(() => { const e = document.querySelector('[aria-label=\"Account details\"] a, a[aria-label^=\"Google Account:\"]')"
+                " || [...document.querySelectorAll('img')].find(i => /googleusercontent/.test(i.src)"
+                " && i.getBoundingClientRect().y < 120 && i.getBoundingClientRect().x > innerWidth * 0.6); if (!e) return null;"
+                " const r = e.getBoundingClientRect(); return r.width ? [r.x + r.width / 2, r.y + r.height / 2] : null })()", 20)
     if not xy:
         return {}
     for t in ("mouseMoved", "mousePressed", "mouseReleased"):
@@ -142,7 +170,7 @@ def ds_ho_so():
     ra = []
     for ten, m in d.items():
         ra.append(dict(m, ten=ten, thu_muc=os.path.join(GOC, _slug(ten)), diem_con=diem_con(ten, m),
-                       dang_nghi=float(m.get("nghi_den") or 0) > time.time(), dang_mo=ten in _PHIEN))
+                       dang_nghi=float(m.get("nghi_den") or 0) > time.time() or bool(m.get("cho_sua")), dang_mo=ten in _PHIEN))
     return sorted(ra, key=lambda x: x.get("tao", 0))
 
 
@@ -485,7 +513,13 @@ _TRANG_THAI = ("(() => { const u = location.href, t = document.body ? (document.
                " if (document.querySelector('[role=textbox][aria-label]')) return 'du_an';"
                # trang Google (đòi email / mật khẩu, hay "Verify it's you" đòi đăng nhập lại — acc4/acc5 26/10): đứng yên
                # đủ DANG_NHAP_GIU giây mới tính là cần đăng nhập; chuyển tiếp làm mới phiên thì đi qua nhanh
-               " if (u.includes('accounts.google.com')) return 'dang_nhap';"
+               # 28/10 user ("thằng nào chẳng đăng nhập mà báo chưa đăng nhập"): accounts.google.com chỉ là ĐĂNG XUẤT khi có
+               # ô email / mật khẩu đang hiện; trang CHỌN TÀI KHOẢN -> 'chon_tk' (tự bấm); còn lại = đang chuyển / làm mới phiên
+               " if (u.includes('accounts.google.com')) {"
+               "   if ([...document.querySelectorAll('input[type=email],input[type=password]')].some(e => e.offsetParent))"
+               "     return 'dang_nhap';"
+               "   if (document.querySelector('[data-identifier],[data-email]')) return 'chon_tk';"
+               "   return ''; }"
                " if (u.includes('flow.google.com/about')) return 'gioi_thieu';"
                " if ([...document.querySelectorAll('*')].some(e => e.children.length < 3 && /New project/.test(e.innerText||'')))"
                " return 'trang_chu'; return ''; })()")
@@ -496,12 +530,12 @@ _SIGN_IN = ("(() => { const a = [...document.querySelectorAll('a[href*=\"account
             ".find(e => e.offsetParent); return a ? a.href : '' })()")
 
 
-def _trang_thai(ph, giay=60):
+def _trang_thai(ph, giay=60, url=None):
     """'du_an' | 'trang_chu' | 'khong_thay' | 'dang_nhap' (trang đăng nhập đứng yên) | '' (tải không xong).
     Đo 26/10 (acc3-acc5): tài khoản Google vẫn đăng nhập (cookie SID) nhưng phiên Flow hết hạn -> dự án chuyển về /about có
     link "Sign in" passive; bấm là Google tự đăng nhập lại không hỏi mật khẩu (người dùng bấm tay thấy "vào bình thường").
     -> tự đi theo link đó một lần trước khi kết luận."""
-    han, tu, da_bam = time.time() + giay, None, False
+    han, tu, da_bam, da_tai = time.time() + giay, None, False, False
     while time.time() < han:
         try:
             o = ph.js(_TRANG_THAI) or ""
@@ -509,6 +543,28 @@ def _trang_thai(ph, giay=60):
             o = ""
         if o in ("du_an", "trang_chu", "khong_thay"):
             return o
+        if o == "chon_tk":
+            # 28/10: trang chọn tài khoản Google -> bấm tài khoản ĐANG ĐĂNG NHẬP (28/10 user: acc3/6/8 vẫn đăng nhập mà bị báo
+            # "chưa đăng nhập" — bấm mục ĐẦU danh sách có thể là tài khoản khác "Signed out" -> Google đòi mật khẩu của nó)
+            try:
+                chon = ph.js("(() => { const ds = [...document.querySelectorAll('[data-identifier],[data-email]')];"
+                             " const e = ds.find(x => !/signed out|đã đăng xuất/i.test((x.closest('li') || x).innerText || ''));"
+                             " if (!e) return ''; e.click(); return e.getAttribute('data-identifier') || e.getAttribute('data-email') || '?' })()")
+            except Exception:                                # noqa: BLE001
+                chon = "?"
+            if not chon:                                     # mọi tài khoản trong danh sách đều đã đăng xuất -> đăng nhập thật
+                return "dang_nhap"
+            log(f"    Flow '{getattr(ph, 'ten', '')}': Google hỏi chọn tài khoản -> chọn {chon}")
+            time.sleep(3)
+            continue
+        if o == "gioi_thieu" and url and not da_tai:
+            # 28/10 user ("toàn bắt sai thôi. nó có đăng xuất đâu"): /about thường chỉ thoáng qua khi Flow bận -> TẢI LẠI dự
+            # án trước; bấm "Sign in" (Google hỏi chọn tài khoản / mật khẩu) chỉ khi tải lại vẫn ra /about
+            da_tai, tu = True, None
+            log(f"    Flow '{getattr(ph, 'ten', '')}': trang Flow về /about -> tải lại dự án")
+            ph.ws.goi("Page.navigate", url=url)
+            time.sleep(4)
+            continue
         if o == "gioi_thieu" and not da_bam:
             try:
                 href = ph.js(_SIGN_IN)
@@ -520,10 +576,12 @@ def _trang_thai(ph, giay=60):
                 ph.ws.goi("Page.navigate", url=href)
                 time.sleep(2)
                 continue
-        if o in ("dang_nhap", "gioi_thieu"):
+        if o == "dang_nhap":                                 # ô email / mật khẩu đứng yên DANG_NHAP_GIU giây = đăng xuất thật
             tu = tu or time.time()
             if time.time() - tu >= DANG_NHAP_GIU:
                 return "dang_nhap"
+        elif o == "gioi_thieu" and da_bam:                   # đã bấm Sign in mà vẫn /about: chờ hết hạn rồi báo TẢI CHẬM ('')
+            pass
         else:
             tu = None                                        # đang chuyển trang / đang tải: chưa kết luận
         time.sleep(1)
@@ -540,7 +598,7 @@ def _vao_du_an(ph):
     ph.ws.goi("Page.navigate", url=url)
     ph.the_he = getattr(ph, "the_he", 0) + 1                  # trang tải lại: kết quả các lượt đang chờ đã mất
     time.sleep(2)
-    o = _trang_thai(ph)
+    o = _trang_thai(ph, url=url)
     if o == "khong_thay":
         # Dự án cũ đã hết hạn hoặc bị xóa trên Flow -> chuyển về trang chủ để tự tạo dự án mới
         ph.ws.goi("Page.navigate", url=TRANG)
@@ -549,7 +607,15 @@ def _vao_du_an(ph):
                    " if ([...document.querySelectorAll('*')].some(e => e.children.length < 3 && /New project/.test(e.innerText||'')))"
                    " return 'trang_chu'; return ''; })()", 45)
     if o == "dang_nhap":
-        raise PermissionError("hồ sơ chưa đăng nhập Flow — bấm 'Mở' trên giao diện để đăng nhập")
+        anh = ""
+        try:                                                 # 28/10 user: chụp lại trang Google đòi đăng nhập để người dùng xem
+            import base64
+            anh = os.path.join(GOC, f"_{_slug(ph.ten)}_dang_nhap.png")
+            open(anh, "wb").write(base64.b64decode(ph.ws.goi("Page.captureScreenshot")["data"]))
+        except Exception:                                    # noqa: BLE001
+            anh = ""
+        raise PermissionError("hồ sơ chưa đăng nhập Flow (Google đòi email / mật khẩu)"
+                              + (f" — ảnh chụp: {anh}" if anh else "") + " — bấm 'Mở' trên giao diện để kiểm tra")
     if not o:                                                  # tải chậm (máy bận) — KHÔNG phải đăng xuất, không nghỉ 6 giờ
         raise RuntimeError("trang Flow tải quá chậm (chưa hiện ô câu lệnh)")
     if o == "trang_chu":
@@ -647,7 +713,19 @@ def _bam_js(ph, js_phan_tu):
     return bool(xy)
 
 
-_SO_CHIP = "document.querySelectorAll('button.chip-container').length"
+# 27/10 user ("hình như bạn đang tạo ảnh nhầm, bạn cứ gửi kèm với cái gì đó khiến nó báo lỗi"): Flow mới hiện ảnh tham
+# chiếu của các LƯỢT CŨ trong lịch sử (FLOW-BATCH-INFO › ingredients-list), mỗi cái là button.chip-container có nút "add".
+# Trước đây đếm / bấm chip trên CẢ TRANG -> bấm vào chip lịch sử = THÊM ảnh cũ vào câu lệnh (tới 8 lần) -> ảnh lỗi / sai.
+# Nay chỉ tìm chip TRONG Ô CÂU LỆNH (khung chứa ô gõ + nút "Start generation"), không bao giờ chạm phần lịch sử.
+_O_LENH = ("(() => { let p = document.querySelector('[role=textbox][aria-label]'); "
+           "while (p && !p.querySelector('button[aria-label=\"Start generation\"]')) p = p.parentElement; return p })()")
+_SO_CHIP = ("(() => { const o = " + _O_LENH + "; if (!o) return 0; return [...o.querySelectorAll('flow-ingredient-chip, "
+            "button.chip-container')].filter(e => !e.closest('flow-batch-info, .ingredients-list')).length })()")
+# nút gỡ của chip trong ô câu lệnh (close / cancel / remove) — KHÔNG phải chip-container (bấm nó có thể là "add")
+_NUT_GO_CHIP = ("(() => { const o = " + _O_LENH + "; if (!o) return null; return [...o.querySelectorAll('flow-ingredient-chip "
+                "button, button.chip-container ~ button, [aria-label*=\"emove\"], [aria-label*=\"lear prompt\"]')]"
+                ".filter(e => !e.closest('flow-batch-info, .ingredients-list'))"
+                ".find(e => /close|cancel|remove|clear/i.test((e.getAttribute('aria-label') || '') + ' ' + (e.innerText || ''))) || null })()")
 
 
 class ChuaDongY(PermissionError):
@@ -660,8 +738,9 @@ def _bo_tham_chieu(ph):
     for _ in range(8):
         if not ph.js(_SO_CHIP):
             return
-        if not _bam_js(ph, "document.querySelector('button[aria-label=\"Clear prompt\"]')"):
-            _bam_js(ph, "document.querySelector('button.chip-container')")
+        if not _bam_js(ph, _NUT_GO_CHIP):                    # 27/10: chỉ nút gỡ TRONG ô câu lệnh; không thấy thì thôi
+            log(f"    ! Flow '{ph.ten}': còn {ph.js(_SO_CHIP)} ảnh tham chiếu trong ô câu lệnh mà không thấy nút gỡ")
+            return
         time.sleep(0.6)
 
 
@@ -937,8 +1016,17 @@ def _cho(ph, luot):
             if loi and re.search(r"unusual", loi, re.I) and not luot.get("da_nghi"):
                 # chống spam của Flow: ngừng GỬI THÊM vào hồ sơ này ngay (lượt đang chờ vẫn chờ nốt theo luật bên dưới)
                 luot["da_nghi"] = True
-                _cap_nhat(ph.ten, nghi_den=time.time() + NGHI_LOI, loi="Flow chống spam: " + loi[:100])
-                log(f"    Flow '{ph.ten}': Flow báo 'unusual activity' -> nghỉ {NGHI_LOI // 60} phút")
+                # 28/10 user ("tạo nhiều quá sẽ có lỗi, và khi có lỗi thì dừng tạo 1 phút rồi reset lại tạo tiếp"): KHÔNG dừng
+                # hẳn chờ người sửa — nghỉ NGHI_SPAM giây (Flow không trừ điểm lượt lỗi), tải lại trang ở _ve_flow, tạo tiếp
+                # 28/10 user ("nếu 1' vẫn bị lỗi đấy cho nó nghỉ 1h nhé"): lại bị trong SPAM_LAP giây kể từ lần trước (tức
+                # ngay sau lượt nghỉ 1 phút) -> nghỉ NGHI_SPAM_LAU; vẽ được ảnh thì đếm lại từ đầu (_cong_anh)
+                m_ = _doc_so().get(ph.ten, {})
+                lan = (int(m_.get("spam_lan") or 0) if time.time() - float(m_.get("spam_luc") or 0) < SPAM_LAP else 0) + 1
+                giay = NGHI_SPAM if lan < 2 else NGHI_SPAM_LAU
+                _cap_nhat(ph.ten, nghi_den=time.time() + giay, spam_lan=lan, spam_luc=time.time(),
+                          loi=f"Flow chống spam (tự nghỉ {giay // 60} phút): " + loi[:80])
+                log(f"    Flow '{ph.ten}': Flow báo 'unusual activity'" + (" LẦN NỮA sau khi nghỉ 1 phút" if lan >= 2 else "")
+                    + f" -> nghỉ {giay // 60} phút, tải lại trang rồi tạo tiếp")
             if loi and not link:
                 # nhiều lượt cùng chờ: lỗi chung (xác minh / hết lượt) dừng ngay; lỗi riêng một ảnh ("couldn't generate"…)
                 # chưa biết của lượt nào -> lượt đứng một mình thì dừng, đang chờ cùng lượt khác thì chờ thêm 45 s
@@ -1026,6 +1114,13 @@ def _tao(ph, prompt, ti_le, tham_chieu=None):
 # 25/10 user "tối ưu tốc độ nhất có thể": mỗi hồ sơ GỬI TIẾP lượt mới khi lượt trước còn đang vẽ (Flow vẽ song song),
 # khoá hồ sơ chỉ giữ lúc gõ + bấm tạo (vài giây) chứ không suốt ~30-60 s chờ ảnh. BC_FLOW_SONG_SONG=1 để quay về lối cũ.
 SONG_SONG = max(1, min(6, int(os.environ.get("BC_FLOW_SONG_SONG") or 3)))   # đo 25/10: 6 lượt chạy được nhưng dồn nhiều thì Flow báo "unusual activity"
+NGHI_DANG_NHAP = 600         # 28/10 user: Flow đòi đăng nhập lại -> nghỉ bấy nhiêu giây rồi tự thử (không dừng hẳn)
+DANG_NHAP_TOI_DA = 3         #   lặp lại bấy nhiêu lần liền mới DỪNG chờ người dùng kiểm tra
+NGHI_SPAM_LAU = 3600         # 28/10 user: nghỉ 1 phút xong vẫn "unusual activity" -> nghỉ bấy nhiêu giây
+SPAM_LAP = 600               #   "vẫn bị" = bị lại trong bấy nhiêu giây kể từ lần trước
+NGHI_SPAM = 60               # 28/10 user: Flow báo "unusual activity" -> hồ sơ nghỉ bấy nhiêu giây rồi tạo tiếp
+CHO_TAO_LAI = 20             # 28/10 user: "failed to generate" -> chờ bấy nhiêu giây rồi bấm tạo lại
+TAO_LAI_TOI_DA = 3           #   tối đa bấy nhiêu lần cho một ảnh
 LOI_LIEN_TOI_DA = 2          # hồ sơ lỗi liên tiếp bấy nhiêu lượt -> nghỉ NGHI_LOI giây (không để luồng phí thời gian vào nó)
 _LOI_LIEN = {}
 _GIU = {}                    # tên hồ sơ -> số luồng đang giữ (vẽ ảnh / tạo video)
@@ -1064,7 +1159,7 @@ def _ghi_loi(ten, loi):
         n = _LOI_LIEN[ten]
     if n >= LOI_LIEN_TOI_DA:
         log(f"    Flow '{ten}': lỗi {n} lượt liền -> nghỉ {NGHI_LOI // 60} phút")
-        _cap_nhat(ten, nghi_den=time.time() + NGHI_LOI, loi=f"lỗi {n} lượt liền: {str(loi)[:120]}")
+        _nghi(ten, NGHI_LOI, f"lỗi {n} lượt liền: {str(loi)[:120]}")
         with _KHOA_GIU:
             _LOI_LIEN[ten] = 0
 
@@ -1089,6 +1184,18 @@ def ve(prompt, thu, ten_file, ti_le="16:9", tham_chieu=None):
     return tep[0]
 
 
+def lay_anh_du(prompt, tham_chieu=None):
+    """28/10 user ("mỗi lần tạo 2 ảnh, nhưng chỉ chọn 1 ảnh thôi như vậy có phí lượt không"): lấy ẢNH THỨ HAI của lượt tạo
+    vừa rồi cho đúng câu lệnh này (ve() cất trong _DU) -> đường dẫn | None. Bên gọi dùng nó cho chỗ khác thay vì bỏ phí."""
+    goc = re.sub(r"\s*(Remember: NO writing at all\.|Absolutely NO writing anywhere\.)\s*$", "", prompt).strip()
+    du = _DU.get(goc + "|" + "|".join(tham_chieu or []))
+    while du:
+        f = du.pop(0)
+        if os.path.isfile(f):
+            return f
+    return None
+
+
 def ve_nhieu(prompt, thu, ten_goc, ti_le="16:9", tham_chieu=None):
     """Như ve() nhưng GIỮ CẢ HAI ảnh của một lượt tạo (2 phương án) -> [<ten_goc>_1.png, <ten_goc>_2.png] | []."""
     return _ve_flow(prompt, thu, [f"{ten_goc}_1.png", f"{ten_goc}_2.png"], ti_le, tham_chieu)
@@ -1109,12 +1216,24 @@ def _ve_flow(prompt, thu, ten_files, ti_le, tham_chieu):
     # 22/10 user ("nhiều luồng"): mỗi luồng GIỮ CHỖ một hồ sơ (dưới khoá chung), ít luồng giữ nhất trước. 25/10: mỗi hồ sơ
     # nhận tới SONG_SONG lượt cùng lúc — khoá hồ sơ chỉ giữ lúc gõ + bấm tạo, chờ ảnh thì không giữ.
     da_thu = set()
+    lai_tao = 0
     while True:
         ten = _giu_ho_so([h["ten"] for h in ds], da_thu)
         if ten is None:
-            break
+            # 28/10: hết hồ sơ rảnh mà còn hồ sơ chỉ NGHỈ NGẮN (chống spam 60 s) -> chờ hồ sơ nghỉ xong sớm nhất rồi vẽ tiếp
+            # trên Flow, không trượt sang Gemini
+            so_ = _doc_so()
+            con = [float(m.get("nghi_den") or 0) for m in so_.values()
+                   if not m.get("cho_sua") and 0 < float(m.get("nghi_den") or 0) - time.time() <= NGHI_SPAM + 5]
+            if not con:
+                break
+            time.sleep(max(1.0, min(con) - time.time() + 1))
+            ds = [h for h in ds_ho_so() if not h["dang_nghi"]]
+            da_thu = {t for t in da_thu if t not in {h["ten"] for h in ds}}
+            continue
         da_thu.add(ten)
-        if float(_doc_so().get(ten, {}).get("nghi_den") or 0) > time.time():   # luồng khác vừa cho nghỉ (đăng xuất…)
+        m_ = _doc_so().get(ten, {})
+        if float(m_.get("nghi_den") or 0) > time.time() or m_.get("cho_sua"):   # luồng khác vừa cho nghỉ / dừng chờ sửa
             _tha_ho_so(ten)
             continue
         try:
@@ -1130,14 +1249,26 @@ def _ve_flow(prompt, thu, ten_files, ti_le, tham_chieu):
                     luot = _gui(ph, prompt, ti_le, tham_chieu)
                 except PermissionError as e:
                     log(f"    ! Flow '{ten}': {e}")
+                    # 28/10 user: "chưa đăng nhập" thường là báo nhầm lúc Flow / Google bận -> nghỉ NGHI_DANG_NHAP rồi tự
+                    # thử lại; chỉ DỪNG chờ người dùng khi lặp lại DANG_NHAP_TOI_DA lần liền
+                    m_ = _doc_so().get(ten, {})
+                    lan_ = int(m_.get("dn_lan") or 0) + 1
+                    if lan_ < DANG_NHAP_TOI_DA:
+                        _cap_nhat(ten, dn_lan=lan_, nghi_den=time.time() + NGHI_DANG_NHAP,
+                                  loi=f"Flow đòi đăng nhập lại (lần {lan_}) — tự thử lại sau {NGHI_DANG_NHAP // 60} phút")
+                        log(f"    Flow '{ten}': đòi đăng nhập lại (lần {lan_}) -> nghỉ {NGHI_DANG_NHAP // 60} phút rồi tự thử")
+                        dong(ten)
+                        continue
+                    _cap_nhat(ten, dn_lan=0)
                     # 23/10: hồ sơ bị ĐĂNG XUẤT (acc3/acc4 về trang /about) -> nghỉ 6 giờ (bấm 'Mở' đăng nhập lại sẽ xoá nghỉ),
                     # trước đây nghỉ 10 phút rồi lại thử -> mỗi lượt mất thêm thời gian
-                    _cap_nhat(ten, nghi_den=time.time() + 6 * 3600, loi=str(e)[:160])
+                    _nghi(ten, 6 * 3600, str(e)[:160])
                     dong(ten)
                     continue
                 except Exception as e:                               # noqa: BLE001
                     log(f"    ! Flow '{ten}': {type(e).__name__}: {str(e)[:140]}")
-                    _ghi_loi(ten, e)
+                    if not re.search(r"tải quá chậm|tải lại / đóng giữa chừng", str(e)):   # 28/10: máy bận ≠ lỗi tài khoản
+                        _ghi_loi(ten, e)
                     # 25/10: giữ cửa sổ, về lại dự án (không tắt / mở Chrome) — trừ khi lượt khác còn chờ ảnh trên tab
                     # (tải lại trang làm mất kết quả của chúng): khi đó chỉ chuyển lượt này sang hồ sơ khác
                     if not (ph and ph.dang_cho):
@@ -1148,11 +1279,19 @@ def _ve_flow(prompt, thu, ten_files, ti_le, tham_chieu):
                 loi = luot.get("loi") or "không có ảnh"
                 _LOI_LUONG[threading.get_ident()] = loi
                 log(f"    ! Flow '{ten}': {loi[:140]}")
-                if re.search(r"unusual", loi, re.I):                  # chống spam: đã cho nghỉ ở _cho
-                    pass
+                if re.search(r"failed to generate", loi, re.I) and lai_tao < TAO_LAI_TOI_DA:
+                    # 28/10 user: "Sorry, this image failed to generate" không phải lỗi tài khoản -> nghỉ 20 s rồi bấm tạo
+                    # tiếp (không đếm lỗi liên tiếp, không dừng hồ sơ)
+                    lai_tao += 1
+                    log(f"    Flow '{ten}': ảnh chưa ra -> chờ {CHO_TAO_LAI} s rồi tạo lại ({lai_tao}/{TAO_LAI_TOI_DA})")
+                    time.sleep(CHO_TAO_LAI)
+                    da_thu.discard(ten)
+                elif re.search(r"unusual", loi, re.I):                # chống spam: đã cho nghỉ NGHI_SPAM s ở _cho
+                    if not (ph and ph.dang_cho):                       # 28/10 user: "reset lại" — tải lại dự án (không
+                        cuu_phien(ten)                                 # khi lượt khác trên tab còn chờ ảnh)
                 elif re.search(r"verify|captcha", loi, re.I):
                     ph.hien_cua_so()                           # để người dùng giải xác minh
-                    _cap_nhat(ten, nghi_den=time.time() + NGHI_LOI, loi="cần xác minh: " + loi[:120])
+                    _nghi(ten, NGHI_LOI, "cần xác minh: " + loi[:120])
                 elif re.search(r"limit|quota|later", loi, re.I):
                     _cap_nhat(ten, nghi_den=time.time() + 6 * 3600, loi="hết lượt: " + loi[:120])
                     dong(ten)

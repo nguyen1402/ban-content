@@ -234,7 +234,9 @@ def uoc_diem(model, phan_giai="", do_dai="", so=1):
     """Điểm ước tính trước khi mở Flow (giá thật đọc ở dòng "Generating will use N credits")."""
     m = str(model or "")
     if "Omni" in m:
-        g = 6 if "360" in str(phan_giai) else 12             # 27/10 user: Omni 720p 10 s = 12 điểm
+        # 28/10 user ("12 điểm là tạo 8s chứ không phải 10 s"): Omni 720p 8 s = 12 điểm, 10 s = 15 điểm (đo acc1).
+        # Mặc định Veo nay 8 s -> không ghi độ dài thì tính 8 s
+        g = 6 if "360" in str(phan_giai) else 15 if str(do_dai).startswith("10") else 12
     else:
         g = 100 if "Quality" in m else 20 if "Fast" in m else 10
     return g * max(1, int(so or 1))
@@ -311,7 +313,12 @@ def chay_theo_tai_khoan(viec, lam, can=12, song_song=SONG_SONG_VIDEO, moi_tk=MOI
                 kq[i] = lam(x, ten, k)
             except Exception as e:                           # noqa: BLE001
                 loi = str(e)
-                if _LOI_TAI_KHOAN.search(loi):
+                # 27/10 user ("tại sao lại chưa hết điểm lại không tạo được"): Flow TỪ CHỐI NỘI DUNG ("Flow báo: …policy… /
+                # Something went wrong… try again later") khớp "later|limit" -> trước đây coi là lỗi TÀI KHOẢN: bỏ cả tài khoản
+                # cho hết lượt + đẩy câu lệnh hỏng sang tài khoản khác (một câu lệnh hỏng làm hỏng 3 tài khoản). Nay lỗi
+                # "Flow báo" chỉ là lỗi tài khoản khi nói về điểm / xác minh; còn lại bỏ đúng câu lệnh đó.
+                noi_dung = loi.startswith("Flow báo") and not re.search(r"credits|unusual|verify|captcha|quota", loi, re.I)
+                if _LOI_TAI_KHOAN.search(loi) and not noi_dung:
                     with khoa:
                         if lan < 2:                          # việc trả lại hàng chờ cho tài khoản khác
                             hang.appendleft((i, x, lan + 1))

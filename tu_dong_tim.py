@@ -21,7 +21,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 
-from common import doc_json, log, thu_muc_du_an
+from common import LUAT_THUC_TE, LUAT_YOUTUBE_ANH, doc_json, log, thu_muc_du_an
 
 NGAN_SACH_PHUT = 120
 LO_TOI_DA = 1.10            # được lố ngân sách 10%
@@ -806,7 +806,10 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
     # 9b. 19/10 user: "hết hình thì tạo ảnh AI" — mỗi chỗ goi_y không còn footage đúng đối tượng (mảnh đã dùng 2 lần /
     #     không cách được 15 s) -> Gemini vẽ một ảnh ngang (đối tượng chính của đoạn + mô tả vế đó), gắn riêng cho cảnh,
     #     rồi gợi ý lại các cảnh ấy (ảnh vẽ riêng được ưu tiên đúng ở chỗ hết hình)
-    if VE_AI_KHI_HET:
+    if ve_bu:                                                # 28/10 user: chỗ trống sau khi băm -> ảnh AI (nhiều lượt)
+        _tt(du_an, buoc="anh_ve", xong=0, tong=0)
+        ve_bu_cho_trong(du_an)
+    elif VE_AI_KHI_HET:
         _ve_cho_het_hinh(du_an, can)
 
     # 10. Tạo bản nháp CapCut
@@ -850,7 +853,7 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
             "video": len(video_duoc_chon), "phut": round(tong_giay_chon / 60, 1)}
 
 
-def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False, dung_stock=True, che_do="chu_de"):
+def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False, dung_stock=True, che_do="chu_de", ve_bu=False):
     """chi_chon=True: chỉ tìm + chấm + chọn (không tải, không đổi kế hoạch) — để đo/xem trước.
     dung_stock=False: bỏ tìm/tải Pexels/Pixabay/Mixkit/Coverr — chỉ video YouTube.
     che_do='chu_de': tìm nguồn và tải từng khoảng theo chủ đề (Giai đoạn 2); 'canh': tìm theo cảnh cũ."""
@@ -1261,8 +1264,123 @@ def _anh_google_canh(du_an, c, toi_da, rieng=False):
     return ra
 
 
-def _ve_cho_het_hinh(du_an, can):
-    """Đọc thieu_chi_tiet.json (goi_y) -> vẽ ảnh AI cho từng chỗ hết hình -> gợi ý lại các cảnh đó."""
+def boi_canh_cho(out, loi):
+    """Bối cảnh đúng nơi (tiếng Anh) cho đoạn lời — dieu_phoi.boi_canh_cho (hồ sơ câu chuyện)."""
+    try:
+        import sys
+        sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "chinh_sua"))
+        import dieu_phoi
+        return dieu_phoi.boi_canh_cho(out, loi)
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! bối cảnh cho ảnh: {str(e)[:100]}")
+        return ""
+
+
+# 28/10 user ("có khi làm vậy sẽ sát hơn đấy"): câu lệnh ảnh bù trước đây GHÉP MẪU (mô tả chủ thể + mô tả vế + bối cảnh)
+# — không ai đọc đúng câu thoại ở chỗ trống -> ảnh chung chung. Nay gom các chỗ trống thành lô, nhờ Gemini viết MỘT câu mô
+# tả ảnh riêng cho từng chỗ theo đúng câu đang đọc ở giây đó (lưu ve_bu_mo_ta.json, không hỏi lại). Tắt: False
+MO_TA_AI_BU = True
+MO_TA_LO = 40               # số chỗ trống mỗi lần hỏi
+_P_MO_TA_BU = """You write AI photo descriptions for a documentary video. Each numbered GAP below is a moment where the
+picture must show what the narration (Vietnamese) says AT THAT MOMENT.
+{ho_so}
+Rules:
+- ONE English description per gap, 20-35 words: camera angle + main subject + what it is doing / what is happening to it +
+  where. Follow the narration LITERALLY — the specific event, action or state it describes at that moment, with its numbers
+  and details — not a generic view of the subject.
+- Gaps of the same scene (same [scene]) must show DIFFERENT moments or framings.
+- {ngoai}
+- Take looks and places from the story bible; people, buildings and landscape match the real location and country.
+- {luat}
+GAPS (number. [scene] subject | narration at that moment):
+{ds}
+Return ONLY JSON: {{"<number>": "<description>"}}"""
+
+
+def _ho_so_chu(out):
+    """Khối "STORY BIBLE" từ ho_so_truyen.json (không hỏi AI)."""
+    j = (doc_json(os.path.join(out, "ho_so_truyen.json"), {}) or {}).get("ho_so") or {}
+    dong = [f"  - SETTING {x.get('noi_en') or x.get('noi', '')}: {x.get('mo_ta_en', '')}"
+            + (f" People: {x['nguoi_en']}." if x.get("nguoi_en") else "") for x in j.get("boi_canh") or [] if isinstance(x, dict)]
+    dong += [f"  - {x.get('ten', '')}: {x.get('mo_ta_en', '')}" for x in j.get("nhan_vat") or [] if isinstance(x, dict)]
+    return ("STORY BIBLE:\n" + "\n".join(dong) + "\n") if dong else ""
+
+
+def _mo_ta_ai(out, viec):
+    """Gắn noi_dung = mô tả Gemini viết riêng cho từng chỗ trống (theo câu đang đọc ở giây đó). Lỗi -> giữ mẫu ghép."""
+    import hashlib
+    import cho_phu
+    from common import LUAT_NGOAI_TRUYEN, LUAT_THUC_TE, ghi_json, hoi_nhieu, rut_json
+    cau = cho_phu.doc_cau(out)
+    p = os.path.join(out, "ve_bu_mo_ta.json")
+    luu = doc_json(p, {}) or {}
+
+    def loi_luc(a, b):                                       # câu đang đọc trong [a, b] (+ câu liền trước để đủ ngữ cảnh)
+        ds = [c_ for c_ in cau if c_["t1"] > a - 0.2 and c_["t0"] < b + 0.2]
+        return " ".join(c_["text"] for c_ in ds) if ds else ""
+    can, khoa = [], {}
+    for c, k in viec:
+        loi = loi_luc(c["_bd"], c["_bd"] + c["_dai"])
+        kk = hashlib.md5(f"v2|{c['id']}|{k}|{c['_cd']}|{loi}".encode("utf-8")).hexdigest()[:14]   # v2: luật câu ngoài chuyện
+        khoa[id(c)] = kk
+        c["_loi"] = loi
+        if not luu.get(kk):
+            can.append(c)
+    if can:
+        log(f"  Gemini viết mô tả ảnh riêng cho {len(can)} chỗ trống (theo câu đang đọc)…")
+        lo = [can[i:i + MO_TA_LO] for i in range(0, len(can), MO_TA_LO)]
+        hs = _ho_so_chu(out)
+        lenh = [_P_MO_TA_BU.format(ho_so=hs, luat=LUAT_THUC_TE, ngoai=LUAT_NGOAI_TRUYEN, ds="\n".join(
+            f"{n + 1}. [{c['id']}] {c['_cd'][:90]} | {c['_loi'][:400]}" for n, c in enumerate(l))) for l in lo]
+        for l, r in zip(lo, hoi_nhieu(lenh, timeout=300, ai="gemini")):
+            j = rut_json(r or "")
+            if not isinstance(j, dict):
+                log("  ! Gemini không trả mô tả cho một lô chỗ trống — lô đó dùng câu lệnh ghép mẫu")
+                continue
+            for n, c in enumerate(l):
+                m = str(j.get(str(n + 1)) or "").strip()
+                if len(m.split()) >= 8:
+                    luu[khoa[id(c)]] = m
+        ghi_json(p, luu)
+    n = 0
+    for c, _ in viec:
+        if luu.get(khoa[id(c)]):
+            c["noi_dung"] = luu[khoa[id(c)]]
+            c["boi_canh"] = ""                               # Gemini đã chọn đúng nơi theo lời + hồ sơ: bỏ dòng địa điểm ghép
+            n += 1
+    log(f"  {n}/{len(viec)} chỗ trống có mô tả riêng của Gemini")
+
+
+def ve_bu_cho_trong(du_an, so_luot=None, bao=None):
+    """28/10 user ("tôi chỉ định video băm, thiếu ở chỗ đấy thay thế bằng AI"): sau khi băm footage, mọi chỗ còn trống
+    (thieu_chi_tiet.json) -> vẽ ảnh AI (Flow trước, 0 điểm) rồi gợi ý lại; tối đa VE_BU_LUOT lượt, mỗi lượt một GÓC MÁY
+    khác (cùng câu lệnh thì ảnh cũ đã dùng — mỗi ảnh dùng một lần — nên lượt sau phải là ảnh mới). -> tổng số ảnh."""
+    import dung_tay
+    bao = bao or (lambda m: log("  " + m))
+    out = thu_muc_du_an(du_an)[1]
+    canh = doc_json(os.path.join(out, "tu_khoa.json"), []) or []
+    tong = 0
+    for luot in range(so_luot or VE_BU_LUOT):
+        ct = {k: v for k, v in (doc_json(os.path.join(out, "thieu_chi_tiet.json"), {}) or {}).items() if v}
+        if not ct:
+            break
+        bao(f"vẽ ảnh AI bù chỗ trống — lượt {luot + 1}: {sum(len(v) for v in ct.values())} chỗ ở {len(ct)} cảnh")
+        dung = dung_tay.doc_dung(du_an)
+        can = [c for c in canh if not (dung.get(str(c["id"]), {}).get("doan") and not dung[str(c["id"])].get("goi_y"))]
+        n = _ve_cho_het_hinh(du_an, can, lech=10 * luot)
+        tong += n
+        if not n:
+            break
+    return tong
+
+
+HAI_ANH_MOI_LUOT = True     # 28/10 user: mỗi lượt Flow ra 2 ảnh -> một lượt lấp 2 chỗ trống của cùng cảnh. Tắt: False
+VE_BU_LUOT = 3              # 28/10 user: số lượt vẽ bù chỗ trống sau khi băm (đo casauthabien: 58% -> 22% -> 10% -> 5%)
+
+
+def _ve_cho_het_hinh(du_an, can, lech=0):
+    """Đọc thieu_chi_tiet.json (goi_y) -> vẽ ảnh AI cho từng chỗ hết hình -> gợi ý lại các cảnh đó.
+    lech: cộng vào biến thể góc máy (lượt vẽ bù sau ra ảnh mới, không trùng câu lệnh lượt trước)."""
     import dung_tay
     import goi_y
     import mo_ta_ve
@@ -1272,6 +1390,7 @@ def _ve_cho_het_hinh(du_an, can):
     cds = (doc_json(os.path.join(out, "chu_de.json"), {}) or {}).get("chu_de") or []
     theo_cd = {cd.get("id"): cd for cd in cds}
     ve_all = mo_ta_ve.doc(du_an)
+    da_dat = frozenset(x["kho_id"] for kh in dung_tay.doc_dung(du_an).values() for x in kh.get("doan") or [])   # 28/10
     viec = []
     for cid, ds in sorted(ct.items()):
         c = theo_id.get(cid)
@@ -1281,14 +1400,23 @@ def _ve_cho_het_hinh(du_an, can):
         cd = theo_cd.get(cd.get("kho_cd") or cd.get("id"), cd)            # đoạn bình luận: đối tượng của đoạn kể thừa kế
         c0 = float(c.get("bat_dau") or 0)
         for k, o in enumerate(ds):
+            if HAI_ANH_MOI_LUOT and k % 2 == 1:              # 28/10: chỗ lẻ dùng ảnh thứ hai của lượt chỗ chẵn trước nó
+                continue
             t = float(o.get("bd", c0)) - c0
             ve = next((v for v in ve_all.get(str(cid)) or [] if float(v["bd"]) - 0.05 <= t < float(v["kt"]) - 0.05), {})
             mo_ta = (ve.get("mo_ta_en") if ve.get("rieng") or not cd.get("mo_ta_en") else
                      f"{cd['mo_ta_en']}. {ve.get('mo_ta_en') or ''}".strip(". "))
             if not mo_ta:
                 mo_ta = c.get("noi_dung") or c.get("text") or ""
-            viec.append((dict(c, noi_dung=mo_ta, anh=[cd.get("doi_tuong") or ""], video=[]), k))
+            # 28/10 user (ảnh ra người / cảnh Việt Nam dù chuyện ở nước khác): từ khoá TIẾNG ANH (tên chủ thể tiếng Việt
+            # "Các nhà khoa học… · lô 1" từng lọt vào câu lệnh) + bối cảnh đúng nơi theo lời quanh cảnh này
+            tk_en = [str(t) for t in (cd.get("tu_khoa_en") or []) if str(t).strip()][:1] or [cd.get("mo_ta_en") or ""]
+            loi_gan = " ".join(str(x.get("text") or "") for x in can if abs(int(x["id"]) - cid) <= 3)
+            viec.append((dict(c, noi_dung=mo_ta, anh=tk_en, video=[], boi_canh=boi_canh_cho(out, loi_gan),
+                              _bd=float(o.get("bd", c0)), _dai=float(o.get("dai") or 3), _cd=cd.get("mo_ta_en") or ""), k))
     viec = viec[:GEMINI_BU_TOI_DA]
+    if MO_TA_AI_BU and viec:                                 # 28/10 user: Gemini viết mô tả RIÊNG cho từng chỗ theo câu đang đọc
+        _mo_ta_ai(out, viec)
     if not viec:
         return 0
     log(f"  {len(viec)} chỗ hết footage đúng đối tượng -> Gemini vẽ ảnh ngang ({len({c['id'] for c, _ in viec})} cảnh)")
@@ -1296,7 +1424,7 @@ def _ve_cho_het_hinh(du_an, can):
 
     def ve1(ck):
         try:
-            r = _ve_anh_ngang(du_an, ck[0], bien_the=ck[1])
+            r = _ve_anh_ngang(du_an, ck[0], bien_the=ck[1] + lech, tranh=da_dat)
         except Exception as e:                               # noqa: BLE001
             log(f"    ! cảnh {ck[0]['id']}: vẽ ảnh hết hình lỗi: {str(e)[:120]}")
             r = None
@@ -1319,8 +1447,9 @@ def _ve_cho_het_hinh(du_an, can):
     return duoc
 
 
-def _ve_anh_ngang(du_an, c, bien_the=0):
-    """Gemini (cookie) vẽ một ẢNH CHỤP NGANG 16:9 cho cảnh -> id kho | None. Cache theo câu lệnh (vẽ lại không tốn)."""
+def _ve_anh_ngang(du_an, c, bien_the=0, tranh=frozenset(), _lan_doi=0):
+    """Gemini (cookie) vẽ một ẢNH CHỤP NGANG 16:9 cho cảnh -> id kho | None. Cache theo câu lệnh (vẽ lại không tốn).
+    tranh: id kho ĐÃ DÙNG trong kế hoạch — ảnh cache trùng câu lệnh mà đã dùng thì đổi biến thể góc máy, vẽ ảnh mới."""
     import hashlib
     import sys
     from PIL import Image
@@ -1331,13 +1460,22 @@ def _ve_anh_ngang(du_an, c, bien_the=0):
     noi_dung = (c.get("noi_dung") or c.get("text") or "").strip()
     goi = ", ".join(((c.get("anh") or []) + (c.get("video") or []))[:2])
     prompt = (f"Create a realistic high-resolution documentary PHOTOGRAPH in WIDE 16:9 LANDSCAPE (horizontal) format that "
-              f"fills the whole frame. Scene: {noi_dung} (keywords: {goi}). {anh_ve.phong_cach(c.get('thoi_dai'))} "
-              f"No text, no letters, no captions, no logos, no watermark, no borders, no collage."
+              f"fills the whole frame. Scene: {noi_dung} (keywords: {goi}). {c.get('boi_canh') or ''} "
+              f"{anh_ve.phong_cach(c.get('thoi_dai'))} "
+              f"No text, no letters, no captions, no logos, no watermark, no borders, no collage. "
+              f"{LUAT_YOUTUBE_ANH} {LUAT_THUC_TE}"   # 27/10 user: chặn máu me…; 28/10: bám lời, đúng thực tế (không thợ lặn 2000 m)
               + (f" Shot variation {bien_the + 1}: use a clearly different camera angle, distance and moment than a "
                  f"standard shot of this scene." if bien_the else ""))
     kid = "g_" + hashlib.md5(prompt.encode("utf-8")).hexdigest()[:12]
     m = dung_tay.doc_kho(du_an).get(kid)
     if m and m.get("trang_thai") == "xong" and os.path.isfile(m.get("file", "")):
+        khac_canh = m.get("cho_canh") is not None and str(m.get("cho_canh")) != str(c["id"])
+        if (kid in tranh or khac_canh) and _lan_doi < 8:
+            # 28/10: cũng vậy khi ảnh cache vẽ cho CẢNH KHÁC (nhiều cảnh trùng câu lệnh) — câu hành động chỉ nhận ảnh vẽ
+            # riêng cho đúng cảnh mình, trả ảnh cảnh khác thì chỗ trống vẫn trống
+            # 28/10: ảnh của câu lệnh này đã nằm ở chỗ khác (mỗi ảnh dùng một lần) -> trả lại nó thì chỗ trống vẫn trống
+            # (đo casauthabien: 3 lượt "56/56 ảnh" mà 69 chỗ vẫn trống) -> biến thể góc máy khác
+            return _ve_anh_ngang(du_an, c, bien_the + 37, tranh, _lan_doi + 1)
         if m.get("cho_canh") is None:
             dung_tay._cap_nhat_kho(du_an, kid, cho_canh=c["id"])   # noqa: SLF001
         return kid
@@ -1351,7 +1489,8 @@ def _ve_anh_ngang(du_an, c, bien_the=0):
                 canh_ve = moi_
                 log(f"    cảnh {c['id']}: ChatGPT viết lại cảnh (lỗi trước: {ly_do}) -> '{canh_ve[:70]}'")
         p_ = prompt if canh_ve == noi_dung else prompt.replace(f"Scene: {noi_dung}", f"Scene: {canh_ve}")
-        f = anh_ve.ve_prompt(p_ if lan % 2 == 0 else p_ + " Absolutely NO writing anywhere.", thu, f"_{kid}_{lan}.png")
+        p_gui = p_ if lan % 2 == 0 else p_ + " Absolutely NO writing anywhere."
+        f = anh_ve.ve_prompt(p_gui, thu, f"_{kid}_{lan}.png")
         if not f:
             ly_do = "từ chối / không trả ảnh"
             log(f"    ! cảnh {c['id']}: ảnh vẽ bù lần {lan + 1}: {ly_do}")
@@ -1373,8 +1512,36 @@ def _ve_anh_ngang(du_an, c, bien_the=0):
                                nguon="gemini", trang_thai="xong", pt=100.0, rong=im.size[0], cao=im.size[1],
                                luc=time.time(), cho_canh=c["id"])   # 14/10: ảnh vẽ riêng cho cảnh này (goi_y chỉ dùng ở đây)
         log(f"    cảnh {c['id']}: Gemini vẽ ảnh ngang {im.size[0]}x{im.size[1]}")
+        _luu_anh_hai(du_an, c, kid, p_gui, thu, noi_dung)
         return kid
     return None
+
+
+def _luu_anh_hai(du_an, c, kid, prompt, thu, noi_dung):
+    """28/10 user: Flow tạo 2 ảnh mỗi lượt — ảnh thứ hai (cùng khoảnh khắc, phương án khác) cũng vào kho cho CÙNG cảnh
+    (kid + '_b'), goi_y dùng nó cho chỗ trống khác của cảnh đó -> số lần bấm tạo giảm ~một nửa."""
+    try:
+        import flow_ve
+        import dung_tay
+        from PIL import Image
+        f2 = flow_ve.lay_anh_du(prompt)
+        if not f2:
+            return
+        import anh_ve
+        anh_ve.xoa_logo(f2)                                  # ảnh 1 đã xoá dấu ✦ ở anh_ve._qua_flow; ảnh 2 xoá ở đây
+        im = Image.open(f2).convert("RGB")
+        if im.size[0] < 1.2 * im.size[1]:
+            w2, h2 = im.size
+            hh = int(w2 * 9 / 16)
+            im = im.crop((0, (h2 - hh) // 2, w2, (h2 - hh) // 2 + hh))
+        dich = os.path.join(thu, kid + "_b.jpg")
+        im.save(dich, quality=95)
+        os.remove(f2)
+        dung_tay._cap_nhat_kho(du_an, kid + "_b", loai="anh", tieu_de=f"Flow vẽ (ảnh 2): {noi_dung[:60]}", file=dich,  # noqa: SLF001
+                               nguon="gemini", trang_thai="xong", pt=100.0, rong=im.size[0], cao=im.size[1],
+                               luc=time.time(), cho_canh=c["id"])
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! cảnh {c['id']}: giữ ảnh thứ hai lỗi: {str(e)[:100]}")
 
 
 def _viet_lai_canh(canh, ly_do):
@@ -1392,9 +1559,11 @@ def _viet_lai_canh(canh, ly_do):
     return t if 15 <= len(t) <= 800 else ""
 
 
-def chay_nen(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, sau=None, dung_stock=True, che_do="chu_de"):
+def chay_nen(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, sau=None, dung_stock=True, che_do="chu_de", truoc=None,
+             ve_bu=False):
     """sau: hàm gọi khi chạy XONG không lỗi (13/10 user: tự chạy tiếp ✨ Hoàn thiện — một mạch tới bản cuối).
-    che_do='chu_de': tìm theo chủ đề (Giai đoạn 2); 'canh': tìm theo cảnh cũ."""
+    che_do='chu_de': tìm theo chủ đề (Giai đoạn 2); 'canh': tìm theo cảnh cũ.
+    truoc: 27/10 user — 🎨 Tạo hình AI (Veo + ảnh) chạy TRƯỚC, chờ xong, rồi mới tìm / băm footage vào chỗ trống."""
     with _KHOA:
         if TT.get(du_an, {}).get("dang"):
             raise ValueError("đang chạy tự động — chờ xong")
@@ -1402,7 +1571,10 @@ def chay_nen(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, sau=None, dung
 
     def ch():
         try:
-            kq = chay(du_an, ngan_sach_phut, ten_nhap, dung_stock=dung_stock, che_do=che_do)
+            if truoc:
+                _tt(du_an, buoc="hinh_ai")
+                truoc()
+            kq = chay(du_an, ngan_sach_phut, ten_nhap, dung_stock=dung_stock, che_do=che_do, ve_bu=ve_bu)
             ht = ""
             if sau:
                 try:

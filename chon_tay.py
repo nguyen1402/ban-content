@@ -155,6 +155,38 @@ def _loi_cau(du_an):
             or [] if str(c.get("id", "")).isdigit()}
 
 
+# 27/10 user ("mọi chủ thể cùng thể loại cá sấu thì phải đi chung chứ"): LOÀI CHUNG của chủ thể lấy từ tên tiếng Việt (không
+# hỏi AI): bỏ đuôi " · lô N" và tiền tố số lượng / dạng (ba con, xác, bộ xương, loài, cá thể, lớp, nhóm…), lấy danh từ chính —
+# "Ba con cá sấu", "Xác cá sấu thí nghiệm", "Bộ xương con cá sấu thứ hai" -> "cá sấu"; "Cá mập ngủ", "Cá mập sáu mang" -> "cá
+# mập"; chim ưng vẫn khác cá (26/10). Mảnh 🎯 của một chủ thể dùng chung cho mọi chủ thể cùng loài (goi_y).
+_BO_DAU = ("cá thể", "bộ xương", "các nhà", "ba con", "hai con", "một con", "các", "những", "con", "xác", "loài", "lớp",
+           "bầy", "đàn", "nhóm", "giới", "đôi", "cặp", "đám", "một", "hai", "ba")
+_HAI_TIENG = {"cá", "chim", "tàu", "xe", "máy", "nhà", "khối", "cây", "thằn", "người", "đáy", "lái"}
+
+
+def loai_chung(ten):
+    """Tên chủ thể -> khoá loài chung (vd "cá sấu")."""
+    import re
+    t = re.sub(r"\s*·\s*lô\s*\d+\s*$", "", str(ten or "")).strip().lower()
+    doi = True
+    while doi:
+        doi = False
+        for p in _BO_DAU:
+            if t.startswith(p + " "):
+                t, doi = t[len(p) + 1:].strip(), True
+                break
+    w = t.split()
+    if not w:
+        return str(ten or "").strip().lower()
+    return " ".join(w[:2]) if w[0] in _HAI_TIENG and len(w) > 1 else w[0]
+
+
+# 27/10 user ("tại sao tôi có chủ thể rồi mà khi bấm vào chọn video theo chủ thể nó lại hỏi lại ai?"): mở 🎯 KHÔNG hỏi AI
+# rút gọn từ khoá nữa (AI hỏng thì không lưu -> lần nào mở cũng hỏi lại, chờ tới 3 phút) — dùng từ khoá có sẵn của chủ
+# thể / trạng thái (bước chủ thể đã viết), dự án đã có bản AI rút gọn (chon_tay_loi.json) thì dùng bản đó. Bật lại: True
+HOI_AI_TU_KHOA = False
+
+
 def tu_khoa_nhanh(du_an, ds):
     """Gắn cho từng chủ thể: "ten_loi" (tên ngắn) và "dong_tk" = [{nhan, cau, tk}] — dòng "chung" theo tên ngắn + một dòng
     cho mỗi trạng thái kịch bản (nhãn tiếng Việt, số câu, từ khoá đúng chi tiết lời). Hỏi AI MỘT lượt cho mọi chủ thể
@@ -166,7 +198,7 @@ def tu_khoa_nhanh(du_an, ds):
     loi = _loi_cau(du_an)
     khoa = {c["id"]: hashlib.md5(("tt2|" + c["mo_ta_en"] + "|" + "|".join(f'{s["mo_ta"]}:{s["cau"]}' for s in c["trang_thai"]))
                                  .encode("utf-8")).hexdigest()[:10] for c in ds}
-    can = [c for c in ds if (da.get(str(c["id"])) or {}).get("k") != khoa[c["id"]]]
+    can = [c for c in ds if (da.get(str(c["id"])) or {}).get("k") != khoa[c["id"]]] if HOI_AI_TU_KHOA else []
     if can:
         dong = []
         for c in can:

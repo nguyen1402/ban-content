@@ -108,6 +108,29 @@ YT_JS = _YTOpts(["--js-runtimes", "node"])
 MODELS = ["gemini-3.1-flash-lite", "gemini-3.5-flash-lite"]
 
 #: kênh lớn bật Content ID rất chặt — bỏ ngay từ lúc tìm (khớp một phần tên, không phân hoa/thường).
+# 27/10 user ("miễn nó tạo video chân thật và phù hợp với chính sách youtube" -> "thêm câu chặn máu me / cảnh ghê rợn /
+# khoả thân vào câu lệnh Veo thân bài, hook, góp ý và ảnh AI"). 28/10 user ("cái phần ghê rợn… nếu veo tạo được cứ để cho nó
+# tạo, xong mình tự làm mờ đi nếu cần"): BỎ khỏi câu lệnh Veo / hook — nay chỉ còn ở lệnh ẢNH AI.
+LUAT_YOUTUBE = ("YOUTUBE SAFETY (mandatory, documentary for all audiences): no blood, no gore, no open wounds or graphic "
+                "injury, no graphic violence or killing shown on screen; death, carcasses or decay only from a distance or "
+                "indirectly (clean bones, silhouettes, aftermath), never graphic close-ups of torn flesh; no nudity, no "
+                "partial nudity, no sexual content (people always fully clothed); nothing shocking or disgusting. Rewrite "
+                "such moments in a calm, tasteful documentary way that still tells the story.")
+# 28/10 user ("nó nói là robot thì là robot sao lại cho người xuống?" — ảnh vẽ thợ lặn cạnh xác cá sấu ở đáy biển 2000 m):
+# bám đúng lời kể + đúng thực tế vật lý, gắn vào mọi lệnh vẽ ảnh / viết câu lệnh ảnh, Veo, hook.
+# 28/10 user ("khớp lời không phải theo kiểu chỗ kêu gọi bạn cũng mô tả ảnh kêu gọi like đâu nhé"): câu NGOÀI câu chuyện
+# (kêu gọi like / đăng ký / bình luận, chào kết, bài học cuộc sống, ý kiến) không vẽ theo chữ — vẽ cảnh của CHÍNH câu chuyện.
+LUAT_NGOAI_TRUYEN = ("If the narration at that moment is NOT part of the story itself — a call to action (like, subscribe, "
+                     "comment, share, support the channel), a greeting or outro, or an abstract life lesson / opinion — do "
+                     "NOT illustrate it literally (no buttons, phones, screens, social-media icons, people typing, generic "
+                     "office or daily-life scenes). Show instead a striking, atmospheric visual FROM THE STORY that fits the "
+                     "mood of that line (its key subject, place or mystery).")
+LUAT_THUC_TE = ("Follow the narration LITERALLY: if it mentions a robot, ROV, submersible, lander, camera or other machine, "
+                "show THAT machine doing the action — never people in its place. Physically realistic: no human divers "
+                "deeper than about 40 m; on the deep / abyssal seabed show only ROVs, landers, cameras and their lights "
+                "(scientists appear only on the ship deck or in the control room watching screens).")
+# Đuôi ngắn cho câu lệnh vẽ ảnh (không đổi tên file ảnh đã vẽ — tên theo câu mô tả, không theo câu lệnh đầy đủ)
+LUAT_YOUTUBE_ANH = "No blood, no gore, no graphic injury, no nudity, fully clothed people, tasteful documentary photo."
 KENH_CHAN = ("bbc", "national geographic", "nat geo", "disney", "netflix", "discovery",
              "animal planet", "cnn", "reuters", "sky news", "pbs", "nbc", "cbs", "fox ",
              "warner", "universal", "paramount", "hbo", "vevo", "getty", "storyblocks",

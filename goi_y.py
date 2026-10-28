@@ -35,6 +35,19 @@ GOC_GAN = 3                 # 22/10 user: tránh vài đoạn liền nhau cùng 
 #                             GOC_GAN đoạn trước (thiếu hình thì nới về chỉ tránh đoạn ngay trước)
 LAP_MO_RONG = True          # 22/10 user: kho chủ thể cạn -> (a) cảnh khác CÙNG video gốc (ngưỡng hạ), (b) kho chủ thể đi
 #                             cùng (nhắc trong câu, rồi chủ thể câu trước / sau) — hết cả hai mới để trống
+# 28/10 user: "những chỗ băm video là những chỗ nói chung chung quanh vật chủ thôi. còn những chỗ cụ thể hơn kiểu làm cái
+# này cái kia với vật chủ hay vật chủ bị thế này thế kia nếu chấm footage không đúng khoảng 90% hành động thì không dùng mà
+# chuyển qua vẽ ảnh AI hết" -> câu có TRẠNG THÁI chủ thể (chu_the.trang_thai_cau = câu kể hành động / biến đổi cụ thể) chỉ
+# nhận footage có điểm khớp >= NGUONG_HANH_DONG (SigLIP không ra phần trăm: đo casauthabien điểm footage -0.06..0.21, trung
+# vị 0.09); không mượn kho chủ thể khác / video gốc khác — thiếu thì để trống cho bước vẽ ảnh AI bù. Câu chung chung giữ
+# luật cũ. Đo bằng mắt 20 đoạn casauthabien: 0.15-0.175 chỉ ~1/3 đúng hành động (cá sấu SỐNG cho câu "xác bị cuốn đi", tàu
+# ngầm đắm cho "robot lặn") — điểm SigLIP biết "có cá sấu" chứ không biết "cá sấu đang làm gì" -> 0.20: câu hành động gần
+# như luôn sang ảnh AI vẽ đúng cảnh. Tắt: None
+NGUONG_HANH_DONG = 0.20
+GOP_CUNG_LOAI = True        # 27/10 user: mảnh 🎯 dùng chung cho mọi chủ thể CÙNG LOÀI (chon_tay.loai_chung), không chỉ cùng tên
+GAN_NHAT_CO_MANH = 2        # 27/10 user ("quy tắc cảnh gần dùng cá thể gần"): kho chủ thể cảnh + chủ thể đi cùng CẠN (không có
+#                             mảnh / đã dùng hết) -> mượn kho của chủ thể GẦN NHẤT (theo thời gian) có mảnh, mỗi phía bấy nhiêu
+#                             chủ thể, gần trước xa sau. Tắt: 0
 DE_TRONG_KHI_HET = True     # 20/10 user: hết đoạn khớp thì để TRỐNG (không lấp tạm bằng mảnh đã dùng, không ảnh AI)
 KHONG_DUNG_LAI = True       # 19/10 user (tối): "không sử dụng lại cảnh đã có ở toàn bài" — mỗi mảnh / ảnh dùng MỘT lần
 LUOT_MANH = 1 if KHONG_DUNG_LAI else 2   # (cũ: tối đa 2 lần, trừ vế NHẮC LẠI sự việc cũ)
@@ -151,7 +164,9 @@ def _anh(kho, mo_hinh=None):
             continue
         try:
             import loc_chu
-            if loc_chu.co_chu_anh(f):                        # 11/10 user: ẢNH bắt buộc không có chữ (video thì được)
+            # 11/10 user: ẢNH bắt buộc không có chữ (video thì được) — 28/10: trừ ẢNH AI VẼ BÙ (g_…): 15/10 user "ảnh AI vẽ
+            # CHẤP NHẬN có chữ (biển báo, nhãn…)"; đo casauthabien: 56/309 ảnh bù bị loại vì nhãn trên robot / tàu -> cảnh trống
+            if not kid.startswith("g_") and loc_chu.co_chu_anh(f):
                 continue
             import loc_minh_hoa
             if loc_minh_hoa.la_hoat_hinh_anh(f):             # 12/10 user: ảnh phải là ảnh thật (bản đồ được)
@@ -346,11 +361,14 @@ def _kho_tay_theo_chu_the(du_an, kho, chu_de_ds):
     ten_ngan = doc_json(os.path.join(thu_muc_du_an(du_an)[1], "chon_tay_loi.json"), {}) or {}
     ke = [cd for cd in chu_de_ds if cd.get("loai", "ke") == "ke"]
 
-    def ten(k):                                             # tên ngắn (🎯 đặt) hoặc tên chủ thể bỏ đuôi " · lô N"
-        t = ((ten_ngan.get(str(k)) or {}).get("ten") or [None])[0]
+    def ten(k):                                             # 27/10 user: LOÀI CHUNG ("mọi chủ thể cùng thể loại cá sấu thì
+        goc = next((cd for cd in chu_de_ds if cd.get("id") == k), {})   # phải đi chung") — xác / bộ xương / lô khác cùng nhóm
+        if GOP_CUNG_LOAI and (goc.get("doi_tuong") or goc.get("ten")):
+            import chon_tay
+            return chon_tay.loai_chung(goc.get("doi_tuong") or goc.get("ten"))
+        t = ((ten_ngan.get(str(k)) or {}).get("ten") or [None])[0]   # (cũ) tên ngắn AI đặt ở 🎯 / tên bỏ đuôi " · lô N"
         if t:
             return str(t).lower()
-        goc = next((cd for cd in chu_de_ds if cd.get("id") == k), {})
         return re.sub(r"\s*·\s*lô\s*\d+\s*$", "", str(goc.get("doi_tuong") or goc.get("ten") or k)).strip().lower()
     nhom = {}
     for cd in ke:
@@ -408,8 +426,8 @@ def _chia(dai):
 
 def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=None, nghi=(), lan=None, t0=0.0,
                thieu=None, rieng=None, cd_id=None, kid_to_cd=None, ep=(), ve_vec=(), nhom=None, nhac=(), cd_phu=(), ghim=frozenset(),
-               loi=None):
-    """Giai đoạn 5: Danh sách đoạn gợi ý cho một cảnh.
+               loi=None, hanh_dong=False):
+    """Giai đoạn 5: Danh sách đoạn gợi ý cho một cảnh. hanh_dong: câu kể hành động cụ thể (NGUONG_HANH_DONG).
     - Nguồn được dùng: ưu tiên video thuộc chủ đề của cảnh đó (cd_id).
     - Chuyển hình: ở dấu phẩy, dấu chấm (cho_dau_cau).
     - Chọn clip: trong kho của chủ đề, chấm theo từng vế câu và lấy clip hợp nhất.
@@ -578,6 +596,8 @@ def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=N
         def thu(pool, tranh_lap, cach=CACH_LAP, cap=True, goc_min=None):
             if not pool:
                 return None
+            if hanh_dong and NGUONG_HANH_DONG is not None:  # 28/10 user: câu hành động cụ thể -> chỉ footage khớp cao
+                goc_min = max(goc_min if goc_min is not None else -1.0, NGUONG_HANH_DONG)
             for dd_ in (True, False):                        # 22/10: đa dạng nguồn trước; thiếu hình mới nới
                 cand = ((tim_pool(pool, tranh_lap, cach=cach, cap=cap, chat=cd, goc_min=goc_min, da_dang=dd_) if cd else None)
                         or tim_pool(pool, tranh_lap, cach=cach, cap=cap, goc_min=goc_min, da_dang=dd_))
@@ -595,12 +615,12 @@ def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=N
             chon = thu(P_, True)
         # 2b. 22/10 user: kho chủ thể cạn -> cảnh quay KHÁC của chính các video gốc thuộc kho đó (cùng nguồn, quay cùng
         #     chủ thể) với ngưỡng hạ một chút
-        if chon is None and LAP_MO_RONG and cd_id is not None:
+        if chon is None and LAP_MO_RONG and cd_id is not None and not hanh_dong:
             goc_cd = {nhom.get(it[0], it[0]) for it in P_}
             chon = thu([it for it in S if nhom.get(it[0], it[0]) in goc_cd and cd_id not in kid_to_cd.get(it[0], ())],
                        True, goc_min=POOL_NGUONG - 0.03)
         # 2c. kho các chủ thể ĐI CÙNG: nhắc trong câu, rồi chủ thể của câu trước / câu sau (theo thứ tự cd_phu)
-        if chon is None and LAP_MO_RONG:
+        if chon is None and LAP_MO_RONG and not hanh_dong:
             for cd_k in cd_phu:
                 chon = thu([it for it in S if cd_k in kid_to_cd.get(it[0], ())], True)
                 if chon is not None:
@@ -621,6 +641,8 @@ def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=N
                     continue
                 if cd_id is not None and rieng.get(kid) != canh["id"] and cd_id not in kid_to_cd.get(kid, ()):
                     continue                                 # ảnh lạc đối tượng: không lấy
+                if hanh_dong and rieng.get(kid) != canh["id"]:
+                    continue                                 # 28/10: câu hành động chỉ lấy ảnh vẽ RIÊNG cho đúng cảnh này
                 goc = float(v @ qv_cur) + (1.0 if rieng.get(kid) == canh["id"] else 0.0)
                 d_ = goc - 0.03 * len(da_dung.get(kid, []))
                 if not any(x["kho_id"] == kid for x in doan) and (tot_anh is None or d_ > tot_anh[0]):
@@ -681,6 +703,7 @@ def goi_y(du_an, ids=None, chi_canh_trong=True, mo_hinh=None, luu=True):
            if _ngang(m) and (m.get("tay") or not m.get("sai_chu_de"))         # người dùng tự chọn hoặc không sai chủ đề
            and (m.get("tay") or not m.get("phong_xanh"))                      # người dùng tự chọn hoặc không phông xanh
            and not m.get("cot_loi")                          # ảnh cốt lõi chỉ đặt đúng mốc của nó (ep), không làm ảnh lấp chỗ
+           and not m.get("bo_dung")                          # 28/10: mảnh đã soát là hỏng (sai chủ đề / dính SUBSCRIBE) -> bỏ
            and not (m.get("loai") == "video" and dung_tay.la_kenh_loai(m))}   # 23/10 user: tin tức / trẻ em / hoạt hình / 3D / nhạc
     mo_hinh = mo_hinh or MO_HINH_MAC_DINH
     vids, anhs = _chi_muc(kho, mo_hinh, du_an), _anh(kho, mo_hinh)
@@ -774,6 +797,27 @@ def goi_y(du_an, ids=None, chi_canh_trong=True, mo_hinh=None, luu=True):
                                                    if k in ct_cd and ct_cd[k] != rieng_cd))
         except Exception as e:                               # noqa: BLE001
             log(f"    ! chủ thể đi cùng (lấp mở rộng): {str(e)[:100]}")
+    if GAN_NHAT_CO_MANH and LAP_MO_RONG:                     # 27/10 user: "quy tắc cảnh gần dùng cá thể gần"
+        co_manh = set().union(*kid_to_cd.values()) if kid_to_cd else set()
+        thu_tu = [c_["id"] for c_ in sorted(canh, key=lambda z: float(z.get("bat_dau") or 0))]
+        muon = 0
+        for n_, cid in enumerate(thu_tu):                   # mọi cảnh: thử SAU CÙNG (kho mình + chủ thể đi cùng cạn)
+            co_ = [canh_sang_cd.get(cid)] + list(phu_canh.get(cid, []))
+            gan_ = []                                        # (khoảng cách cảnh, kho) — mỗi phía GAN_NHAT_CO_MANH chủ thể
+            for buoc in (-1, 1):
+                j, lay = n_ + buoc, []
+                while 0 <= j < len(thu_tu) and len(lay) < GAN_NHAT_CO_MANH:
+                    k_ = canh_sang_cd.get(thu_tu[j])
+                    if k_ in co_manh and k_ not in lay and k_ not in co_:
+                        lay.append(k_)
+                        gan_.append((abs(j - n_), k_))
+                    j += buoc
+            them = list(dict.fromkeys(k_ for _, k_ in sorted(gan_)))
+            if them:
+                phu_canh[cid] = list(phu_canh.get(cid, [])) + them
+                muon += 1
+        if muon:
+            log(f"  gợi ý: {muon} cảnh có kho chủ thể gần dự phòng (dùng khi kho của cảnh cạn)")
     try:                                                     # 18/10: ảnh cốt lõi đã vẽ -> mốc tuyệt đối
         import cot_loi
         ep_tuyet_doi = cot_loi.khoang(du_an)
@@ -808,7 +852,7 @@ def goi_y(du_an, ids=None, chi_canh_trong=True, mo_hinh=None, luu=True):
         c_cham = dict(c, canh_en=[dt_]) if dt_ else c
         ve_c = (ve_tat_ca.get(str(c["id"])) or []) if ve_tat_ca and (theo_chu_the or not bl) else []
         doan = goi_y_canh(c_cham, vids, anhs, da_dung, mo_hinh, gan, sach, truoc,
-                          moc, lan=lan, t0=float(c.get("bat_dau") or 0),
+                          moc, lan=lan, t0=float(c.get("bat_dau") or 0), hanh_dong=c["id"] in tt_cau,
                           thieu=th, rieng=rieng, cd_id=canh_sang_cd.get(c["id"]),
                           kid_to_cd=kid_to_cd, nhom=nhom_goc, cd_phu=phu_canh.get(c["id"], ()), loi=loi_map, ghim=set(tay_cd),
                           ve_vec=mo_ta_ve.vec_ve(du_an, str(c["id"]), ve_c) if ve_c else (),
@@ -856,9 +900,10 @@ def goi_y(du_an, ids=None, chi_canh_trong=True, mo_hinh=None, luu=True):
     return ke_hoach if not luu else n
 
 
-def goi_y_nen(du_an, ids=None, chi_canh_trong=True, ten_nhap=None, sau=None):
+def goi_y_nen(du_an, ids=None, chi_canh_trong=True, ten_nhap=None, sau=None, truoc=None, ve_bu=False):
     """Chạy goi_y trong luồng nền (giao diện hỏi trạng thái qua TT). ten_nhap: xong thì tạo luôn bản nháp CapCut.
-    sau: 26/10 user ("bấm ⚡ xong tự chạy luôn ✨ Hoàn thiện") — hàm gọi khi bản nháp thô xong -> tên bản hoàn chỉnh."""
+    sau: 26/10 user ("bấm ⚡ xong tự chạy luôn ✨ Hoàn thiện") — hàm gọi khi bản nháp thô xong -> tên bản hoàn chỉnh.
+    truoc: 27/10 user — hàm chạy TRƯỚC khi băm (🎨 Tạo hình AI: Veo + ảnh), chờ xong; lỗi thì dừng cả mạch."""
     with _KHOA:
         if TT.get(du_an, {}).get("dang"):
             raise ValueError("đang gợi ý — chờ xong")
@@ -866,7 +911,18 @@ def goi_y_nen(du_an, ids=None, chi_canh_trong=True, ten_nhap=None, sau=None):
 
     def chay():
         try:
+            if truoc:
+                with _KHOA:
+                    TT[du_an].update(buoc="hinh_ai")
+                truoc()
+                with _KHOA:
+                    TT[du_an].update(buoc="")
             n = goi_y(du_an, ids, chi_canh_trong)
+            if ve_bu:                                        # 28/10 user: chỗ footage thiếu -> ảnh AI thay (vẽ trên Flow)
+                import tu_dong_tim
+                with _KHOA:
+                    TT[du_an].update(buoc="anh_ve")
+                tu_dong_tim.ve_bu_cho_trong(du_an)
             nhap = None
             if ten_nhap:
                 import dung_tay
