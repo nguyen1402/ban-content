@@ -43,7 +43,16 @@ LAP_MO_RONG = True          # 22/10 user: kho chủ thể cạn -> (a) cảnh kh
 # luật cũ. Đo bằng mắt 20 đoạn casauthabien: 0.15-0.175 chỉ ~1/3 đúng hành động (cá sấu SỐNG cho câu "xác bị cuốn đi", tàu
 # ngầm đắm cho "robot lặn") — điểm SigLIP biết "có cá sấu" chứ không biết "cá sấu đang làm gì" -> 0.20: câu hành động gần
 # như luôn sang ảnh AI vẽ đúng cảnh. Tắt: None
-NGUONG_HANH_DONG = 0.20
+# 28/10 user (tối, sau khi thấy phút 10+ gần như toàn ảnh AI): "chỗ nào dùng được bằng footage thì dùng triệt để vì dày ảnh
+# quá nó cũng mất hay", ảnh AI chỉ ở chỗ quan trọng -> câu hành động nhận footage GẦN ĐÚNG của cùng chủ thể (0.13: trên
+# trung vị 0.09 — chắc có chủ thể trong hình) và được mượn kho chủ thể đi cùng / gần nhất như câu chung chung
+NGUONG_HANH_DONG = 0.13
+MUON_CHO_HANH_DONG = True
+# 28/10 user: hết footage mới thì LẶP LẠI footage của chủ thể (mảnh đó cách lần trước >= CACH_DUNG_LAI s) TRƯỚC khi tính
+# tới ảnh AI; ảnh AI (đã vẽ hoặc vẽ bù) cách nhau >= MAT_DO_AI s trên timeline — chỗ quá dày thì lấp footage lặp lại
+DUNG_LAI_TRUOC_AI = True
+CACH_DUNG_LAI = 60.0
+MAT_DO_AI = 20.0
 GOP_CUNG_LOAI = True        # 27/10 user: mảnh 🎯 dùng chung cho mọi chủ thể CÙNG LOÀI (chon_tay.loai_chung), không chỉ cùng tên
 GAN_NHAT_CO_MANH = 2        # 27/10 user ("quy tắc cảnh gần dùng cá thể gần"): kho chủ thể cảnh + chủ thể đi cùng CẠN (không có
 #                             mảnh / đã dùng hết) -> mượn kho của chủ thể GẦN NHẤT (theo thời gian) có mảnh, mỗi phía bấy nhiêu
@@ -426,8 +435,10 @@ def _chia(dai):
 
 def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=None, nghi=(), lan=None, t0=0.0,
                thieu=None, rieng=None, cd_id=None, kid_to_cd=None, ep=(), ve_vec=(), nhom=None, nhac=(), cd_phu=(), ghim=frozenset(),
-               loi=None, hanh_dong=False):
-    """Giai đoạn 5: Danh sách đoạn gợi ý cho một cảnh. hanh_dong: câu kể hành động cụ thể (NGUONG_HANH_DONG).
+               loi=None, hanh_dong=False, bc_kid=None, bc_tai=None):
+    """bc_kid / bc_tai (28/10, boi_canh.py): bối cảnh hình của từng mảnh / của câu đọc ở giây t -> chỉ ghép mảnh cùng
+    bối cảnh với câu đang đọc.
+    Giai đoạn 5: Danh sách đoạn gợi ý cho một cảnh. hanh_dong: câu kể hành động cụ thể (NGUONG_HANH_DONG).
     - Nguồn được dùng: ưu tiên video thuộc chủ đề của cảnh đó (cd_id).
     - Chuyển hình: ở dấu phẩy, dấu chấm (cho_dau_cau).
     - Chọn clip: trong kho của chủ đề, chấm theo từng vế câu và lấy clip hợp nhất.
@@ -540,12 +551,17 @@ def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=N
                     d = rem - SHOT_MIN
             return round(d, 2) if d >= min(SHOT_MIN, rem) - 0.01 else None
 
-        def tim_pool(pool, tranh_lap, cach=CACH_LAP, cap=True, chat=False, goc_min=None, da_dang=True):
+        bc_can = bc_tai(t0 + pos) if (bc_tai and bc_kid) else None   # 28/10 user: bối cảnh hình của câu đang đọc
+
+        def tim_pool(pool, tranh_lap, cach=CACH_LAP, cap=True, chat=False, goc_min=None, da_dang=True, cung_goc_ok=False):
             cand = []
             for kid, t, s, f, bien, tong, xau in pool:
+                if bc_can and bc_kid.get(kid) != bc_can:
+                    continue                                 # 28/10: footage khác bối cảnh (cá sấu sống cho câu xác đáy biển)
                 if len(s) < cs_n:
                     continue
-                if kid == truoc.get("kid") or nhom.get(kid, kid) == nhom.get(truoc.get("kid"), truoc.get("kid")):
+                if kid == truoc.get("kid") or (not cung_goc_ok
+                                               and nhom.get(kid, kid) == nhom.get(truoc.get("kid"), truoc.get("kid"))):
                     continue
                 if da_dang and nhom.get(kid, kid) in truoc.get("goc_gan", ()):   # 22/10: không vài đoạn liền 1 video gốc
                     continue
@@ -593,14 +609,16 @@ def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=N
         cd = (CAT_DAU_CAU or NGHI_GIONG_DOC) and bool(nghi)
         chon = None
 
-        def thu(pool, tranh_lap, cach=CACH_LAP, cap=True, goc_min=None):
+        def thu(pool, tranh_lap, cach=CACH_LAP, cap=True, goc_min=None, cung_goc_ok=False):
             if not pool:
                 return None
-            if hanh_dong and NGUONG_HANH_DONG is not None:  # 28/10 user: câu hành động cụ thể -> chỉ footage khớp cao
+            if hanh_dong and NGUONG_HANH_DONG is not None and not cung_goc_ok:   # 28/10 user: câu hành động -> footage
+                #                                       khớp gần đúng (lặp lại lấp chỗ trống thì không cần ngưỡng)
                 goc_min = max(goc_min if goc_min is not None else -1.0, NGUONG_HANH_DONG)
             for dd_ in (True, False):                        # 22/10: đa dạng nguồn trước; thiếu hình mới nới
-                cand = ((tim_pool(pool, tranh_lap, cach=cach, cap=cap, chat=cd, goc_min=goc_min, da_dang=dd_) if cd else None)
-                        or tim_pool(pool, tranh_lap, cach=cach, cap=cap, goc_min=goc_min, da_dang=dd_))
+                cand = ((tim_pool(pool, tranh_lap, cach=cach, cap=cap, chat=cd, goc_min=goc_min, da_dang=dd_,
+                                  cung_goc_ok=cung_goc_ok) if cd else None)
+                        or tim_pool(pool, tranh_lap, cach=cach, cap=cap, goc_min=goc_min, da_dang=dd_, cung_goc_ok=cung_goc_ok))
                 r_ = chon_tu(cand)
                 if r_ is not None:
                     return r_
@@ -615,12 +633,12 @@ def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=N
             chon = thu(P_, True)
         # 2b. 22/10 user: kho chủ thể cạn -> cảnh quay KHÁC của chính các video gốc thuộc kho đó (cùng nguồn, quay cùng
         #     chủ thể) với ngưỡng hạ một chút
-        if chon is None and LAP_MO_RONG and cd_id is not None and not hanh_dong:
+        if chon is None and LAP_MO_RONG and cd_id is not None and (MUON_CHO_HANH_DONG or not hanh_dong):
             goc_cd = {nhom.get(it[0], it[0]) for it in P_}
             chon = thu([it for it in S if nhom.get(it[0], it[0]) in goc_cd and cd_id not in kid_to_cd.get(it[0], ())],
                        True, goc_min=POOL_NGUONG - 0.03)
         # 2c. kho các chủ thể ĐI CÙNG: nhắc trong câu, rồi chủ thể của câu trước / câu sau (theo thứ tự cd_phu)
-        if chon is None and LAP_MO_RONG and not hanh_dong:
+        if chon is None and LAP_MO_RONG and (MUON_CHO_HANH_DONG or not hanh_dong):
             for cd_k in cd_phu:
                 chon = thu([it for it in S if cd_k in kid_to_cd.get(it[0], ())], True)
                 if chon is not None:
@@ -632,6 +650,24 @@ def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=N
         if chon is None and dang_nhac and not KHONG_DUNG_LAI:
             chon = thu(S, False, cap=False)
 
+        ai_t = truoc.setdefault("ai_t", [])                  # 28/10: giây tuyệt đối các ảnh AI đã / sẽ đặt
+
+        def lap_lai():
+            """28/10 user: lặp lại footage của chủ thể (kho đoạn, rồi kho chủ thể đi cùng) — mảnh cách lần trước >= 60 s.
+            Kho chủ thể thường chỉ có MỘT video gốc (casauthabien 108/141 mảnh) -> bỏ luật không liền / giãn cách theo
+            video gốc, chỉ cần khác mảnh ngay trước."""
+            if not DUNG_LAI_TRUOC_AI:
+                return None
+            xa = lambda it: all(abs(t0 + pos - x) >= CACH_DUNG_LAI for x in lan.get(it[0], []))   # noqa: E731
+            for pool in [P_] + [[it for it in S if cd_k in kid_to_cd.get(it[0], ())] for cd_k in cd_phu]:
+                r_ = thu([it for it in pool if xa(it)], False, cach=0, cap=False, cung_goc_ok=True)
+                if r_ is not None:
+                    return r_
+            return None
+        day_ai = any(abs(t0 + pos - x) < MAT_DO_AI for x in ai_t)
+        # 5a. câu chung chung (không phải vế nhắc đối tượng khác): lặp lại footage TRƯỚC ảnh AI
+        if chon is None and ((v_ve is None and not hanh_dong) or day_ai):   # ảnh AI quá dày: câu cụ thể cũng lặp lại
+            chon = lap_lai()
         # 5. Ảnh: ảnh AI vẽ riêng cho cảnh này / ảnh thật CÙNG kho đoạn
         dai_anh = rem if rem <= (DOAN_MAX_NGHI if NGHI_GIONG_DOC else (CUM_TOI_DA if cd else SHOT_MAX)) else min(3.5, rem - SHOT_MIN)
         tot_anh = None
@@ -650,8 +686,15 @@ def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=N
         # 6. Hết hình: ghi chỗ thiếu (tu_dong_tim vẽ ảnh AI cho chỗ này rồi gợi ý lại); tạm lấp bằng clip kho đoạn
         tam = False
         if chon is None and tot_anh is None:
-            if thieu is not None:
+            if thieu is not None and not day_ai:             # 28/10: chỗ còn cách ảnh AI khác đủ xa mới xin vẽ bù
                 thieu.append({"bd": round(t0 + bd, 2), "dai": round(rem, 2)})
+                ai_t.append(t0 + bd)
+            chon = lap_lai()                                 # 28/10 user: chờ ảnh AI / quá dày -> tạm lặp lại footage
+            tam = chon is not None
+            if chon is None and day_ai and thieu is not None:   # chủ thể không có footage nào để lặp -> vẫn xin ảnh AI
+                thieu.append({"bd": round(t0 + bd, 2), "dai": round(rem, 2)})            # (trống còn tệ hơn dày)
+                ai_t.append(t0 + bd)
+        if chon is None and tot_anh is None:
             if DE_TRONG_KHI_HET:                             # 20/10 user: không có đoạn khớp -> ĐỂ TRỐNG khúc này
                 pos += rem
                 truoc.update(kid=None, v=None)
@@ -674,6 +717,8 @@ def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=N
             doan.append({"loai": "anh", "kho_id": tot_anh[1], "vao": 0.0, "bd": bd, "dai": round(dai_anh, 2),
                          "diem": round(tot_anh[2] - (1.0 if rieng.get(tot_anh[1]) == canh["id"] else 0.0), 3)})
             da_dung.setdefault(tot_anh[1], []).append((0.0, 0.0))
+            if str(tot_anh[1]).startswith("g_"):
+                ai_t.append(t0 + bd)
             lan.setdefault(tot_anh[1], []).append(t0 + bd)
             pos += dai_anh
             truoc.update(kid=tot_anh[1], v=None)
@@ -707,6 +752,19 @@ def goi_y(du_an, ids=None, chi_canh_trong=True, mo_hinh=None, luu=True):
            and not (m.get("loai") == "video" and dung_tay.la_kenh_loai(m))}   # 23/10 user: tin tức / trẻ em / hoạt hình / 3D / nhạc
     mo_hinh = mo_hinh or MO_HINH_MAC_DINH
     vids, anhs = _chi_muc(kho, mo_hinh, du_an), _anh(kho, mo_hinh)
+    bc_kid, bc_tai = {}, None
+    try:                                                     # 28/10 user ("vẫn không đúng cảnh mấy"): lọc theo bối cảnh hình
+        import boi_canh
+        if boi_canh.BAT and mo_hinh == "siglip":
+            d_bc = boi_canh.lap(du_an, canh)
+            if d_bc:
+                bc_kid = boi_canh.nhan_manh(d_bc, {kid: e for kid, t, e, f, bien, tong, xau in vids})
+                bc_tai = boi_canh.theo_giay(d_bc, canh)
+                from collections import Counter
+                dem_ = Counter(bc_kid.values())
+                log("  bối cảnh hình — mảnh footage: " + ", ".join(f"{k} {dem_.get(k, 0)}" for k in list(d_bc["boi_canh"]) + ["khac"]))
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! bối cảnh hình: {type(e).__name__}: {str(e)[:120]}")
     _bao_tt(du_an, buoc="khop", xong=0, tong=0)
     log(f"  [gợi ý] khớp {len(vids)} mảnh video + {len(anhs)} ảnh vào giọng đọc…")
     if not vids and not anhs:
@@ -755,6 +813,10 @@ def goi_y(du_an, ids=None, chi_canh_trong=True, mo_hinh=None, luu=True):
     thieu_ds, thieu_ct = {}, {}
     gan, gan_truoc = set(), []
     truoc = {}                                              # đoạn đứng ngay trước (nối qua ranh giới cảnh)
+    # 28/10 user (ảnh AI không dày quá): ảnh AI của các cảnh KHÔNG gợi ý lại lần này cũng tính vào mật độ
+    _chon_id = {c["id"] for c in chon}
+    truoc["ai_t"] = [float(c.get("bat_dau") or 0) + float(x.get("bd") or 0) for c in canh if c["id"] not in _chon_id
+                     for x in (dung.get(str(c["id"])) or {}).get("doan") or [] if str(x.get("kho_id", "")).startswith("g_")]
     if NGHI_GIONG_DOC:
         lang = _lang(du_an, LANG_GIONG)
     elif CAT_DAU_CAU:
@@ -855,6 +917,7 @@ def goi_y(du_an, ids=None, chi_canh_trong=True, mo_hinh=None, luu=True):
                           moc, lan=lan, t0=float(c.get("bat_dau") or 0), hanh_dong=c["id"] in tt_cau,
                           thieu=th, rieng=rieng, cd_id=canh_sang_cd.get(c["id"]),
                           kid_to_cd=kid_to_cd, nhom=nhom_goc, cd_phu=phu_canh.get(c["id"], ()), loi=loi_map, ghim=set(tay_cd),
+                          bc_kid=bc_kid, bc_tai=bc_tai,
                           ve_vec=mo_ta_ve.vec_ve(du_an, str(c["id"]), ve_c) if ve_c else (),
                           nhac=mo_ta_ve.nhac_lai(ve_c) if ve_c else (),
                           ep=[(max(a_, c0_) - c0_, min(b_, c0_ + float(c["dai"])) - c0_, k_)

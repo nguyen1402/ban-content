@@ -190,11 +190,14 @@ For each subject give:
       names, no "4k", no "cinematic", no "footage"); "cau": the sentence numbers that show the subject in this state.
 Read EVERY sentence, including the middle and the end of the part: every sentence that shows or talks about a visible
 subject must be listed in the "cau" of exactly ONE state (of the subject it is mainly about).
-Only JSON: {{"chu_the": [{{"ten": "...", "loai": "song", "goi": ["..."], "mo_ta_en": "...",
-  "trang_thai": [{{"mo_ta": "...", "en": "...", "tu_khoa": "...", "cau": [1, 2]}}]}}]}}
+{mt}Only JSON: {{"chu_the": [{{"ten": "...", "loai": "song", "goi": ["..."], "mo_ta_en": "...",
+  "trang_thai": [{{"mo_ta": "...", "en": "...", "tu_khoa": "...", "cau": [1, 2]}}]}}]{mt_json}}}
 
 PART {lo}/{tong}:
 {kb}"""
+
+_MT = {}                     # 28/10: môi trường hình gán trong các lô (boi_canh) — lap() ghi vào chu_the.json
+
 
 def _hoi_theo_lo(canh):
     """Kịch bản dài: hỏi chủ thể + trạng thái THEO LÔ CAU_MOI_LO câu (song song — hoi_nhieu chia các tài khoản; lô hỏng
@@ -202,7 +205,21 @@ def _hoi_theo_lo(canh):
     thể còn 2; user chốt mỗi lô tìm / băm riêng). Trả danh sách chủ thể đã _sach."""
     from common import hoi_nhieu
     lots = [canh[i:i + CAU_MOI_LO] for i in range(0, len(canh), CAU_MOI_LO)]
-    p = [_P_LO.format(lo=k + 1, tong=len(lots),
+    # 28/10 user ("hỏi gemini như vậy thì sao không thay luôn đoạn hỏi chủ thể? hỏi 1 lần làm sao mà nó kĩ được"): MÔI
+    # TRƯỜNG hình của từng cảnh (boi_canh.py — lọc footage đúng nơi) gán NGAY TRONG từng lô này; danh sách môi trường đặt
+    # chung một lần trước (cần cái nhìn cả bài để các lô dùng cùng nhãn)
+    bc = {}
+    try:
+        import boi_canh
+        if boi_canh.BAT:
+            bc = boi_canh.dinh_nghia(canh)
+    except Exception as e:                                   # noqa: BLE001
+        log(f"[chủ thể] ! môi trường hình: {str(e)[:100]}")
+    _MT.clear()
+    _MT.update(ds=bc, gan={})
+    mt = ("\n" + boi_canh.LUAT_GAN.format(mt=boi_canh.ds_mt(bc)) + "\n\n") if bc else ""
+    mt_json = ',\n  "moi_truong": {{"<sentence number>": "<environment id>"}}' if bc else ""
+    p = [_P_LO.format(lo=k + 1, tong=len(lots), mt=mt, mt_json=mt_json.replace("{{", "{").replace("}}", "}"),
                       kb="\n".join(f"[{c['id']}] {str(c.get('text') or '').strip()}" for c in lot))
          for k, lot in enumerate(lots)]
     log(f"[chủ thể] hỏi AI chủ thể + trạng thái THEO {len(lots)} LÔ ~{CAU_MOI_LO} câu (song song)…")
@@ -218,6 +235,8 @@ def _hoi_theo_lo(canh):
             ds_ = _sach((j or {}).get("chu_the") if isinstance(j, dict) else j)
             if ds_:
                 id_lo = {c["id"] for c in lots[k]}
+                if bc:
+                    _MT["gan"].update(boi_canh.doc_gan(j, bc, id_lo))
                 for x in ds_:                                # câu ngoài lô (AI ghi nhầm) -> bỏ
                     for s in x["trang_thai"]:
                         s["cau"] = [c for c in s["cau"] if c in id_lo]
@@ -280,7 +299,9 @@ def lap(du_an, hoi_lai=False):
                 tkc[k] = [{"vi": v, "en": chuan_tk(dich.get(v, v)), "goi_y": True}]
     if GOI_Y_TU_KHOA_CAU:
         log(f"[chủ thể] gợi ý từ khoá cho {len(goi_y)}/{len(canh)} câu")
-    ghi_json(_p(du_an), {"_hash": h, "chu_the": ds, "tk_cau": tkc})
+    mt_ = ({"moi_truong_ds": _MT["ds"], "moi_truong": {str(k): v for k, v in _MT["gan"].items()}}
+           if _MT.get("ds") and _MT.get("gan") else {})
+    ghi_json(_p(du_an), {"_hash": h, "chu_the": ds, "tk_cau": tkc} | mt_)
     log(f"[chủ thể] {len(ds)}: " + ", ".join(x["ten"] for x in ds))
     return ds
 
