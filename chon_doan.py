@@ -35,14 +35,10 @@ PHAT_LOGO = 0.05                # (không còn dùng để chọn: video có log
 NGUONG = 0.215
 NGUONG_MEM = 0.18               # bước chọn thứ hai khi không đoạn nào đạt NGUONG
 #: khái niệm hình KHÔNG được xuất hiện trừ khi lời/mô tả của nhịp nhắc tới (từ khóa kích hoạt)
-CAM_KHAI_NIEM = {
-    "tuyet": ("snow covered ground, ice and winter landscape", ("snow", "ice", "winter", "cold", "frozen", "arctic")),
-    "rung_thong": ("dense pine forest with tall conifer trees", ("forest", "pine", "woodland", "trees")),
-    "phong_van": ("a person talking to the camera in an interview", ("interview", "talk", "speak", "explain", "worker", "ranger", "farmer", "marsh", "council", "officer", "researcher", "man ", "woman")),
-    "thu_chet": ("dead animals lying on a car hood with a rifle, hunting trophy", ("dead", "carcass", "killed", "slaughter", "bodies", "hunt")),
-    "hoa_la": ("a close-up of a flower, blossom or green plant leaves", ("flower", "bloom", "blossom", "leaf", "leaves", "plant close")),
-    "chim_bien": ("flock of seagulls standing on rocks", ("gull", "seagull", "bird colony")),
-}
+# 02/11 user: bảng khái niệm cấm (tuyết, rừng thông, phỏng vấn, xác thú, hoa lá, mòng biển) viết cho dự án đầu tiên -> áp sang
+# chủ đề khác thì phạt oan footage (bài cá mút đá có hồ, rừng thông, nhà khoa học nói chuyện). Bỏ trống; cấm theo chủ thể
+# chưa nhắc (cam_them, do AI đặt theo từng bài) vẫn giữ.
+CAM_KHAI_NIEM = {}
 PHAT_CAM = 3.0                  # cos CLIP thấp hơn mức này coi như KHÔNG khớp
 
 _M = {}

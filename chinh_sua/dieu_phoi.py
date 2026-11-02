@@ -149,8 +149,13 @@ like the same real story. Only VISIBLE recurring things: places, animals, people
     fixed details when the script does not say). Note changes of look over time explicitly. People wear ordinary clothes
     of their role and era unless the script says otherwise. A REAL, NAMED person gets ONLY their role and era clothing
     (e.g. "official in a dark suit", "activist in a rain jacket") — never a face, age or likeness, never their name.
+    Also for each: "khoa_en" (English words that name it in an image prompt, e.g. ["sheep", "lamb", "flock"]) and
+    "bat_buoc_en": ONLY when the narration gives it an UNUSUAL look that every image must show (an invention, costume,
+    injury, modification…), that look in English described by its VISIBLE SHAPE, MATERIAL and AMOUNT exactly as the
+    narration says (e.g. "back and sides covered in hundreds of long sharp iron spikes like porcupine quills" — never just a
+    name like "armor"); otherwise "".
 Only JSON: {{"boi_canh": [{{"noi": "...", "noi_en": "...", "nguoi_en": "...", "mo_ta_en": "..."}}],
- "nhan_vat": [{{"ten": "...", "mo_ta_en": "..."}}]}}
+ "nhan_vat": [{{"ten": "...", "mo_ta_en": "...", "khoa_en": ["..."], "bat_buoc_en": ""}}]}}
 
 NARRATION:
 {kb}"""
@@ -351,7 +356,7 @@ def hoi(cau, out, co_the=True, toan_bo=None):
     def bo_hook(ra):                                         # 27/10 user: đoạn hook toàn video Veo -> không ảnh AI ở đó
         try:
             import cho_phu
-            hk = cho_phu.khoang_hook(out)
+            hk = cho_phu.khoang_hook_co_clip(out)   # 02/11: chỉ đoạn hook đã có clip mới không đặt ảnh AI
         except Exception as e:                               # noqa: BLE001
             log(f"    ! lọc theo đoạn hook: {str(e)[:100]}")
             return ra

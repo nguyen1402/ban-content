@@ -301,10 +301,29 @@ https://www.youtube.com/@kenh_khac_2"></textarea>
             <div class="sub">Mỗi phần được phân bổ số từ mục tiêu để AI viết sâu, không bị giới hạn token.</div>
           </div>
           <div class="row">
+            <button class="p" onclick="batDauTuHoi()" title="Không chạy tự động: lấy câu lệnh từng phần để bạn tự dán vào AI (Gemini, ChatGPT…), dán câu trả lời về rồi lấy câu lệnh phần tiếp">📋 Tự hỏi AI từng phần</button>
             <button class="purple" id="nut_chay_viet_theo_dan_bai" onclick="chayVietTheoDanBai()" style="padding:8px 16px;font-weight:700">✍️ Bước 2: Viết Kịch Bản Từng Phần</button>
           </div>
         </div>
         <textarea id="mpl_dan_bai_text" rows="8" style="font-family:monospace;font-size:12.5px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:8px"></textarea>
+        <!-- 28/10 user: "làm cho tôi chỗ để tự tôi copy câu lệnh tôi dán hỏi AI lần lượt đi thay vì để chạy kiểu này" -->
+        <div id="box_tu_hoi" style="display:none;margin-top:12px;border-top:1px dashed var(--line);padding-top:10px">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <b id="th_tieu_de" style="color:var(--purple)"></b>
+            <div class="row" id="th_cac_phan" style="gap:4px;flex-wrap:wrap"></div>
+          </div>
+          <div class="sub" style="margin:6px 0 4px">① Copy câu lệnh này, dán vào AI (cùng một cuộc trò chuyện cho liền mạch):</div>
+          <textarea id="th_cau_lenh" rows="7" readonly style="font-family:monospace;font-size:12px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:8px"></textarea>
+          <div class="row" style="margin-top:4px"><button class="purple" onclick="copy($('#th_cau_lenh').value)">📋 Copy câu lệnh</button></div>
+          <div class="sub" style="margin:10px 0 4px">② Dán câu trả lời của AI cho phần này vào đây:</div>
+          <textarea id="th_tra_loi" rows="7" placeholder="Dán bài AI viết cho phần này…" style="font-family:sans-serif;font-size:13px;width:100%;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:8px" oninput="thLuuTraLoi()"></textarea>
+          <div class="row" style="margin-top:6px;gap:8px">
+            <span class="badge" id="th_dem">0 từ</span>
+            <button class="p" id="th_lui" onclick="thSang(-1)">◀ Phần trước</button>
+            <button class="purple" id="th_tiep" onclick="thSang(1)">Phần tiếp ▶</button>
+            <button class="purple" id="th_ghep" onclick="thGhep()" style="margin-left:auto">✅ Ghép thành bài hoàn chỉnh</button>
+          </div>
+        </div>
       </div>
 
       <!-- BƯỚC 2: HỘP KỊCH BẢN HOÀN CHỈNH THUẦN ĐỌC -->
@@ -1090,6 +1109,56 @@ async function chayLapDanBai(){
     nut1.disabled = false;
     nutMoi.disabled = false;
   }
+}
+
+// 28/10 user: tự hỏi AI từng phần — câu lệnh phần k nối liền mạch từ bài phần k-1 bạn đã dán về (giống Bước 2 tự chạy)
+const TH = {phan: 1, tong: 0, tra_loi: {}};
+function thThamSo(){
+  return {tieu_de: $('#mpl_tieu_de_moi').value.trim(), dan_bai: $('#mpl_dan_bai_text').value.trim(), plugin: HIEN_TAI_PLUGIN,
+          so_tu: +$('#mpl_so_tu_moi').value || HIEN_TAI_PLUGIN?.chi_so_kich_ban?.so_tu_tb || 500};
+}
+async function batDauTuHoi(){
+  if(!$('#mpl_dan_bai_text').value.trim()){alert('Chưa có dàn bài. Lập dàn bài ở Bước 1 hoặc dán dàn bài vào ô trên.');return}
+  TH.phan = 1; TH.tra_loi = {};
+  $('#box_tu_hoi').style.display = 'block';
+  await thTai();
+  $('#box_tu_hoi').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+}
+async function thTai(){
+  $('#th_cau_lenh').value = 'Đang tạo câu lệnh…';
+  try{
+    const r = await post('/api/doi_thu/plugin/cau_lenh_phan', {...thThamSo(), phan: TH.phan, doan_truoc: TH.tra_loi[TH.phan - 1] || ''});
+    TH.tong = r.tong_phan;
+    $('#th_tieu_de').textContent = `Phần ${r.phan}/${r.tong_phan}: «${r.tieu_de_phan}» — mục tiêu ~${r.so_tu} từ`;
+    $('#th_cau_lenh').value = r.cau_lenh;
+  }catch(e){ $('#th_cau_lenh').value = 'Lỗi: ' + e.message; }
+  $('#th_tra_loi').value = TH.tra_loi[TH.phan] || '';
+  thDem();
+  $('#th_cac_phan').innerHTML = Array.from({length: TH.tong}, (_, i) => i + 1).map(k =>
+    `<span class="badge" style="cursor:pointer;${k === TH.phan ? 'outline:2px solid var(--purple)' : ''}" onclick="thDen(${k})">${TH.tra_loi[k] ? '✅' : '⬜'} ${k}</span>`).join('');
+  $('#th_lui').disabled = TH.phan <= 1;
+  $('#th_tiep').disabled = TH.phan >= TH.tong;
+}
+function thDem(){ $('#th_dem').textContent = ($('#th_tra_loi').value.split(/\s+/).filter(Boolean).length) + ' từ'; }
+function thLuuTraLoi(){ TH.tra_loi[TH.phan] = $('#th_tra_loi').value.trim(); thDem(); }
+async function thSang(d){
+  thLuuTraLoi();
+  if(d > 0 && !TH.tra_loi[TH.phan] && !confirm('Phần này chưa dán câu trả lời — câu lệnh phần sau sẽ không nối được đoạn trước. Vẫn sang?')) return;
+  TH.phan = Math.max(1, Math.min(TH.tong, TH.phan + d));
+  await thTai();
+}
+async function thDen(k){ thLuuTraLoi(); TH.phan = k; await thTai(); }
+async function thGhep(){
+  thLuuTraLoi();
+  const thieu = Array.from({length: TH.tong}, (_, i) => i + 1).filter(k => !TH.tra_loi[k]);
+  if(thieu.length && !confirm(`Còn phần ${thieu.join(', ')} chưa dán câu trả lời. Vẫn ghép các phần đã có?`)) return;
+  try{
+    const r = await post('/api/doi_thu/plugin/ghep_phan', {cac_phan: Array.from({length: TH.tong}, (_, i) => TH.tra_loi[i + 1] || '')});
+    $('#box_kq_viet_moi').style.display = 'block';
+    $('#mpl_kb_moi_ra').value = r.bai;
+    $('#mpl_dem_tu_moi').textContent = `${r.bai.split(/\s+/).filter(Boolean).length} từ`;
+    $('#box_kq_viet_moi').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  }catch(e){ tb('Lỗi ghép: ' + e.message); }
 }
 
 async function chayVietTheoDanBai(){

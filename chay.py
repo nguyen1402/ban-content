@@ -58,7 +58,11 @@ def main():
                 return
             tien_do("giong", "dang")
             giong.doc_omni(canh, ref=a.giong_clip, toc_do=a.toc_do, num_step=a.num_step)
-            tien_do("giong", "xong", f"{sum(1 for c in canh if c.get('giong'))}/{len(canh)} cảnh")
+            bc = giong.BAO_CAO_SOAT
+            soat = f" · soát: đọc lại {len(bc.get('doc_lai') or [])} câu, còn {len(bc.get('con_loi') or {})} câu lỗi"
+            if bc.get("loi_soat"):
+                soat = " · ! soát giọng lỗi, chưa soát"
+            tien_do("giong", "xong", f"{sum(1 for c in canh if c.get('giong'))}/{len(canh)} cảnh" + soat)
         except BaseException as e:                          # noqa: BLE001
             loi["giong"] = e
             tien_do("giong", "loi", str(e)[:200])

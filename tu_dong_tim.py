@@ -267,7 +267,7 @@ def _cho_tai(du_an, kids, ten_buoc):
         time.sleep(2)
 
 
-def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False, dung_stock=True):
+def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False, dung_stock=True, ve_bu=False):
     """Giai đoạn 2 & 3: Tự động tìm nguồn theo chủ đề, chấm storyboard với mô tả chủ đề,
     tải 1-4 khoảng tốt nhất mỗi video trong ngân sách ~3x độ dài chủ đề, lọc logo/phụ đề gộp,
     và khớp đoạn theo chủ đề."""
@@ -400,6 +400,17 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
               if m.get("loai") == "video" and m.get("trang_thai") in ("xong", "tach")}
     kenh_bo = doc_json(dung_tay.KENH_BO, {}) or {}
     kq, da_xet = {}, set()
+    try:                                                     # 29/10 user ("nhận nhầm chó với sói"): tên video có chữ của
+        import nham_lan                                      # con dễ nhầm (husky, dog, chó…) -> không tải
+        cam_ten = nham_lan.tu_cam([cd.get("mo_ta_en") or "" for cd in ds_tat_ca])
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! chữ cấm trong tên video: {str(e)[:100]}")
+        cam_ten = []
+    if cam_ten:
+        log(f"  bỏ video có tên chứa: {', '.join(cam_ten)} (con dễ nhầm với chủ thể)")
+
+    def _ten_cam(v):
+        return bool(cam_ten) and nham_lan.ten_bi_cam(v.get("tieu_de"), cam_ten) is not None
     diem_theo_cd = {cd["id"]: [] for cd in ds_chu_de}
 
     def tim_yt_an_toan(q, n):
@@ -474,7 +485,8 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
                 if hang < len(r):
                     v = r[hang]
                     if (v["id"] not in da_xet and v["id"] not in co_san and VIDEO_MIN <= (v.get("dai") or 0) <= VIDEO_MAX
-                            and (v.get("kenh") or "") not in kenh_bo and not dung_tay.la_kenh_loai(v)):
+                            and (v.get("kenh") or "") not in kenh_bo and not dung_tay.la_kenh_loai(v)
+                            and not _ten_cam(v)):
                         da_xet.add(v["id"])
                         kq.setdefault(v["id"], v)
                         ung.append(v)
@@ -585,7 +597,8 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
         for r in kq_ve:
             for v in r or []:
                 if (v["id"] not in da_xet and v["id"] not in co_san and VIDEO_MIN <= (v.get("dai") or 0) <= VIDEO_MAX
-                        and (v.get("kenh") or "") not in kenh_bo and not dung_tay.la_kenh_loai(v)):
+                        and (v.get("kenh") or "") not in kenh_bo and not dung_tay.la_kenh_loai(v)
+                        and not _ten_cam(v)):
                     da_xet.add(v["id"])
                     kq.setdefault(v["id"], v)
                     ung_ve.append(v)
@@ -664,6 +677,18 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
         log(f"  kiểm giấy phép: giữ {len(giu)}/{len(chon)} video (Creative Commons thật / kênh chính phủ Mỹ)")
         return giu
 
+    def loc_ai(chon):
+        """29/10 user: bỏ video YouTube gắn nhãn "do AI tạo / đã chỉnh sửa" (đọc trang xem song song, có cache)."""
+        if not getattr(dung_tay, "BO_VIDEO_AI", False) or not chon:
+            return chon
+        with ThreadPoolExecutor(8) as ex:
+            ai = list(ex.map(lambda x: dung_tay.la_video_ai(x[0]["id"]), chon))
+        giu = [x for x, a_ in zip(chon, ai) if not a_]
+        if len(giu) < len(chon):
+            log(f"  bỏ {len(chon) - len(giu)} video YouTube gắn nhãn do AI tạo: "
+                + ", ".join(x[0]["id"] for x, a_ in zip(chon, ai) if a_)[:200])
+        return giu
+
     def ds_tai(chon):
         return [{"vid": v["id"], "bd": bd, "kt": kt, "tieu_de": v.get("tieu_de", ""), "kenh": v.get("kenh", ""),
                  "chu_de_id": ds_chu_de[k_best]["id"],
@@ -722,7 +747,7 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
 
     # 6. Tải các KHOẢNG KHỚP (tải cả video 720p rồi cắt — 18/10 đo: --download-sections 20 s mất 128 s, cả video
     #    230 s chỉ 6 s), rồi cắt sát theo khung thật
-    video_duoc_chon = loc_giay_phep(video_duoc_chon)
+    video_duoc_chon = loc_ai(loc_giay_phep(video_duoc_chon))
     ds_khoang_tai = ds_tai(video_duoc_chon)
     log(f"  tải từng khoảng: {len(ds_khoang_tai)} khoảng khớp từ {len(video_duoc_chon)} video được chọn ({TAI_CUNG_LUC} video cùng lúc, "
         f"{'băm cả video theo cảnh quay' if bam_ca else 'cắt sát ngay'})...")
@@ -748,7 +773,7 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
             for v_dp, sc, k_best, t, e, tong, khoang, _mp in ung_con[:3]:
                 da_tai_vids.add(v_dp["id"])
                 du_phong.append((v_dp, k_best, t, e, tong, khoang))
-    du_phong = loc_giay_phep(du_phong)
+    du_phong = loc_ai(loc_giay_phep(du_phong))
     if du_phong:
         ds_du_phong = ds_tai(du_phong)
         log(f"  tải dự phòng: {len(ds_du_phong)} khoảng bù cho các chủ đề thiếu footage...")
@@ -820,6 +845,7 @@ def chay_theo_chu_de(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_ch
         if not dd:
             raise ValueError("không dò được thư mục CapCut Drafts")
         _tt(du_an, buoc="nhap", xong=0, tong=0)
+        ten_nhap = dung_tay.ten_nhap_moi(dd, ten_nhap)
         nhap = {"ten": ten_nhap, "so": dung_tay.tao_nhap(du_an, ten_nhap, dd)}
 
     # 10b. 22/10 user (an toàn bản quyền): GHI NGUỒN mọi nguồn đang có hình trong kế hoạch (CC BY bắt buộc ghi tác giả)
@@ -858,7 +884,7 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False, du
     dung_stock=False: bỏ tìm/tải Pexels/Pixabay/Mixkit/Coverr — chỉ video YouTube.
     che_do='chu_de': tìm nguồn và tải từng khoảng theo chủ đề (Giai đoạn 2); 'canh': tìm theo cảnh cũ."""
     if che_do == "chu_de":
-        return chay_theo_chu_de(du_an, ngan_sach_phut, ten_nhap, chi_chon, dung_stock)
+        return chay_theo_chu_de(du_an, ngan_sach_phut, ten_nhap, chi_chon, dung_stock, ve_bu=ve_bu)
 
     import dung_tay
     import goi_y
@@ -1198,6 +1224,7 @@ def chay(du_an, ngan_sach_phut=NGAN_SACH_PHUT, ten_nhap=None, chi_chon=False, du
         if not dd:
             raise ValueError("không dò được thư mục CapCut Drafts")
         _tt(du_an, buoc="nhap", xong=0, tong=0)
+        ten_nhap = dung_tay.ten_nhap_moi(dd, ten_nhap)
         nhap = {"ten": ten_nhap, "so": dung_tay.tao_nhap(du_an, ten_nhap, dd)}
     dung = dung_tay.doc_dung(du_an)
     co_hinh = sum(1 for c in canh if dung.get(str(c["id"]), {}).get("doan"))

@@ -253,11 +253,11 @@ AI_CHINH = (os.environ.get("BC_AI_CHINH") or "gemini").strip().lower()
 #   "trinh_duyet" — hỏi Gemini bằng Chrome thật của các hồ sơ Flow (gemini_chrome), KHÔNG đụng cookie
 #   "cookie"      — Gemini cookie (gemini_web_client) rồi ChatGPT cookie như trước 26/10, không mở Chrome
 CAI_DAT_AI = os.path.join(CACHE_CHUNG, "cai_dat_ai.json")
-CACH_HOI = ("trinh_duyet", "cookie")
+CACH_HOI = ("trinh_duyet", "trinh_duyet_chatgpt", "trinh_duyet_gemini", "cookie")
 
 
 def cach_hoi_ai():
-    """'trinh_duyet' | 'cookie' (đọc file mỗi lần — đổi trên giao diện là các tiến trình đang chạy theo ngay)."""
+    """'trinh_duyet' (tự động) | 'trinh_duyet_chatgpt' | 'trinh_duyet_gemini' | 'cookie' (đọc file mỗi lần)."""
     c = (doc_json(CAI_DAT_AI, {}) or {}).get("cach_hoi")
     return c if c in CACH_HOI else "trinh_duyet"
 
@@ -272,11 +272,21 @@ def dat_cach_hoi_ai(cach):
 
 
 def _gc():
-    """Module gemini_chrome khi đang ở chế độ trình duyệt | None (chế độ cookie)."""
-    if cach_hoi_ai() != "trinh_duyet":
+    """Module gemini_chrome khi đang ở chế độ trình duyệt (tự động hoặc gemini) | None."""
+    c = cach_hoi_ai()
+    if c not in ("trinh_duyet", "trinh_duyet_gemini"):
         return None
     import gemini_chrome
     return gemini_chrome
+
+
+def _cc():
+    """Module chatgpt_chrome khi đang ở chế độ trình duyệt (tự động hoặc chatgpt) | None."""
+    c = cach_hoi_ai()
+    if c not in ("trinh_duyet", "trinh_duyet_chatgpt"):
+        return None
+    import chatgpt_chrome
+    return chatgpt_chrome
 
 
 def hoi_kem_tep(prompt, files, timeout=300):
@@ -306,16 +316,43 @@ def hoi_kem_tep(prompt, files, timeout=300):
 
 
 def hoi_llm(prompt, timeout=240):
-    """Một lượt hỏi AI theo cài đặt (trình duyệt: chỉ Gemini Chrome; cookie: Gemini rồi ChatGPT). '' nếu hỏng."""
-    gc = _gc()
-    if gc:
-        if not gc.co_ho_so():
-            log("    (chế độ trình duyệt: chưa có hồ sơ Chrome Flow nào dùng được — tạo ở «🎨 Hồ sơ Flow»)")
+    """Một lượt hỏi AI theo cài đặt (trình duyệt tự động / ChatGPT / Gemini / cookie). '' nếu hỏng."""
+    cach = cach_hoi_ai()
+    if cach == "trinh_duyet_chatgpt":
+        import chatgpt_chrome
+        if not chatgpt_chrome.co_ho_so():
+            log("    (chế độ ChatGPT trình duyệt: chưa có hồ sơ Chrome nào)")
             return ""
-        kq = gc.hoi(prompt, timeout=timeout, so_lan=3)
+        kq = chatgpt_chrome.hoi(prompt, timeout=timeout, so_lan=3)
+        if not kq:
+            log("    (ChatGPT trình duyệt không trả lời)")
+        return kq
+
+    if cach == "trinh_duyet_gemini":
+        import gemini_chrome
+        if not gemini_chrome.co_ho_so():
+            log("    (chế độ Gemini trình duyệt: chưa có hồ sơ Chrome nào)")
+            return ""
+        kq = gemini_chrome.hoi(prompt, timeout=timeout, so_lan=3)
         if not kq:
             log("    (Gemini trình duyệt không trả lời)")
         return kq
+
+    if cach == "trinh_duyet":
+        import gemini_chrome
+        import chatgpt_chrome
+        if gemini_chrome.co_ho_so():
+            kq = gemini_chrome.hoi(prompt, timeout=timeout, so_lan=2)
+            if kq:
+                return kq
+            log("    (Gemini Chrome không trả lời / tài khoản bị hạn chế -> chuyển sang ChatGPT Chrome)")
+        if chatgpt_chrome.co_ho_so():
+            kq = chatgpt_chrome.hoi(prompt, timeout=timeout, so_lan=2)
+            if kq:
+                return kq
+            log("    (ChatGPT Chrome không trả lời)")
+        return ""
+
     if AI_CHINH == "gemini":
         kq = hoi_gemini(prompt, timeout=timeout, du_phong=False)
         if kq:
@@ -326,23 +363,44 @@ def hoi_llm(prompt, timeout=240):
 
 
 def hoi_nhieu(prompts, timeout=240, on_xong=None, ai=None):
-    """Hỏi AI nhiều lô cùng lúc (Gemini hay ChatGPT làm chính theo AI_CHINH). Trả list text theo thứ tự `prompts`.
-    on_xong(i, text) gọi ngay khi lô i xong. ai="gemini"/"chatgpt": ép AI chính cho lần hỏi này."""
-    gc = _gc()
-    if gc:                                                 # chế độ trình duyệt: mọi lô qua Gemini Chrome, không cookie
-        if not gc.co_ho_so():
-            log("    (chế độ trình duyệt: chưa có hồ sơ Chrome Flow nào dùng được — tạo ở «🎨 Hồ sơ Flow»)")
+    """Hỏi AI nhiều lô cùng lúc theo cài đặt. Trả list text theo thứ tự `prompts`.
+    on_xong(i, text) gọi ngay khi lô i xong."""
+    cach = cach_hoi_ai()
+    if cach == "trinh_duyet_chatgpt":
+        import chatgpt_chrome
+        if not chatgpt_chrome.co_ho_so():
+            log("    (chế độ ChatGPT trình duyệt: chưa có hồ sơ Chrome nào)")
             return [""] * len(prompts)
-        ra = gc.hoi_nhieu(prompts, timeout, on_xong)
-        thieu = sum(1 for t in ra if not t)
-        if thieu:
-            log(f"    {thieu}/{len(prompts)} lô Gemini trình duyệt không trả lời")
+        return chatgpt_chrome.hoi_nhieu(prompts, timeout, on_xong)
+
+    if cach == "trinh_duyet_gemini":
+        import gemini_chrome
+        if not gemini_chrome.co_ho_so():
+            log("    (chế độ Gemini trình duyệt: chưa có hồ sơ Chrome nào)")
+            return [""] * len(prompts)
+        return gemini_chrome.hoi_nhieu(prompts, timeout, on_xong)
+
+    if cach == "trinh_duyet":
+        import gemini_chrome
+        import chatgpt_chrome
+        ra = [""] * len(prompts)
+        if gemini_chrome.co_ho_so():
+            ra = gemini_chrome.hoi_nhieu(prompts, timeout, on_xong)
+        thieu = [i for i, t in enumerate(ra) if not t]
+        if thieu and chatgpt_chrome.co_ho_so():
+            log(f"    {len(thieu)}/{len(prompts)} lô Gemini trình duyệt không xong -> ChatGPT trình duyệt làm nốt")
+            bu = chatgpt_chrome.hoi_nhieu([prompts[i] for i in thieu], timeout, None)
+            for i, kq in zip(thieu, bu):
+                ra[i] = kq or ""
+                if on_xong and ra[i]:
+                    on_xong(i, ra[i])
         return ra
+
     if (ai or AI_CHINH) != "gemini":
         return _hoi_nhieu_chatgpt(prompts, timeout, on_xong)
     ra = _hoi_nhieu_gemini(prompts, timeout, on_xong)
     thieu = [i for i, t in enumerate(ra) if not t]
-    if thieu:                                              # lô Gemini hỏng -> ChatGPT làm nốt
+    if thieu:
         log(f"    {len(thieu)}/{len(prompts)} lô Gemini không trả lời -> hỏi ChatGPT")
         bu = _hoi_nhieu_chatgpt([prompts[i] for i in thieu], timeout, None, bu_gemini=False)
         for i, kq in zip(thieu, bu):
@@ -650,3 +708,35 @@ def xoa_tien_do():
 _ORT_GPU = os.path.join(ROOT, "ort_gpu")
 if os.path.isdir(_ORT_GPU) and _ORT_GPU not in sys.path and "onnxruntime" not in sys.modules:
     sys.path.insert(0, _ORT_GPU)
+
+
+# 30/10 user ("cừu mặc áo giáp sắt như gai nhím… nhiều ảnh tự lược bỏ đi cái này trông nó không như lời kể"): AI viết câu
+# lệnh từng ảnh / video tự rút gọn ngoại hình -> đặc điểm BẮT BUỘC của nhân vật (ho_so_truyen.json: nhan_vat[].bat_buoc_en,
+# nhận ra qua khoa_en) được gắn nguyên văn vào MỌI câu lệnh vẽ ảnh / tạo video nhắc tới nhân vật đó, nếu câu lệnh thiếu.
+def giu_dac_diem(prompt, thu):
+    """prompt + đặc điểm bắt buộc của nhân vật nhắc trong prompt. thu: thư mục đầu ra (nằm trong ra/<dự án>/…) để tìm
+    hồ sơ câu chuyện của đúng dự án. Không có hồ sơ / không nhân vật nào -> prompt nguyên vẹn."""
+    if not prompt or not thu:
+        return prompt
+    d = os.path.abspath(thu)
+    for _ in range(4):
+        if os.path.isfile(os.path.join(d, "ho_so_truyen.json")):
+            break
+        d = os.path.dirname(d)
+    else:
+        return prompt
+    nv = ((doc_json(os.path.join(d, "ho_so_truyen.json"), {}) or {}).get("ho_so") or {}).get("nhan_vat") or []
+    p = prompt.lower()
+    them = []
+    for x in nv:
+        bb = str((x or {}).get("bat_buoc_en") or "").strip().rstrip(".")
+        khoa = [str(k).lower() for k in (x.get("khoa_en") or []) if str(k).strip()]
+        if not bb or not khoa or not any(re.search(rf"\b{re.escape(k)}\b", p) for k in khoa):
+            continue
+        kem = [str(k).lower() for k in (x.get("kem_en") or []) if str(k).strip()]   # chỉ khi câu lệnh có nhắc (giáp…):
+        if kem and not any(k in p for k in kem):             # cừu lúc CHƯA mặc giáp thì không gắn
+            continue
+        if " ".join(bb.lower().split()[:6]) in p:            # đã có nguyên văn
+            continue
+        them.append(bb)
+    return prompt.rstrip() + "".join(f" IMPORTANT, keep this exact look: {x}." for x in them) if them else prompt

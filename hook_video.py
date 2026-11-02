@@ -242,7 +242,7 @@ def tao_video(du_an, bao=None):
         f = os.path.join(thu, ten + ".mp4")
         # 25/10: tải về tên RIÊNG (…_goc): đứt giữa chừng không để lại f còn logo bị coi là xong
         r = flow_video.tao(y["prompt_en"], thu, ten + "_goc", model=HOOK_MODEL, phan_giai=HOOK_PHAN_GIAI,
-                           do_dai=f"{HOOK_CLIP_GIAY}s", bao=lambda m: None, ho_so=ho_so, gioi_han=True,
+                           do_dai=f"{HOOK_CLIP_GIAY}s", bao=lambda m: bao(f"hook câu {y['cau']}: {m}"), ho_so=ho_so, gioi_han=True,
                            khe=khe, so=1)                     # 27/10 user: mỗi câu lệnh đúng 1 video (x1)
         if not r.get("tep"):
             return None

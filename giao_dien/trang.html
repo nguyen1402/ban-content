@@ -57,7 +57,7 @@ dialog::backdrop{background:#000a}dialog video{width:100%;display:block;border-r
   <button class="p" id="mothumuc">Mở thư mục kết quả</button>
   <button class="p" id="nutck" title="Tài khoản Gemini / ChatGPT (cookie) — kho riêng của bán-content">🍪 Cookie</button>
   <a class="p" href="/doi_thu#spy" target="_blank" title="Tình báo danh sách kênh đối thủ, giải mã kịch bản, visual, âm thanh và sinh kịch bản viral" style="padding:6px 12px;border:1px solid #8e24aa;border-radius:8px;text-decoration:none;color:#8e24aa;font-weight:600">🕵️ Tình báo đối thủ</a>
-  <button class="p" id="nutflow" title="Hồ sơ Chrome để vẽ ảnh bằng Google Flow (Nano Banana, 0 điểm)">🎨 Hồ sơ Flow</button>
+  <button class="p" id="nutflow" title="Hồ sơ Chrome để vẽ ảnh Google Flow hoặc dùng ChatGPT / Gemini qua trình duyệt">🎨 Hồ sơ Chrome (Flow / ChatGPT / Gemini)</button>
   <a class="p" href="/nhan_vat" target="_blank" title="Phôi nhân vật vẽ bằng code kiểu MS Paint → Flow vẽ biểu cảm / cử chỉ → duyệt → storyboard dán vào cảnh" style="padding:6px 12px;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:var(--ink)">🧍 Kho nhân vật</a>
   <a class="p" href="/storyboard" target="_blank" title="Nhập kịch bản → AI lập assets + scene nối tiếp (nhân vật nhất quán) → vẽ ảnh Flow → video hook → JSON / bản nháp CapCut" style="padding:6px 12px;border:1px solid var(--line);border-radius:8px;text-decoration:none;color:var(--ink)">🎬 Storyboard Flow</a>
 </header>
@@ -73,15 +73,29 @@ dialog::backdrop{background:#000a}dialog video{width:100%;display:block;border-r
     </details>
   </section>
   <section class="card" id="flowk" style="display:none">
-    <h2>🎨 Google Flow — vẽ ảnh 0 điểm <span class="sub" style="margin:0;font-weight:400">— mỗi hồ sơ là một Chrome riêng; bước vẽ ảnh mở ẩn, tạo xong tự tắt</span></h2>
-    <div class="row" style="gap:8px">
-      <input type="text" id="flowten" placeholder="Tên hồ sơ, vd flow1" style="max-width:220px">
-      <button id="flowtao">＋ Hồ sơ Chrome Flow</button>
-      <button type="button" class="p" id="flow_btn_hien_all" style="border-color:var(--ok);color:var(--ok);font-weight:600" title="Đưa toàn bộ cửa sổ Chrome của Flow ra giữa màn hình để quan sát hoặc thao tác trực tiếp">🖥️ Hiện các cửa sổ Chrome lên màn hình</button>
-      <button type="button" class="p" id="flow_btn_doc_diem" title="Mở lần lượt từng hồ sơ, bấm ảnh tài khoản trên Flow để đọc số điểm thật và GIỜ RESET điểm mỗi ngày">🔄 Đọc điểm &amp; giờ reset</button>
-      <button type="button" class="p" id="flow_btn_dong_all" style="border-color:var(--er);color:var(--er)" title="Đóng toàn bộ Chrome Flow đang chạy ngầm">✕ Đóng hết Chrome Flow</button>
+    <h2>🎨 Hồ sơ Chrome (Flow · ChatGPT · Gemini) <span class="sub" style="margin:0;font-weight:400">— mỗi hồ sơ là một Chrome riêng biệt để vẽ ảnh Flow hoặc dùng ChatGPT / Gemini bằng giao diện và tự động</span></h2>
+    <div class="row" style="gap:8px;flex-wrap:wrap">
+      <input type="text" id="flowten" placeholder="Tên hồ sơ, vd acc1" style="max-width:180px">
+      <button id="flowtao_chatgpt" style="background:#10a37f;color:#fff;font-weight:600" title="Tạo hồ sơ và mở ngay ChatGPT để đăng nhập / sử dụng">💬 ＋ Mở ChatGPT</button>
+      <button id="flowtao_gemini" style="background:#1a73e8;color:#fff;font-weight:600" title="Tạo hồ sơ và mở ngay Gemini để đăng nhập / kiểm tra hạn chế">💎 ＋ Mở Gemini</button>
+      <button id="flowtao" class="p" title="Tạo hồ sơ và mở ngay Google Flow">🎨 ＋ Mở Flow</button>
+      <button type="button" class="p" id="flow_btn_kt_ai" title="Kiểm tra trạng thái ChatGPT và Gemini trên toàn bộ các hồ sơ">🔍 Kiểm tra AI</button>
+      <button type="button" class="p" id="flow_btn_hien_all" style="border-color:var(--ok);color:var(--ok);font-weight:600" title="Đưa toàn bộ cửa sổ Chrome ra giữa màn hình để quan sát hoặc thao tác trực tiếp">🖥️ Hiện các cửa sổ</button>
+      <button type="button" class="p" id="flow_btn_doc_diem" title="Mở lần lượt từng hồ sơ, bấm ảnh tài khoản trên Flow để đọc số điểm thật và GIỜ RESET điểm mỗi ngày">🔄 Đọc điểm Flow</button>
+      <button type="button" class="p" id="flow_btn_dong_all" style="border-color:var(--er);color:var(--er)" title="Đóng toàn bộ Chrome đang chạy ngầm">✕ Đóng hết Chrome</button>
     </div>
     <div id="flowds" style="margin-top:8px"></div>
+
+    <details style="margin-top:12px;border:1px dashed var(--line);border-radius:8px;padding:8px 12px;background:rgba(0,0,0,0.015)">
+      <summary style="font-weight:600;cursor:pointer;color:var(--ink)">💬 Thử hỏi nhanh ChatGPT / Gemini qua trình duyệt Chrome (Kiểm tra kết nối)</summary>
+      <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap">
+        <label style="font-size:13px">Hồ sơ: <select id="hoi_thu_hoso" style="min-width:100px;font-weight:600"></select></label>
+        <label style="font-size:13px">Dịch vụ: <select id="hoi_thu_dv" style="font-weight:600"><option value="chatgpt">💬 ChatGPT</option><option value="gemini">💎 Gemini</option></select></label>
+        <input type="text" id="hoi_thu_prompt" value="Hãy giới thiệu ngắn gọn trong 1 câu: bạn là ai?" style="flex:1;min-width:240px">
+        <button id="hoi_thu_gui" style="background:#10a37f;color:#fff;font-weight:600">🚀 Gửi thử</button>
+      </div>
+      <div id="hoi_thu_kq" style="margin-top:8px;font-size:13px;white-space:pre-wrap;background:var(--bg);padding:10px;border-radius:6px;border:1px solid var(--line);display:none"></div>
+    </details>
 
     <div id="flow_hang_loat_sec" style="margin-top:18px;border-top:1px solid var(--line);padding-top:14px">
       <h3 style="margin:0 0 4px;font-size:15px;display:flex;gap:8px;align-items:center">🖼️ Tạo hàng loạt ảnh bằng Flow (Chạy script tự động) <span class="sub" style="margin:0;font-weight:400">— nhập danh sách câu lệnh, Flow tự động xoay hồ sơ Chrome tạo ảnh 0 điểm</span></h3>
@@ -252,32 +266,116 @@ async function veCookie(){let d;try{d=await api('/api/cookie')}catch(e){$('#ckds
 let flowHen=null;
 async function veFlow(){let d;try{d=await api('/api/flow')}catch(e){$('#flowds').textContent='Lỗi: '+e.message;return}
   const thu=d.thu||{};let dang=false;
+  // Cập nhật danh sách hồ sơ cho ô thử hỏi
+  const selHoi=$('#hoi_thu_hoso');
+  if(selHoi){
+    const cuVal = selHoi.value;
+    selHoi.innerHTML = (d.ho_so||[]).map(h=>`<option value="${escH(h.ten)}">${escH(h.ten)}</option>`).join('');
+    if(cuVal) selHoi.value = cuVal;
+  }
+
   $('#flowds').innerHTML=d.ho_so.length?d.ho_so.map(h=>{const t=thu[h.ten]||{};if(t.dang)dang=true;
-    const tt=h.cho_sua?'<span style="color:#c62828;font-weight:600">● DỪNG — chờ bạn kiểm tra: '+escH(h.loi||'')+'</span><button data-fl="da_sua|'+escH(h.ten)+'" style="padding:2px 8px;background:var(--ok);color:#fff" title="Đã kiểm tra / sửa xong hồ sơ này — cho làm việc lại ngay">✅ Đã sửa xong</button>':h.dang_nghi?'<span style="color:#c62828">● tạm nghỉ: '+escH(h.loi||'')+'</span>':(h.loi?'<span style="color:#c62828">● '+escH(h.loi)+'</span>':'<span style="color:#2e7d32">● sẵn sàng</span>');
+    const tt=h.cho_sua?'<span style="color:#c62828;font-weight:600">● DỪNG — chờ kiểm tra: '+escH(h.loi||'')+'</span><button data-fl="da_sua|'+escH(h.ten)+'" style="padding:2px 8px;background:var(--ok);color:#fff" title="Đã kiểm tra / sửa xong hồ sơ này — cho làm việc lại ngay">✅ Đã sửa xong</button>':h.dang_nghi?'<span style="color:#c62828">● tạm nghỉ: '+escH(h.loi||'')+'</span>':(h.loi?'<span style="color:#c62828">● '+escH(h.loi)+'</span>':'<span style="color:#2e7d32">● sẵn sàng</span>');
+
+    // 02/11 user: hồ sơ không bao giờ hiện khung chat -> khoá Gemini, mọi phiên không mở thử
+    const gmBadge = h.gemini_khoa
+      ? '<span style="color:#6d4c41;background:#efebe9;padding:2px 6px;border-radius:4px;font-size:12px;font-weight:600" title="'+escH(h.gemini_msg)+' — mọi phiên không mở thử. Bấm 🔍 Kiểm tra hồ sơ này để thử lại."><span aria-hidden="true">🔒</span> Gemini đã khoá</span>'
+        +'<button data-fl="mo_khoa_gm|'+escH(h.ten)+'" style="padding:2px 8px;border-radius:6px;font-size:12px" title="Cho Gemini của hồ sơ này được dùng lại">Mở khoá</button>'
+      : h.gemini_ok === true
+      ? '<span style="color:#2e7d32;font-size:12px;font-weight:600" title="Gemini dùng tốt">💎 Gemini OK</span>'
+      : (h.gemini_msg && (h.gemini_msg.includes('hạn chế') || h.gemini_msg.includes('restrictions'))
+        ? '<span style="color:#c62828;background:#ffebee;padding:2px 6px;border-radius:4px;font-size:12px;font-weight:600" title="'+escH(h.gemini_msg)+'">⚠ Gemini bị hạn chế</span>'
+        : (h.gemini_ok === false ? '<span style="color:#c62828;font-size:12px" title="'+escH(h.gemini_msg)+'">✖ Gemini: '+escH((h.gemini_msg||'').slice(0,30))+'</span>'
+            +'<button data-fl="khoa_gm|'+escH(h.ten)+'" style="padding:2px 8px;border-radius:6px;font-size:12px" title="Không bao giờ mở hồ sơ này để hỏi Gemini nữa (mọi phiên)">🔒 Khoá Gemini</button>' : ''));
+
+    const cgBadge = h.chatgpt_ok === true
+      ? '<span style="color:#10a37f;font-size:12px;font-weight:600" title="ChatGPT dùng tốt">💬 ChatGPT OK</span>'
+      : (h.chatgpt_ok === false
+        ? '<span style="color:#c62828;font-size:12px" title="'+escH(h.chatgpt_msg)+'">✖ ChatGPT: '+escH((h.chatgpt_msg||'').slice(0,35))+'</span>'
+        : '');
+
     const kq=t.dang?'<span class="sub" style="margin:0">đang thử… (mở ẩn, tạo 1 ảnh, ~30-60 giây)</span>':(t.kq?'<a href="'+t.kq+'" target="_blank">✔ ảnh thử</a>':(t.loi?'<span style="color:#c62828">✖ '+escH(t.loi)+'</span>':''));
-    return '<div class="row" style="gap:8px;margin:4px 0"><b>'+escH(h.ten)+'</b>'+tt+'<span class="sub" style="margin:0">'+(h.so_anh||0)+' ảnh</span>'+
-      '<span class="sub" style="margin:0" title="Điểm video còn dùng trong ngày (hạn 50/ngày, Omni 720p 8 s = 12 điểm)">🎬 còn '+(h.diem_con??50)+'/50đ (~'+Math.floor((h.diem_con??50)/12)+' clip)</span>'+
-      (h.reset?'<span class="sub" style="margin:0;color:var(--ok)" title="Flow: Credits refresh daily at … (đọc lúc '+(h.doc_luc?new Date(h.doc_luc*1000).toLocaleString('vi-VN'):'?')+')">⏰ reset '+escH(h.reset)+' hằng ngày'+(h.diem_flow!=null?' · Flow báo '+h.diem_flow+'đ':'')+'</span>':'<span class="sub" style="margin:0">⏰ chưa đọc giờ reset</span>')+
-      (h.loi_diem?'<span style="color:#c62828;font-size:12px">✖ đọc điểm: '+escH(h.loi_diem)+'</span>':'')+
-      '<button data-fl="doc_diem|'+escH(h.ten)+'" style="padding:2px 8px" title="Đọc điểm thật + giờ reset của hồ sơ này">🔄</button>'+
-      '<button data-fl="mo|'+escH(h.ten)+'" style="padding:2px 8px" title="Mở cửa sổ Chrome của hồ sơ để đăng nhập / giải xác minh">Mở</button>'+
-      '<button data-fl="thu|'+escH(h.ten)+'" style="padding:2px 8px">Thử</button>'+
-      '<button data-fl="xoa|'+escH(h.ten)+'" style="padding:2px 8px">Xoá</button>'+kq+'</div>'}).join(''):'<div class="sub" style="margin:0">(chưa có hồ sơ — đang dùng Gemini cookie, tốn điểm)</div>';
-  if(d.doc_diem)dang=true;$('#flow_btn_doc_diem').disabled=!!d.doc_diem;$('#flow_btn_doc_diem').textContent=d.doc_diem?'⏳ Đang đọc điểm…':'🔄 Đọc điểm & giờ reset';
+    return '<div class="row" style="gap:8px;margin:5px 0;padding:6px 8px;background:var(--box);border-radius:6px;align-items:center;flex-wrap:wrap"><b>'+escH(h.ten)+'</b>'+tt+
+      (gmBadge ? ' ' + gmBadge : '') + (cgBadge ? ' ' + cgBadge : '') +
+      '<span class="sub" style="margin:0">'+(h.so_anh||0)+' ảnh</span>'+
+      '<span class="sub" style="margin:0" title="Điểm video còn dùng trong ngày (hạn 50/ngày, Omni 720p 8 s = 12 điểm)">🎬 còn '+(h.diem_con??50)+'/50đ</span>'+
+      (h.reset?'<span class="sub" style="margin:0;color:var(--ok)" title="Flow reset: '+escH(h.reset)+'">⏰ reset '+escH(h.reset)+'</span>':'')+
+      '<button data-fl="mo_chatgpt|'+escH(h.ten)+'" style="padding:3px 10px;font-weight:600;background:#10a37f;color:#fff;border:none;border-radius:6px;cursor:pointer" title="Mở ChatGPT trên giao diện Chrome của hồ sơ này để đăng nhập / trò chuyện">💬 Mở ChatGPT</button>'+
+      '<button data-fl="mo_gemini|'+escH(h.ten)+'" style="padding:3px 10px;font-weight:600;background:#1a73e8;color:#fff;border:none;border-radius:6px;cursor:pointer" title="Mở Gemini trên giao diện Chrome của hồ sơ này để kiểm tra / đăng nhập">💎 Mở Gemini</button>'+
+      '<button class="p" data-fl="mo|'+escH(h.ten)+'" style="padding:3px 8px;border-radius:6px" title="Mở Google Flow trên giao diện Chrome">🎨 Mở Flow</button>'+
+      '<button class="p" data-fl="kt_ai|'+escH(h.ten)+'" style="padding:3px 8px;border-radius:6px" title="Kiểm tra xem Gemini & ChatGPT trên hồ sơ này có dùng được không">🔍 Kiểm tra</button>'+
+      '<button class="p" data-fl="doc_diem|'+escH(h.ten)+'" style="padding:3px 7px;border-radius:6px" title="Đọc điểm thật + giờ reset của hồ sơ này">🔄</button>'+
+      '<button class="p" data-fl="thu|'+escH(h.ten)+'" style="padding:3px 8px;border-radius:6px" title="Vẽ thử 1 ảnh bằng Flow">Thử</button>'+
+      '<button class="p" data-fl="xoa|'+escH(h.ten)+'" style="padding:3px 8px;border-color:var(--er);color:var(--er);border-radius:6px">Xoá</button>'+kq+'</div>'}).join(''):'<div class="sub" style="margin:0">(chưa có hồ sơ Chrome nào — hãy bấm nút tạo ở trên)</div>';
+  if(d.doc_diem)dang=true;$('#flow_btn_doc_diem').disabled=!!d.doc_diem;$('#flow_btn_doc_diem').textContent=d.doc_diem?'⏳ Đang đọc điểm…':'🔄 Đọc điểm Flow';
   clearTimeout(flowHen);if(dang&&$('#flowk').style.display!=='none')flowHen=setTimeout(veFlow,3000)}
 $('#flow_btn_doc_diem').onclick=async()=>{try{await post('/api/flow/doc_diem',{});tb('Đang đọc điểm từng hồ sơ (mỗi hồ sơ ~15-30 giây)…');veFlow()}catch(e){tb('Lỗi: '+e.message)}};
+$('#flow_btn_kt_ai').onclick=async()=>{
+  tb('Đang kiểm tra AI (Gemini & ChatGPT) trên các hồ sơ...');
+  try{await post('/api/flow/kiem_tra_ai',{});tb('Đã kiểm tra xong!');veFlow()}catch(e){tb('Lỗi: '+e.message)}
+};
 $('#nutflow').onclick=()=>{const c=$('#flowk');const hien=c.style.display==='none';c.style.display=hien?'':'none';if(hien){veFlow();kiemTraFlowHangLoat()}};
-$('#flowtao').onclick=async()=>{const ten=$('#flowten').value.trim();if(!ten)return tb('Đặt tên hồ sơ');
-  try{await post('/api/flow/tao',{ten});$('#flowten').value='';tb('Đã mở Chrome — đăng nhập Flow rồi đóng cửa sổ');veFlow()}catch(e){tb('Lỗi: '+e.message)}};
+
+async function taoHoSo(dich_vu){
+  const ten=$('#flowten').value.trim();if(!ten)return tb('Đặt tên hồ sơ, vd acc1');
+  try{
+    await post('/api/flow/tao',{ten,dich_vu});
+    $('#flowten').value='';
+    tb('Đã mở Chrome hồ sơ "'+ten+'" để đăng nhập '+dich_vu+'!');
+    veFlow();
+  }catch(e){tb('Lỗi: '+e.message)}
+}
+$('#flowtao_chatgpt').onclick=()=>taoHoSo('chatgpt');
+$('#flowtao_gemini').onclick=()=>taoHoSo('gemini');
+$('#flowtao').onclick=()=>taoHoSo('flow');
+
 $('#flowds').onclick=async e=>{const b=e.target.closest('[data-fl]');if(!b)return;const [vc,ten]=b.dataset.fl.split('|');
-  if(vc==='xoa'&&!confirm('Xoá hồ sơ Chrome Flow "'+ten+'" (cả phiên đăng nhập trong đó)?'))return;
-  try{await post('/api/flow/'+vc,{ten});if(vc==='mo')tb('Đã mở Chrome của hồ sơ — đăng nhập xong thì đóng cửa sổ');if(vc==='da_sua')tb('Hồ sơ "'+ten+'" làm việc lại');veFlow()}catch(er){tb('Lỗi: '+er.message)}};
+  if(vc==='xoa'&&!confirm('Xoá hồ sơ Chrome "'+ten+'" (cả phiên đăng nhập trong đó)?'))return;
+  if(vc==='khoa_gm'||vc==='mo_khoa_gm'){
+    try{await post('/api/gemini/khoa',{ten,khoa:vc==='khoa_gm'});tb(vc==='khoa_gm'?'🔒 Đã khoá Gemini hồ sơ "'+ten+'" — mọi phiên không mở thử':'Đã mở khoá Gemini hồ sơ "'+ten+'"');veFlow()}catch(er){tb('Lỗi: '+er.message)}
+    return}
+  if(vc==='kt_ai'){
+    tb('Đang kiểm tra AI trên hồ sơ "'+ten+'"...');
+    try{const r=await post('/api/flow/kiem_tra_ai',{ten});tb('Đã kiểm tra xong hồ sơ "'+ten+'"');veFlow()}catch(er){tb('Lỗi: '+er.message)}
+    return;
+  }
+  try{
+    await post('/api/flow/'+vc,{ten});
+    if(vc==='mo')tb('Đã mở Chrome (Google Flow) của hồ sơ "'+ten+'"');
+    if(vc==='mo_chatgpt')tb('Đã mở Chrome (ChatGPT) của hồ sơ "'+ten+'"');
+    if(vc==='mo_gemini')tb('Đã mở Chrome (Gemini) của hồ sơ "'+ten+'"');
+    if(vc==='da_sua')tb('Hồ sơ "'+ten+'" làm việc lại');
+    veFlow();
+  }catch(er){tb('Lỗi: '+er.message)}
+};
 $('#flow_btn_hien_all').onclick=async()=>{
   try{const r=await post('/api/flow/hien_tat_ca',{});tb(`Đã đưa ${r.so_cua_so||0} cửa sổ Chrome lên màn hình!`);}catch(e){tb('Lỗi: '+e.message);}
 };
 $('#flow_btn_dong_all').onclick=async()=>{
-  if(!confirm('Đóng toàn bộ các cửa sổ Chrome Flow đang chạy ngầm?'))return;
-  try{await post('/api/flow/dong_tat_ca',{});tb('Đã đóng tất cả Chrome Flow');veFlow();}catch(e){tb('Lỗi: '+e.message);}
+  if(!confirm('Đóng toàn bộ các cửa sổ Chrome đang chạy ngầm?'))return;
+  try{await post('/api/flow/dong_tat_ca',{});tb('Đã đóng tất cả Chrome');veFlow();}catch(e){tb('Lỗi: '+e.message);}
+};
+
+$('#hoi_thu_gui').onclick=async()=>{
+  const hoso = $('#hoi_thu_hoso').value;
+  const dv = $('#hoi_thu_dv').value;
+  const prompt = $('#hoi_thu_prompt').value.trim();
+  const kqBox = $('#hoi_thu_kq');
+  if(!hoso) return tb('Chưa có hồ sơ nào!');
+  if(!prompt) return tb('Nhập câu hỏi để thử!');
+  kqBox.style.display = 'block';
+  kqBox.textContent = `⏳ Đang gửi câu hỏi tới ${dv.toUpperCase()} trên hồ sơ "${hoso}"... vui lòng chờ ~5-15 giây...`;
+  try{
+    const r = await post('/api/flow/hoi_thu', {ten: hoso, dich_vu: dv, prompt});
+    kqBox.textContent = `✔ Phản hồi sau ${r.giay}s từ ${dv.toUpperCase()}:
+
+${r.tra_loi}`;
+  }catch(e){
+    kqBox.textContent = `✖ Lỗi khi hỏi ${dv.toUpperCase()} trên "${hoso}":
+${e.message}
+
+Gợi ý: Bấm nút "💬 Mở ChatGPT" hoặc "💎 Mở Gemini" của hồ sơ để đăng nhập trước bằng giao diện!`;
+  }
 };
 
 // 🖼️ Tạo hàng loạt ảnh bằng Flow

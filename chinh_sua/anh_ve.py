@@ -608,6 +608,8 @@ def _qua_flow(prompt, thu, ten, tep=None):
 def ve_prompt(prompt, thu, ten, tep=None, timeout=150, do_credit=True):
     """Vẽ theo câu lệnh đầy đủ (kèm ảnh mẫu `tep` nếu có) -> đường dẫn ảnh hoặc None; xoay tài khoản khi lỗi."""
     os.makedirs(thu, exist_ok=True)
+    from common import giu_dac_diem                          # 30/10: đặc điểm bắt buộc của nhân vật (gai nhím…)
+    prompt = giu_dac_diem(prompt, thu)
     if FLOW_TRUOC:                                           # 27/10 user: Flow trước (0 điểm), hỏng mới sang Gemini
         f = _qua_flow(prompt, thu, ten, tep)
         if f:

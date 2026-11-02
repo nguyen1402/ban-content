@@ -475,6 +475,10 @@ function doiPhongCachMacDinh(){
 // lưu kịch bản + cài đặt (tạo storyboard nếu chưa có)
 async function damBao(){
   const kb=$('#kich_ban').value.trim();if(!kb)throw new Error('Chưa nhập kịch bản');
+  if(SID){                                            // 28/10 user (bấm ① báo lỗi): trang nhớ id storyboard đã bị xoá -> tạo mới
+    try{await post('/api/sb/sua',{id:SID,ten:$('#ten').value.trim(),kich_ban:kb,cai_dat:caiDat()});return}
+    catch(e){if(!/không thấy storyboard/.test(e.message))throw e;SID='';D=null;try{localStorage.removeItem('sb_lan_cuoi')}catch(_){}}
+  }
   if(!SID){const r=await post('/api/sb/tao',{ten:$('#ten').value.trim()||'storyboard',kich_ban:kb,cai_dat:caiDat()});SID=r.id;history.replaceState(null,'','?id='+encodeURIComponent(SID));veDs()}
   else await post('/api/sb/sua',{id:SID,ten:$('#ten').value.trim(),kich_ban:kb,cai_dat:caiDat()});
 }

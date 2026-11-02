@@ -31,6 +31,9 @@ GOC = os.path.join(os.environ.get("BAN_CONTENT_DATA") or os.path.join(os.path.ex
 SO = os.path.join(GOC, "ho_so.json")
 CONG_DAU = 9350
 TRANG = "https://flow.google.com/?hl=en"     # 15/10: ép giao diện TIẾNG ANH (tài khoản tiếng Việt hiện "Dự án mới")
+TRANG_FLOW = TRANG
+TRANG_GEMINI = "https://gemini.google.com/app?hl=en"
+TRANG_CHATGPT = "https://chatgpt.com"
 CHO_ANH = 240                # giây chờ một lượt tạo
 NGHI_LOI = 600               # hồ sơ lỗi xác minh: nghỉ bấy nhiêu giây
 # 28/10 user ("nếu tài khoản nào lỗi báo ra log hoặc báo đỏ hồ sơ, tôi sẽ tự vào kiểm tra thấy ok thôi bấm đã fix xong tiếp
@@ -165,12 +168,34 @@ def doc_diem(ph):
 
 
 def ds_ho_so():
-    """[{ten, thu_muc, tao, dung_luc, nghi_den, loi, so_anh, diem_con}] — để hiện trên giao diện."""
+    """[{ten, thu_muc, tao, dung_luc, nghi_den, loi, so_anh, diem_con, gemini_ok, chatgpt_ok, ...}] — để hiện trên giao diện."""
     d = _doc_so()
     ra = []
+    # Đọc trạng thái AI từ cache nếu có
+    gm_dung = {}
+    cg_dung = {}
+    try:
+        p_gm = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", "gemini_dung.json")
+        if os.path.isfile(p_gm):
+            gm_dung = json.load(open(p_gm, encoding="utf-8")) or {}
+    except Exception:
+        pass
+    try:
+        p_cg = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", "chatgpt_dung.json")
+        if os.path.isfile(p_cg):
+            cg_dung = json.load(open(p_cg, encoding="utf-8")) or {}
+    except Exception:
+        pass
+
     for ten, m in d.items():
+        gm_info = gm_dung.get(ten) or {}
+        cg_info = cg_dung.get(ten) or {}
         ra.append(dict(m, ten=ten, thu_muc=os.path.join(GOC, _slug(ten)), diem_con=diem_con(ten, m),
-                       dang_nghi=float(m.get("nghi_den") or 0) > time.time() or bool(m.get("cho_sua")), dang_mo=ten in _PHIEN))
+                       dang_nghi=float(m.get("nghi_den") or 0) > time.time() or bool(m.get("cho_sua")), dang_mo=ten in _PHIEN,
+                       gemini_ok=gm_info.get("ok"), gemini_khoa=bool(gm_info.get("khoa")),
+                       gemini_msg=m.get("gemini_loi") or gm_info.get("msg") or "",
+                       chatgpt_ok=cg_info.get("ok"),
+                       chatgpt_msg=m.get("chatgpt_loi") or cg_info.get("msg") or ""))
     return sorted(ra, key=lambda x: x.get("tao", 0))
 
 
@@ -186,8 +211,8 @@ def _chrome():
     return exe
 
 
-def tao_ho_so(ten):
-    """Tạo hồ sơ mới + mở Chrome HIỆN để người dùng đăng nhập Flow."""
+def tao_ho_so(ten, dich_vu="flow"):
+    """Tạo hồ sơ mới + mở Chrome HIỆN để người dùng đăng nhập Flow / Gemini / ChatGPT."""
     ten = str(ten or "").strip()
     if not ten:
         raise ValueError("đặt tên hồ sơ")
@@ -195,7 +220,12 @@ def tao_ho_so(ten):
         raise ValueError(f"đã có hồ sơ '{ten}'")
     os.makedirs(os.path.join(GOC, _slug(ten)), exist_ok=True)
     _cap_nhat(ten, tao=time.time(), so_anh=0)
-    mo_dang_nhap(ten)
+    if dich_vu == "chatgpt":
+        mo_chatgpt(ten)
+    elif dich_vu == "gemini":
+        mo_gemini(ten)
+    else:
+        mo_dang_nhap(ten)
 
 
 # 26/10 user: "mỗi lần mở tab toàn bị báo thoát đột ngột" — Chrome hồ sơ bị TẮT CƯỠNG BỨC: (1) là tiến trình con của
@@ -282,16 +312,32 @@ def _giet_chrome_ho_so(ten):
     time.sleep(1.0)
 
 
-def mo_dang_nhap(ten):
-    """Mở Chrome HIỆN của hồ sơ (không cổng DevTools) ở trang Flow — để đăng nhập / giải xác minh."""
+def mo_trang(ten, url=None):
+    """Mở Chrome HIỆN của hồ sơ ở trang chỉ định (Flow, Gemini, ChatGPT) để đăng nhập hoặc thao tác trực tiếp."""
     dong(ten)
     _giet_chrome_ho_so(ten)
+    muc_tieu = url or TRANG_FLOW
     mo_chrome_tach([_chrome(), f"--user-data-dir={os.path.join(GOC, _slug(ten))}", "--no-first-run",
-                      # 23/10 user: không ép vị trí thì Chrome mở lại ở chỗ NHỚ từ lần chạy ẩn (-1250 / -32000) -> người dùng
-                      # không thấy cửa sổ để đăng nhập
-                      "--no-default-browser-check", "--window-position=80,60", "--window-size=1280,900", TRANG],
+                    # 23/10 user: không ép vị trí thì Chrome mở lại ở chỗ NHỚ từ lần chạy ẩn (-1250 / -32000) -> người dùng
+                    # không thấy cửa sổ để đăng nhập
+                    "--no-default-browser-check", "--window-position=80,60", "--window-size=1280,900", muc_tieu],
                    os.path.join(GOC, _slug(ten)))
     _cap_nhat(ten, nghi_den=0, loi="")
+
+
+def mo_dang_nhap(ten):
+    """Mở Chrome HIỆN của hồ sơ ở trang Flow để đăng nhập / vẽ ảnh trực tiếp."""
+    mo_trang(ten, TRANG_FLOW)
+
+
+def mo_gemini(ten):
+    """Mở Chrome HIỆN của hồ sơ ở trang Gemini để đăng nhập / kiểm tra tình trạng hạn chế."""
+    mo_trang(ten, TRANG_GEMINI)
+
+
+def mo_chatgpt(ten):
+    """30/10 user: Mở Chrome HIỆN của hồ sơ ở trang ChatGPT để đăng nhập / trò chuyện bằng giao diện."""
+    mo_trang(ten, TRANG_CHATGPT)
 
 
 def xoa_ho_so(ten):
@@ -474,6 +520,45 @@ def hien_tat_ca_cua_so():
 
 
 atexit.register(dong_tat_ca)
+
+# 29/10 user ("dự án xong rồi không tự đóng lại kìa"): ⚡ / 🤖 chạy TRONG app chính (vẽ ảnh AI bù) -> atexit không bao giờ
+# tới, Chrome Flow mở mãi. Mọi hồ sơ rảnh (không luồng giữ, không lượt chờ ảnh / video) liên tục RANH_DONG giây -> đóng êm.
+# Chrome còn tab khác (Gemini đang hỏi…) thì để yên.
+RANH_DONG = 60
+_RANH_TU = {}                # tên -> lúc thấy rảnh lần đầu
+
+
+def _co_tab_khac(cong):
+    try:
+        ds = json.load(urllib.request.urlopen(f"http://127.0.0.1:{cong}/json", timeout=2))
+    except (OSError, ValueError):
+        return False
+    return any(t.get("type") == "page" and not re.search(r"flow\.google|labs\.google|^about:blank|^chrome://newtab",
+                                                         str(t.get("url") or "")) for t in ds)
+
+
+def _dong_khi_ranh():
+    while True:
+        time.sleep(10)
+        try:
+            for ten in list(_PHIEN):
+                ph, phu = _PHIEN.get(ten), _PHIEN_PHU.get(ten)
+                if ph is None or _GIU.get(ten) or ph.dang_cho or (phu is not None and phu.dang_cho):
+                    _RANH_TU.pop(ten, None)
+                    continue
+                if time.time() - _RANH_TU.setdefault(ten, time.time()) < RANH_DONG or _co_tab_khac(ph.cong):
+                    continue
+                with _KHOA_PHIEN.setdefault(ten, threading.Lock()):
+                    if _GIU.get(ten) or ph.dang_cho or _PHIEN.get(ten) is not ph:
+                        continue
+                    _RANH_TU.pop(ten, None)
+                    log(f"    Flow '{ten}': rảnh {RANH_DONG} s — đóng Chrome")
+                    dong(ten)
+        except Exception as e:                               # noqa: BLE001
+            log(f"    (tự đóng Chrome Flow lỗi: {str(e)[:100]})")
+
+
+threading.Thread(target=_dong_khi_ranh, daemon=True).start()
 
 _MOC = r"""(() => {
   if (window.__bc_kq) return 'da';
@@ -1121,6 +1206,8 @@ SPAM_LAP = 600               #   "vẫn bị" = bị lại trong bấy nhiêu gi
 NGHI_SPAM = 60               # 28/10 user: Flow báo "unusual activity" -> hồ sơ nghỉ bấy nhiêu giây rồi tạo tiếp
 CHO_TAO_LAI = 20             # 28/10 user: "failed to generate" -> chờ bấy nhiêu giây rồi bấm tạo lại
 TAO_LAI_TOI_DA = 3           #   tối đa bấy nhiêu lần cho một ảnh
+NGHI_ANH_LOI = 60            # 29/10 user ("có mấy lỗi này thì load lại trang không tạo dồn dập nữa"): "failed to generate"
+#                             -> hồ sơ NGỪNG gửi lượt mới bấy nhiêu giây + tải lại trang dự án khi tab hết lượt đang chờ
 LOI_LIEN_TOI_DA = 2          # hồ sơ lỗi liên tiếp bấy nhiêu lượt -> nghỉ NGHI_LOI giây (không để luồng phí thời gian vào nó)
 _LOI_LIEN = {}
 _GIU = {}                    # tên hồ sơ -> số luồng đang giữ (vẽ ảnh / tạo video)
@@ -1275,6 +1362,12 @@ def _ve_flow(prompt, thu, ten_files, ti_le, tham_chieu):
                         cuu_phien(ten)
                     continue
             link = _cho(ph, luot)
+            if getattr(ph, "can_tai_lai", False) and not ph.dang_cho:   # 29/10: lượt cuối trên tab xong -> tải lại
+                with khoa:
+                    if ph.can_tai_lai and not ph.dang_cho:
+                        ph.can_tai_lai = False
+                        log(f"    Flow '{ten}': tải lại trang dự án sau lỗi ảnh")
+                        cuu_phien(ten)
             if not link:
                 loi = luot.get("loi") or "không có ảnh"
                 _LOI_LUONG[threading.get_ident()] = loi
@@ -1283,7 +1376,18 @@ def _ve_flow(prompt, thu, ten_files, ti_le, tham_chieu):
                     # 28/10 user: "Sorry, this image failed to generate" không phải lỗi tài khoản -> nghỉ 20 s rồi bấm tạo
                     # tiếp (không đếm lỗi liên tiếp, không dừng hồ sơ)
                     lai_tao += 1
-                    log(f"    Flow '{ten}': ảnh chưa ra -> chờ {CHO_TAO_LAI} s rồi tạo lại ({lai_tao}/{TAO_LAI_TOI_DA})")
+                    # 29/10 user: không tạo dồn dập — cả hồ sơ ngừng gửi NGHI_ANH_LOI s, tải lại trang (ngay nếu tab không
+                    # còn lượt chờ, không thì khi lượt cuối xong — tải lại sớm làm mất ảnh của chúng)
+                    _cap_nhat(ten, nghi_den=max(float(_doc_so().get(ten, {}).get("nghi_den") or 0),
+                                                time.time() + NGHI_ANH_LOI))
+                    ph.can_tai_lai = True
+                    if not ph.dang_cho:
+                        with khoa:
+                            if ph.can_tai_lai and not ph.dang_cho:
+                                ph.can_tai_lai = False
+                                cuu_phien(ten)
+                    log(f"    Flow '{ten}': ảnh lỗi -> tải lại trang, hồ sơ nghỉ {NGHI_ANH_LOI} s; chờ {CHO_TAO_LAI} s rồi tạo lại "
+                        f"({lai_tao}/{TAO_LAI_TOI_DA})")
                     time.sleep(CHO_TAO_LAI)
                     da_thu.discard(ten)
                 elif re.search(r"unusual", loi, re.I):                # chống spam: đã cho nghỉ NGHI_SPAM s ở _cho

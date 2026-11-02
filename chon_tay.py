@@ -86,32 +86,98 @@ def _tim_yt(q, n, sp):
     return ds
 
 
+def thuc_the_chuan(ten):
+    """Chuẩn hoá tên chủ thể về thực thể gốc: bỏ phân mảnh '· lô N' và chữ đầu chỉ số lượng ('Bầy sói', 'Loài sói' -> 'Sói').
+    02/11 user: bỏ các luật gộp viết cứng cho bài sói / cừu (mọi tên có "chó" -> "Chó chăn cừu", có "đồng" -> "Đồng cỏ &
+    Trang trại"…) — áp sang chủ đề khác thì gộp nhầm chủ thể và dùng chung footage sai."""
+    import re
+    t = re.sub(r"\s*·\s*lô\s*\d+\s*$", "", str(ten or "")).strip()
+    w = re.sub(r"^(loài|bầy|đàn|con|những|các|một|hai|ba)\s+", "", t.lower()).strip()
+    return w.capitalize() if w else t
+
+
+def loai_chung(ten):
+    """Tên chủ thể -> khoá loài chung."""
+    return thuc_the_chuan(ten).lower()
+
+
 def chu_the_ds(du_an):
-    """Các chủ thể (đoạn giữ kho: kho_cd) của dự án -> [{id, ten, mo_ta_en, tu_khoa_en, so_manh}]."""
+    """Các chủ thể đã gộp theo loài chung của dự án -> [{id, ten, mo_ta_en, tu_khoa_en, so_manh, so_canh, trang_thai}]."""
     import dung_tay
     cds = (doc_json(os.path.join(thu_muc_du_an(du_an)[1], "chu_de.json"), {}) or {}).get("chu_de") or []
     kho = dung_tay.doc_kho(du_an, quet=False)
-    so = {}
+
+    so_by_lc = {}
+    so_by_id = {}
+    id_to_ten = {d["id"]: (d.get("doi_tuong") or d.get("ten") or "") for d in cds}
     for m in kho.values():
-        if m.get("loai") == "video" and m.get("trang_thai") == "xong" and m.get("chu_de") is not None:
-            so[m["chu_de"]] = so.get(m["chu_de"], 0) + 1
-    ra, da = [], set()
+        if m.get("loai") == "video" and m.get("trang_thai") == "xong":
+            cid = m.get("chu_de")
+            if cid is not None:
+                so_by_id[cid] = so_by_id.get(cid, 0) + 1
+                ten_goc = id_to_ten.get(cid, "")
+                lc = loai_chung(ten_goc)
+                if lc:
+                    so_by_lc[lc] = so_by_lc.get(lc, 0) + 1
+
+    nhom = {}
     for d in cds:
-        k = d.get("kho_cd") or d["id"]
-        if k in da:
+        ten_raw = d.get("doi_tuong") or d.get("ten") or ""
+        ten_chuan = thuc_the_chuan(ten_raw)
+        nhom.setdefault(ten_chuan, []).append(d)
+
+    ra = []
+    for ten_chuan, items in nhom.items():
+        tong_canh = sum(int(x.get("so_canh") or 0) for x in items)
+        all_ids = [x["id"] for x in items]
+        lc = loai_chung(ten_chuan)
+        so_manh = so_by_lc.get(lc, 0) or sum(so_by_id.get(i, 0) for i in all_ids)
+        if tong_canh == 0 and so_manh == 0:
             continue
-        da.add(k)
-        goc = next((x for x in cds if x["id"] == k), d)
-        ra.append({"id": k, "ten": goc.get("doi_tuong") or goc.get("ten") or f"Chủ thể {k}", "mo_ta_en": goc.get("mo_ta_en") or "",
-                   "tu_khoa_en": list(dict.fromkeys([str(t) for t in (goc.get("tu_khoa_en") or []) if str(t).strip()]
-                                                    + [str(x.get("tu_khoa") or "") for x in goc.get("trang_thai") or []
-                                                       if str(x.get("tu_khoa") or "").strip()])),
-                   "trang_thai": list({str(x.get("tu_khoa") or x.get("mo_ta")): {   # 26/10: trạng thái theo kịch bản
-                       "mo_ta": str(x.get("mo_ta") or "").strip(), "tu_khoa": str(x.get("tu_khoa") or "").strip(),
-                       "cau": [int(i) for i in x.get("cau") or [] if str(i).isdigit()]}
-                       for x in goc.get("trang_thai") or [] if isinstance(x, dict)}.values()),
-                   "so_canh": sum(int(x.get("so_canh") or 0) for x in cds if (x.get("kho_cd") or x["id"]) == k),
-                   "so_manh": so.get(k, 0)})
+        goc = items[0]
+        primary_id = goc["id"]
+
+        all_tk = []
+        for x in items:
+            for t in (x.get("tu_khoa_en") or []):
+                t_str = str(t).strip()
+                if t_str and t_str not in all_tk:
+                    all_tk.append(t_str)
+            for s in (x.get("trang_thai") or []):
+                t_str = str(s.get("tu_khoa") or "").strip()
+                if t_str and t_str not in all_tk:
+                    all_tk.append(t_str)
+
+        merged_tt = {}
+        for x in items:
+            for s in (x.get("trang_thai") or []):
+                if not isinstance(s, dict):
+                    continue
+                tk = str(s.get("tu_khoa") or "").strip()
+                mo_ta = str(s.get("mo_ta") or "").strip()
+                key = tk or mo_ta
+                if not key:
+                    continue
+                c_list = [int(i) for i in s.get("cau") or [] if str(i).isdigit()]
+                if key in merged_tt:
+                    merged_tt[key]["cau"] = sorted(set(merged_tt[key]["cau"] + c_list))
+                    if len(mo_ta) > len(merged_tt[key]["mo_ta"]):
+                        merged_tt[key]["mo_ta"] = mo_ta
+                else:
+                    merged_tt[key] = {"mo_ta": mo_ta, "tu_khoa": tk, "cau": c_list}
+
+        ra.append({
+            "id": primary_id,
+            "all_ids": all_ids,
+            "ten": ten_chuan,
+            "mo_ta_en": goc.get("mo_ta_en") or "",
+            "tu_khoa_en": all_tk,
+            "trang_thai": list(merged_tt.values()),
+            "so_canh": tong_canh,
+            "so_manh": so_manh
+        })
+
+    ra.sort(key=lambda x: -x["so_canh"])
     return ra
 
 
@@ -155,30 +221,7 @@ def _loi_cau(du_an):
             or [] if str(c.get("id", "")).isdigit()}
 
 
-# 27/10 user ("mọi chủ thể cùng thể loại cá sấu thì phải đi chung chứ"): LOÀI CHUNG của chủ thể lấy từ tên tiếng Việt (không
-# hỏi AI): bỏ đuôi " · lô N" và tiền tố số lượng / dạng (ba con, xác, bộ xương, loài, cá thể, lớp, nhóm…), lấy danh từ chính —
-# "Ba con cá sấu", "Xác cá sấu thí nghiệm", "Bộ xương con cá sấu thứ hai" -> "cá sấu"; "Cá mập ngủ", "Cá mập sáu mang" -> "cá
-# mập"; chim ưng vẫn khác cá (26/10). Mảnh 🎯 của một chủ thể dùng chung cho mọi chủ thể cùng loài (goi_y).
-_BO_DAU = ("cá thể", "bộ xương", "các nhà", "ba con", "hai con", "một con", "các", "những", "con", "xác", "loài", "lớp",
-           "bầy", "đàn", "nhóm", "giới", "đôi", "cặp", "đám", "một", "hai", "ba")
-_HAI_TIENG = {"cá", "chim", "tàu", "xe", "máy", "nhà", "khối", "cây", "thằn", "người", "đáy", "lái"}
 
-
-def loai_chung(ten):
-    """Tên chủ thể -> khoá loài chung (vd "cá sấu")."""
-    import re
-    t = re.sub(r"\s*·\s*lô\s*\d+\s*$", "", str(ten or "")).strip().lower()
-    doi = True
-    while doi:
-        doi = False
-        for p in _BO_DAU:
-            if t.startswith(p + " "):
-                t, doi = t[len(p) + 1:].strip(), True
-                break
-    w = t.split()
-    if not w:
-        return str(ten or "").strip().lower()
-    return " ".join(w[:2]) if w[0] in _HAI_TIENG and len(w) > 1 else w[0]
 
 
 # 27/10 user ("tại sao tôi có chủ thể rồi mà khi bấm vào chọn video theo chủ thể nó lại hỏi lại ai?"): mở 🎯 KHÔNG hỏi AI
@@ -225,23 +268,51 @@ def tu_khoa_nhanh(du_an, ds):
         m = da.get(str(c["id"])) or {}
         ten = m.get("ten") or [x for x in [_cum_dau((c["tu_khoa_en"] or [c["mo_ta_en"]])[0])] if x]
         c["ten_loi"] = ten
-        c["dong_tk"] = [{"nhan": "Chung" + (f" ({t})" if len(ten) > 1 else ""), "cau": [], "tk": t} for t in ten]
+        c["dong_tk"] = [{"nhan": "Chung" + (f" ({t})" if len(ten) > 1 else ""), "cau": [], "tk": t, "loai": "chung", "idx": 0} for t in ten]
         for n, s in enumerate(c["trang_thai"], 1):
             c["dong_tk"].append({"nhan": s["mo_ta"] or f"Trạng thái {n}", "cau": s["cau"],
-                                 "tk": (m.get("tt") or {}).get(str(n)) or s["tu_khoa"]})
+                                 "tk": (m.get("tt") or {}).get(str(n)) or s["tu_khoa"], "loai": "trang_thai", "idx": n})
+        # Từ khoá riêng người dùng tự gõ ghim cho chủ thể này
+        for idx_r, t_rieng in enumerate(m.get("tu_khoa_rieng") or [], 1):
+            c["dong_tk"].append({"nhan": f"Tự thêm {idx_r}", "cau": [], "tk": t_rieng, "loai": "them", "idx": idx_r, "rieng": True})
     return ds
 
 
-def tim(du_an, q, trang=1, sap="lien_quan", ngay="", dai="", hd=False, cc=False, loai_tru=True):
-    """Trang `trang` (20 video) của kết quả tìm YouTube, giữ thứ tự YouTube; đánh dấu video đã tải / đã băm cho dự án."""
+def sua_tu_khoa(du_an, cd_id, tk, loai="trang_thai", idx=1):
+    """Lưu từ khoá người dùng chỉnh sửa vào chon_tay_loi.json cho chủ thể cd_id."""
+    p = os.path.join(thu_muc_du_an(du_an)[1], "chon_tay_loi.json")
+    da = doc_json(p, {}) or {}
+    k = str(cd_id)
+    da.setdefault(k, {})
+    tk = str(tk or "").strip()
+    idx = int(idx or 1)
+    if loai == "chung":
+        da[k]["ten"] = [tk]
+    elif loai == "trang_thai":
+        da[k].setdefault("tt", {})[str(idx)] = tk
+    elif loai == "them":
+        r = da[k].setdefault("tu_khoa_rieng", [])
+        if tk and tk not in r:
+            r.append(tk)
+    elif loai == "xoa_them":
+        r = da[k].get("tu_khoa_rieng", [])
+        if tk in r:
+            r.remove(tk)
+    ghi_json(p, da)
+    return True
+
+
+def tim(du_an, q, trang=1, sap="lien_quan", ngay="", dai="", hd=False, cc=False, loai_tru=True, so_luong=20):
+    """Trang `trang` của kết quả tìm YouTube, mỗi trang `so_luong` video (mặc định 20, có thể chọn 40, 60, 100); đánh dấu video đã tải / đã băm cho dự án."""
     import dung_tay
     q = str(q or "").strip()
     if not q:
         raise ValueError("thiếu từ khoá")
     trang = max(1, int(trang or 1))
+    moi_trang = max(10, min(100, int(so_luong or MOI_TRANG)))
     if loai_tru and " -" not in f" {q}":                       # 26/10: loại hoạt hình / game / đồ chơi ngay từ lúc tìm
         q = f"{q} {LOAI_TRU}"
-    ds = _tim_yt(q, trang * MOI_TRANG, _sp(sap, ngay, dai, hd, cc))
+    ds = _tim_yt(q, trang * moi_trang, _sp(sap, ngay, dai, hd, cc))
     kho = dung_tay.doc_kho(du_an)
     co = {}
     for m in kho.values():
@@ -250,12 +321,14 @@ def tim(du_an, q, trang=1, sap="lien_quan", ngay="", dai="", hd=False, cc=False,
             co[g] = co.get(g, 0) + (1 if m.get("trang_thai") == "xong" else 0)
     tt = (TT.get(du_an) or {}).get("video") or {}
     ra = []
-    for i, v in enumerate(ds[(trang - 1) * MOI_TRANG:trang * MOI_TRANG], (trang - 1) * MOI_TRANG + 1):
+    bat_dau = (trang - 1) * moi_trang
+    ket_thuc = trang * moi_trang
+    for i, v in enumerate(ds[bat_dau:ket_thuc], bat_dau + 1):
         ra.append(dict(v, hang=i, url=f"https://www.youtube.com/watch?v={v['id']}",
                        thumb=f"https://i.ytimg.com/vi/{v['id']}/mqdefault.jpg", dai_str=_gio(v["dai"]),
                        luot_xem_str=_so(v["luot_xem"]), da_co=co.get(v["id"], 0), tt=tt.get(v["id"], ""),
                        loai=("tin tức / hoạt hình / nhạc" if dung_tay.la_kenh_loai(v) else "")))
-    return {"ds": ra, "het": len(ds) < trang * MOI_TRANG}
+    return {"ds": ra, "het": len(ds) < ket_thuc}
 
 
 def _bao(du_an, m):

@@ -168,17 +168,71 @@ def _dat_khung(ph, o, anh):
     raise RuntimeError(f"không gắn được ảnh vào ô {o}")
 
 
-# ô video trong lưới: ảnh xem trước /asb/ to + nhãn độ phân giải ("360p", "720p"…) cùng ô
+# ô video trong lưới: ảnh xem trước /asb/ to + biểu tượng play_circle / nút Download hoặc nhãn độ phân giải ("360p", "720p"…)
 _O_VIDEO = r"""(() => [...document.querySelectorAll('img')].filter(i => {
   if (!i.src.includes('/asb/') || i.getBoundingClientRect().width < 150) return false;
   let e = i;
-  for (let k = 0; k < 7 && e.parentElement; k++) {          // ô = tầng cha lớn nhất còn chỉ chứa MỘT ảnh to
+  for (let k = 0; k < 8 && e.parentElement; k++) {          // ô = tầng cha lớn nhất còn chỉ chứa MỘT ảnh to
     const p = e.parentElement;
     if ([...p.querySelectorAll('img')].filter(x => x.getBoundingClientRect().width > 150).length > 1) break;
     e = p;
   }
-  return /\b\d{3,4}p\b/.test(e.innerText || '');
-}).map(i => i.src))()"""
+  const t = (e.innerText || '') + ' ' + (e.parentElement ? e.parentElement.innerText || '' : '');
+  const hasDl = !!(e.querySelector('button[aria-label*="ownload"], a[aria-label*="ownload"]') ||
+                   (e.parentElement && e.parentElement.querySelector('button[aria-label*="ownload"], a[aria-label*="ownload"]')));
+  return hasDl || /play_circle|\b\d{3,4}p\b|Omni|Veo/i.test(t);
+}).map(i => [i.src, i.getBoundingClientRect()]).sort((a, b) => (a[1].top - b[1].top) || (a[1].left - b[1].left))
+  .map(x => x[0]))()"""
+
+# 02/11: thẻ video ĐÃ XONG = có nút Download và trong thẻ không còn số % đang tạo
+_O_XONG = r"""((src) => { const img = [...document.querySelectorAll('img')].find(i => i.src === src); if (!img) return false;
+  const card = img.closest('.batch-container, .virtual-item-container') || img.parentElement.parentElement.parentElement;
+  return !!card.querySelector('button[aria-label*="ownload"], a[aria-label*="ownload"]') && !/\b\d{1,3}%/.test(card.innerText || '');
+})"""
+
+
+_KHOA_TAI = threading.Lock()
+
+
+def _tai_qua_nut(ph, anh_src, thu, ten_tep, bao):
+    """31/10: Flow đổi giao diện không trả link flow-content.google/video -> tải trực tiếp qua nút Download của thẻ.
+    02/11: trước đây 8 tab (4 tài khoản × 2) tải chung thư mục `thu` và nhận "tệp mới xuất hiện" là của mình -> hai tab tải
+    cùng lúc giành một tệp (WinError 32) hoặc gắn NHẦM clip câu này sang câu khác. Nay tải lần lượt (thư mục tải của Chrome
+    đặt cho cả trình duyệt, hai tab cùng Chrome không đặt riêng được), mỗi lượt vào một thư mục tạm riêng."""
+    import shutil
+    import tempfile
+    os.makedirs(thu, exist_ok=True)
+    expr = ("(() => { const img = [...document.querySelectorAll('img')].find(i => i.src === " + json.dumps(anh_src) + ");"
+            " const card = (img ? img.closest('.batch-container, .virtual-item-container') : null) || document.body;"
+            " return card.querySelector('button[aria-label*=\"ownload\"], button[aria-label*=\"Download\"]'); })()")
+    with _KHOA_TAI:
+        rieng = tempfile.mkdtemp(prefix="_tai_", dir=thu)
+        try:
+            try:
+                ph.ws.goi("Browser.setDownloadBehavior", behavior="allow", downloadPath=os.path.abspath(rieng))
+            except Exception:
+                pass
+            if not _bam_xy(ph, expr):
+                _bam_xy(ph, "document.querySelector('button[aria-label*=\"ownload\"], button[aria-label*=\"Download\"]')")
+            han = time.time() + 45
+            while time.time() < han:
+                time.sleep(1)
+                xong = [f for f in os.listdir(rieng) if not f.endswith(('.crdownload', '.tmp'))
+                        and os.path.getsize(os.path.join(rieng, f)) > 20000]
+                if not xong:
+                    continue
+                dich = os.path.join(thu, ten_tep)
+                for lan in range(10):                        # Chrome / trình diệt virus có thể còn giữ tệp vài giây
+                    try:
+                        os.replace(os.path.join(rieng, xong[0]), dich)
+                        return dich
+                    except PermissionError:
+                        if lan == 9:
+                            raise
+                        time.sleep(1)
+            return None
+        finally:
+            shutil.rmtree(rieng, ignore_errors=True)
 
 
 def _mo_lay_link(ph, anh_o, cu_mang, bao):
@@ -390,6 +444,8 @@ def tao(prompt, thu, ten_goc, ti_le="16:9", model="Veo 3.1 - Fast", phan_giai=""
     prompt = str(prompt or "").strip()
     if not prompt and not anh_dau:
         raise ValueError("chưa có câu lệnh")
+    from common import giu_dac_diem                          # 30/10: đặc điểm bắt buộc của nhân vật (gai nhím…)
+    prompt = giu_dac_diem(prompt, thu)
     so = max(1, min(4, int(so or 1)))
     ds = [h for h in flow_ve.ds_ho_so() if not h["dang_nghi"] and (not ho_so or h["ten"] == ho_so)]
     if not ds:
@@ -494,36 +550,51 @@ def _tao_tren(ten, prompt, thu, ten_goc, ti_le, model, phan_giai, do_dai, so, an
                 except Exception:                                 # noqa: BLE001  (trang đang vẽ lại)
                     continue
                 link = [u for i, u in _link_mang(kq) if i not in cu_mang] or moi_dom
-                o_moi = [x for x in (ph.js(_O_VIDEO) or []) if x not in cu_o]
+                # 02/11: lưới Flow tải dần ảnh của video CŨ trong dự án -> trước đây thẻ cũ vừa hiện bị coi là video mới và
+                # tải sau 12 s (ra hàng rào / lông cừu của bài khác, sai câu). Nay chỉ nhận thẻ mới ở ĐẦU lưới (Flow đặt
+                # video mới nhất lên đầu) và đã tạo xong (có nút Download, hết số %).
+                ph.js("(() => { window.scrollTo(0, 0); document.querySelectorAll('main, main *').forEach(e => {"
+                      " if (e.scrollTop) e.scrollTop = 0 }); return 1 })()")
+                o_moi = [x for x in (ph.js(_O_VIDEO) or [])[:so] if x not in cu_o]
+                o_moi = [x for x in o_moi if ph.js(f"{_O_XONG}({json.dumps(x)})")]
                 if len(link) < so and len(o_moi) >= so and time.time() - t0 > 10:
                     # 20/10 đo (acc6/acc8, giao diện có mục "Videos"): tạo xong Flow KHÔNG gửi link video; mở ô video mới
                     # thì trang mới tải link flow-content.google/video -> mở từng ô, lấy link, quay về
                     link = _mo_lay_link(ph, o_moi[:so], cu_mang, bao)
                 bao(f"Flow đang tạo video… {int(time.time() - t0)} s" + (f" ({pct})" if pct else "")
                     + (f" — có {len(link)}/{so}" if link else ""))
-                if len(link) >= so:
+                if len(link) >= so or (len(o_moi) >= so and not pct and time.time() - t0 > 30):
                     break
                 loi = ph.js(r"""(() => { const t = document.body.innerText; const m = t.match(/(unusual traffic|verify|captcha|
                   not enough credits|out of credits|limit|quota|try again later|couldn.t generate|failed to generate|violat|policy|
                   Something went wrong)[^\n]{0,140}/i); return m ? m[0] : '' })()""".replace("\n                  ", ""))
-                if loi and not link and time.time() - t0 > 8:
+                if loi and not link and not o_moi and time.time() - t0 > 8:
                     if re.search(r"credits", loi, re.I):
                         flow_ve.ghi_diem(ten, 0, het=True)        # hết điểm thật -> hôm nay không xếp hồ sơ này nữa
                     if re.search(r"unusual|verify|captcha", loi, re.I):
                         ph.hien_cua_so()
                     raise RuntimeError("Flow báo: " + loi[:200])
-            if not link:
+            if not link and not o_moi:
                 os.makedirs(os.path.dirname(_DEBUG), exist_ok=True)
                 open(_DEBUG, "w", encoding="utf-8").write("\n\n=====\n".join(
                     (ph.js("window.__bc_v || []") or [])[truoc:])[-2_000_000:])
                 raise RuntimeError(f"hết {CHO_VIDEO // 60} phút chờ mà chưa thấy video (đã ghi phản hồi vào {_DEBUG})")
             os.makedirs(thu, exist_ok=True)
             tep = []
-            for k, u in enumerate(link[:so]):
-                bao(f"Tải video {k + 1}/{min(so, len(link))}…")
-                dich = os.path.join(thu, f"{ten_goc}_{k + 1}.mp4" if so > 1 else f"{ten_goc}.mp4")
-                if _tai(ph, u, dich):
-                    tep.append(dich)
+            if link:
+                for k, u in enumerate(link[:so]):
+                    bao(f"Tải video {k + 1}/{min(so, len(link))}…")
+                    dich = os.path.join(thu, f"{ten_goc}_{k + 1}.mp4" if so > 1 else f"{ten_goc}.mp4")
+                    if _tai(ph, u, dich):
+                        tep.append(dich)
+            if not tep and o_moi:
+                # 31/10: Flow đổi giao diện -> tải trực tiếp bằng nút Download trên thẻ video
+                for k, o_src in enumerate(o_moi[:so]):
+                    bao(f"Tải video {k + 1}/{min(so, len(o_moi))} qua nút Download…")
+                    ten_f = f"{ten_goc}_{k + 1}.mp4" if so > 1 else f"{ten_goc}.mp4"
+                    dich = _tai_qua_nut(ph, o_src, thu, ten_f, bao)
+                    if dich and os.path.isfile(dich):
+                        tep.append(dich)
             if not tep:
                 raise RuntimeError("thấy video trên Flow nhưng tải về không được")
             flow_ve.ghi_diem(ten, _so_diem(ton) or can or uoc_diem(model, phan_giai, do_dai, so))

@@ -120,6 +120,10 @@ atexit.register(_dong_khi_thoat)
 DUNG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cache", "gemini_dung.json")   # hồ sơ -> {ok, luc, msg}
 DUNG_GIU = 12 * 3600
 HONG_GIU = 6 * 3600
+# 02/11 user: hồ sơ không bao giờ hiện khung chat -> gắn cờ "khoa", mọi phiên không mở thử nữa (tới khi user tự mở khoá
+# hoặc bấm 🔍 Kiểm tra riêng hồ sơ đó mà được). Cần KHOA_SAU lần liên tiếp không có ô nhập để một lần trang tải chậm
+# không khoá nhầm hồ sơ tốt; bị Google hạn chế Gemini thì khoá ngay.
+KHOA_SAU = 2
 _CAU_THU = "Reply with exactly one word: OK"
 _KHOA_DUNG = threading.Lock()
 _KHOA_THU = {}                                               # hồ sơ -> khoá (hai luồng không cùng thử một hồ sơ)
@@ -129,23 +133,53 @@ class KhongTaoChat(RuntimeError):
     """Hồ sơ mở được Gemini nhưng không tạo được cuộc chat (không có ô nhập / nút gửi không bật)."""
 
 
+class GeminiBiHanChe(PermissionError):
+    """30/10 user: Tài khoản Google bị hạn chế dịch vụ Gemini (myaccount.google.com/restrictions/280...)."""
+
+
 def _doc_dung():
     from common import doc_json
     return doc_json(DUNG, {}) or {}
 
 
-def _ghi_dung(ten, ok, msg=""):
+def _ghi_dung(ten, ok, msg="", khong_o=False, khoa=None):
+    """khong_o: lần này không hiện ô nhập (đếm tới KHOA_SAU thì khoá). khoa: đặt thẳng cờ khoá. ok: xoá đếm và mở khoá."""
     from common import ghi_json
     with _KHOA_DUNG:
         d = _doc_dung()
-        d[ten] = {"ok": bool(ok), "luc": time.time(), "msg": str(msg or "")[:200]}
+        cu = d.get(ten) or {}
+        lan = 0 if ok else int(cu.get("lan_khong_o") or 0) + (1 if khong_o else 0)
+        k = False if ok else (khoa if khoa is not None else bool(cu.get("khoa")) or lan >= KHOA_SAU)
+        d[ten] = {"ok": bool(ok), "luc": time.time(), "msg": str(msg or "")[:200], "lan_khong_o": lan, "khoa": k}
+        os.makedirs(os.path.dirname(DUNG), exist_ok=True)
+        ghi_json(DUNG, d)
+    if k and not cu.get("khoa"):
+        log(f"    🔒 Gemini Chrome '{ten}': {str(msg or '')[:80]} ({lan} lần không có khung chat) -> khoá, mọi phiên không mở thử nữa")
+
+
+def da_khoa(ten):
+    return bool((_doc_dung().get(ten) or {}).get("khoa"))
+
+
+def dat_khoa(ten, khoa):
+    """Người dùng tự khoá / mở khoá Gemini của một hồ sơ. Mở khoá thì xoá kết quả cũ để lần sau thử lại từ đầu."""
+    from common import ghi_json
+    with _KHOA_DUNG:
+        d = _doc_dung()
+        if khoa:
+            d[ten] = dict(d.get(ten) or {}, ok=False, khoa=True, luc=time.time(), msg="người dùng khoá Gemini hồ sơ này")
+        else:
+            d.pop(ten, None)
+            NGHI.pop(ten, None)
         os.makedirs(os.path.dirname(DUNG), exist_ok=True)
         ghi_json(DUNG, d)
 
 
 def dung_duoc(ten):
-    """True (thử được gần đây) | False (thử hỏng, chưa hết HONG_GIU) | None (chưa thử / kết quả đã cũ)."""
+    """True (thử được gần đây) | False (thử hỏng, chưa hết HONG_GIU, hoặc đã khoá) | None (chưa thử / kết quả đã cũ)."""
     m = _doc_dung().get(ten) or {}
+    if m.get("khoa"):
+        return False
     tuoi = time.time() - float(m.get("luc") or 0)
     if m.get("ok") and tuoi < DUNG_GIU:
         return True
@@ -154,22 +188,27 @@ def dung_duoc(ten):
     return None
 
 
-def kiem_tai_khoan(ten, cong, lam_moi=False):
-    """Hồ sơ tạo được chat Gemini không -> (ok, lời nhắn). Hỏi thật _CAU_THU; nhớ kết quả trong cache/gemini_dung.json."""
+def kiem_tai_khoan(ten, cong, lam_moi=False, ca_khoa=False):
+    """Hồ sơ tạo được chat Gemini không -> (ok, lời nhắn). Hỏi thật _CAU_THU; nhớ kết quả trong cache/gemini_dung.json.
+    Hồ sơ đã khoá thì không mở Chrome, trừ khi ca_khoa (người dùng bấm 🔍 Kiểm tra riêng hồ sơ đó)."""
     with _KHOA:
         khoa = _KHOA_THU.setdefault(ten, threading.Lock())
     with khoa:
         m = _doc_dung().get(ten) or {}
+        if m.get("khoa") and not ca_khoa:
+            return False, "🔒 đã khoá (không có khung chat) — không mở thử"
         if not lam_moi and dung_duoc(ten) is not None:
             return bool(m.get("ok")), m.get("msg") or ""
         try:
             if not _mo_chrome(ten, cong):
                 raise RuntimeError("không mở được Chrome của hồ sơ")
             kq = _hoi_tab(ten, cong, _CAU_THU, 90)
-            ok, msg = bool(kq.strip()), "tạo chat và nhận trả lời được"
+            ok, msg, khong_o = bool(kq.strip()), "tạo chat và nhận trả lời được", False
+        except GeminiBiHanChe:
+            return False, (_doc_dung().get(ten) or {}).get("msg") or "bị Google hạn chế Gemini"
         except Exception as e:                               # noqa: BLE001
-            ok, msg = False, "không tạo chat được: " + str(e)[:150]
-        _ghi_dung(ten, ok, msg)
+            ok, msg, khong_o = False, "không tạo chat được: " + str(e)[:150], isinstance(e, KhongTaoChat)
+        _ghi_dung(ten, ok, msg, khong_o=khong_o)
         log(f"    Gemini Chrome '{ten}': {'dùng được' if ok else msg}")
         return ok, msg
 
@@ -352,15 +391,49 @@ def _hien_neu_trong(cong, tid):
         pass
 
 
+def _kiem_tra_trang_gemini(ws):
+    """30/10 user: phát hiện ngay tài khoản bị Google hạn chế Gemini (myaccount.google.com/restrictions)."""
+    try:
+        href = str(ws.js("location.href") or "")
+        if "restrictions" in href:
+            return "bị Google hạn chế dịch vụ Gemini (myaccount.google.com/restrictions)"
+        body = str(ws.js("(document.body && document.body.innerText) || ''") or "")
+        if any(k in body for k in ("Xem hạn chế về dịch vụ", "Quyền truy cập vào một dịch vụ hoặc tính năng đã bị hạn chế", "Toàn bộ dịch vụ không hoạt động")):
+            return "bị Google hạn chế dịch vụ Gemini (Google đã khoá dịch vụ này)"
+        if "accounts.google.com" in href and ws.js("!!document.querySelector('input[type=email],input[type=password]')"):
+            return "chưa đăng nhập Google"
+    except Exception:
+        pass
+    return None
+
+
 def _cho_o_nhap(ten, ws):
-    """Chờ ô nhập của Gemini. Chưa đăng nhập -> PermissionError; không có ô nhập -> KhongTaoChat."""
-    # chỉ coi là đăng xuất khi hết giờ chờ mà vẫn đứng ở trang có ô nhập email / mật khẩu (Chrome vừa mở hay đi vòng
-    # qua accounts.google.com để làm mới phiên rồi tự quay về — như lỗi báo oan của flow_ve 26/10)
-    if _cho(ws, f"!!{_O_NHAP}", 45):
-        return
-    if ws.js("location.href.includes('accounts.google.com') && !!document.querySelector('input[type=email],input[type=password]')"):
-        NGHI[ten] = time.time() + 6 * 3600
-        raise PermissionError("hồ sơ chưa đăng nhập Google")
+    """Chờ ô nhập của Gemini. Bị hạn chế -> GeminiBiHanChe; Chưa đăng nhập -> PermissionError; không có ô nhập -> KhongTaoChat."""
+    han = time.time() + 45
+    while time.time() < han:
+        try:
+            if ws.js(f"!!{_O_NHAP}"):
+                return
+        except Exception:
+            pass
+        loi = _kiem_tra_trang_gemini(ws)
+        if loi:
+            if "hạn chế" in loi:
+                NGHI[ten] = time.time() + 30 * 86400           # tài khoản bị hạn chế thì cho nghỉ hẳn
+                _ghi_dung(ten, False, loi, khoa=True)          # 02/11: khoá luôn qua mọi phiên
+                try:
+                    import flow_ve
+                    flow_ve._cap_nhat(ten, gemini_loi=loi)     # ghi vào sổ để UI hiện nhãn cảnh báo
+                except Exception:
+                    pass
+                log(f"    ⚠ Gemini Chrome '{ten}': {loi} — hãy chuyển sang dùng ChatGPT hoặc tài khoản khác")
+                raise GeminiBiHanChe(f"Gemini Chrome '{ten}' {loi}")
+            if "chưa đăng nhập" in loi:
+                NGHI[ten] = time.time() + 6 * 3600
+                _ghi_dung(ten, False, loi)
+                raise PermissionError("hồ sơ chưa đăng nhập Google")
+        time.sleep(1)
+
     trang = " ".join(str(ws.js("(document.body && document.body.innerText) || ''") or "").split())[:140]
     raise KhongTaoChat("Gemini không hiện ô nhập" + (f" (trang: {trang})" if trang else ""))
 
@@ -576,8 +649,12 @@ def hoi(prompt, timeout=CHO, so_lan=3, files=None):
             log(f"    Gemini Chrome '{ten}': trả lời sau {time.time() - t0:.0f}s ({len(kq)} ký tự)")
             _ghi_dung(ten, True, "câu hỏi gần nhất trả lời được")
             return kq
+        except GeminiBiHanChe as e:
+            log(f"    (Gemini Chrome '{ten}': {str(e)[:120]} → dùng hồ sơ khác)")
         except (KhongTaoChat, PermissionError) as e:
-            _ghi_dung(ten, False, "không tạo chat được: " + str(e)[:150])
+            # chỉ đếm lần trang thật sự không hiện ô nhập ("bỏ qua" do kiem_tai_khoan đã ghi rồi)
+            _ghi_dung(ten, False, "không tạo chat được: " + str(e)[:150],
+                      khong_o=isinstance(e, KhongTaoChat) and str(e).startswith("Gemini không hiện ô nhập"))
             log(f"    (Gemini Chrome '{ten}': {str(e)[:120]} → dùng hồ sơ khác)")
         except Exception as e:                               # noqa: BLE001
             log(f"    (Gemini Chrome '{ten}' lỗi: {str(e)[:120]} → thử hồ sơ khác)")

@@ -2,7 +2,7 @@
 """Skill chỉnh sửa: dự án THÔ (ra/ket_qua.json + clip đã dựng) -> dự án CapCut HOÀN CHỈNH có chuyển cảnh,
 chữ nhấn mạnh, nhạc nền, hiệu ứng âm thanh — lấy từ kho CapCut.
 
-  python dung_hoan_chinh.py --ten "Chim canh cut - ban tho v6 hoan chinh"
+  python dung_hoan_chinh.py --du-an <dự án> --ten "<tên bản nháp>"
       Lập kế hoạch tự động (ra/ke_hoach.json) rồi dựng. Chạy lại với --giu-ke-hoach để dựng theo kế hoạch đã sửa tay.
   --chi-lap-ke-hoach   chỉ lập kế hoạch, chưa dựng.
 """
@@ -34,6 +34,7 @@ NHAC_BAT = True
 NHAC_NGUON = "kho_chuan"  # "kho_chuan" (kho_am_thanh sạch) | "mixkit" | "kho"
 CHU_BAT = False
 #: 12/10 user: lớp ẢNH PHỦ minh hoạ khi cần (chinh_sua/lop_phu.py). Tắt bằng --khong-lop-phu.
+HOOK_TU_TAO = False         # 02/11 user: bỏ tự tạo ~6 clip hook phủ 60 s đầu — Veo chỉ theo chỗ 🎬 trong 📝 (clip hook đã có vẫn ghép)
 HOOK_VEO_BAT = False        # 23/10 user: ✨ tự tạo video hook bằng Flow (hook_video.tao_video) đè lên ~60 s đầu —
 #                             CHỈ khi tick ô «🎬 Video hook Flow» (--co-hook-veo)
 # 27/10 user: "tạo Veo + ảnh trước (bước riêng), chỗ Veo hỏng thì lấp footage, rồi băm footage vào chỗ trống và ghép một
@@ -665,7 +666,8 @@ def dung_du_an(canh, kh, ten, giong_chung=None, tong_s=0.0):
     from pycapcut import trange
     dd = thu_muc_nhap_capcut()
     folder = draft.DraftFolder(dd)
-    script = folder.create_draft(ten, ghep.W, ghep.H, allow_replace=True)
+    # 01/11 user (không ghi đè bản nháp đã sửa tay): chỉ bản tạm của bước xuất Bàn dựng mới được dựng lại đè tên cũ
+    script = folder.create_draft(ten, ghep.W, ghep.H, allow_replace=ten.endswith("_tam_ban_dung"))
     for nm, tp in (("hinh", draft.TrackType.video), ("giong", draft.TrackType.audio), ("nhac", draft.TrackType.audio),
                    ("sfx", draft.TrackType.audio), ("chu", draft.TrackType.text)):
         if (nm == "sfx" and not kh["sfx"]) or (nm == "nhac" and not kh["nhac"]) or (nm == "chu" and not kh["chu"]):
@@ -942,15 +944,15 @@ def tao_hinh_ai(cau):
     import veo_canh
     from common import DU_AN as _da
     n_hook = 0
-    if HOOK_VEO_BAT:
+    if HOOK_VEO_BAT and HOOK_TU_TAO:
         try:
             import hook_video
             n_hook = len(hook_video.tao_video(_da))
         except Exception as e:                               # noqa: BLE001
             log(f"    ! video hook: {type(e).__name__}: {str(e)[:150]}")
     else:
-        log("[🎨] không tick 🎬 Tạo video Veo -> không tạo clip mới (hook / Veo thân bài chỉ dùng clip đã có)")
-    het = max((b for _, b in cho_phu.khoang_hook(OUT)), default=0.0)
+        log("[🎨] không tự tạo clip hook (02/11) — Veo chỉ tạo cho chỗ 🎬 trong 📝")
+    het = max((b for _, b in cho_phu.khoang_hook_co_clip(OUT)), default=0.0)
     cho_phu.dong_bo_cau(OUT, cau)                            # chỗ 📝 neo theo giây -> đúng số câu đang dùng
     try:
         veo_canh.viet_lenh(OUT, cau, tu_giay=het)
@@ -976,7 +978,7 @@ def tao_hinh_ai(cau):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--ten", default="Chim canh cut - ban tho v6 hoan chinh")
+    ap.add_argument("--ten", default="ban_hoan_chinh")         # 02/11: bỏ tên dự án chim cánh cụt cũ
     ap.add_argument("--giu-ke-hoach", action="store_true", help="dùng ra/ke_hoach.json đã có (đã sửa tay)")
     ap.add_argument("--du-an", default=None, help="tên dự án (mặc định: dự án chạy gần nhất)")
     ap.add_argument("--chi-lap-ke-hoach", action="store_true")
@@ -1058,7 +1060,7 @@ def main():
         dieu_phoi.hoi(cau, OUT, co_the=LOP_PHU_BAT)
         log("[ĐX] xong danh sách chỗ vẽ ảnh AI")
         return
-    if HOOK_VEO_BAT and giong_chung and not GHEP_HINH_CO_SAN:   # 23/10 user: video hook Flow cho đoạn mở đầu (tick ô 🎬)
+    if HOOK_VEO_BAT and HOOK_TU_TAO and giong_chung and not GHEP_HINH_CO_SAN:   # 23/10 user: video hook Flow cho đoạn mở đầu (tick ô 🎬)
         try:
             import hook_video
             from common import DU_AN as _da

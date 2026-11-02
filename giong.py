@@ -85,6 +85,7 @@ def _chay_hien_log(lenh, tong, timeout=7200):
 
 
 PHIEN_BAN_DOC = "g1"          # đổi cách đưa chữ vào máy đọc (vd nối gạch số dài) -> tăng để đọc lại câu bị ảnh hưởng
+BAO_CAO_SOAT = {}             # báo cáo soát giọng của lần doc_omni gần nhất (chay.py hiện lên tiến độ)
 
 
 def _chu_may_doc(text):
@@ -170,11 +171,13 @@ def doc_omni(canh, ref=OMNI_REF, batch=16, num_step=32, toc_do=1.0):
                                "--batch", str(batch), "--num-step", str(num_step), "--rate", str(toc_do),
                                "--name-fmt", "{:04d}.wav", "--seed", str(seed)],
                               len(json.load(open(jobs_json, encoding="utf-8"))))[0]
+    bc = {}
     try:
         import soat_giong
-        soat_giong.soat_va_doc_lai([c for c in canh if c.get("text")], thu_muc, doc_lai)
+        bc = soat_giong.soat_va_doc_lai([c for c in canh if c.get("text")], thu_muc, doc_lai)
     except Exception as e:                                   # noqa: BLE001
         log(f"    ! soát giọng lỗi (giữ bản đọc hiện có): {str(e)[:160]}")
+        bc = {"loi_soat": str(e)[:160]}
     _ghi_dau(canh, thu_muc)
     for c in canh:
         p = os.path.join(thu_muc, f"{c['id']:04d}.wav")
@@ -183,19 +186,37 @@ def doc_omni(canh, ref=OMNI_REF, batch=16, num_step=32, toc_do=1.0):
         else:
             log(f"    ! cảnh {c['id']} chưa có giọng")
     _dat_moc(canh)
+    if bc.get("thay"):                                       # chạy lại trên dự án cũ: mốc chữ của câu vừa thay phải căn lại
+        from common import CACHE, OUT
+        _xoa_moc_cu(CACHE, OUT, [c for c in canh if c["id"] in bc["thay"]])
+    BAO_CAO_SOAT.clear()
+    BAO_CAO_SOAT.update(bc)
     return canh
 
 
+NEN_TOI_DA = 1.20             # 1/11: bản đọc lại dài hơn câu cũ quá tỉ lệ này thì không nén (giọng méo) mà đổi mốc cả bài
+
+
 def _vua_do_dai(wav, dai_cu):
-    """Kéo giãn / nén (giữ cao độ) file giọng cho vừa đúng độ dài cũ -> mốc giờ cả bài không đổi. Lệch quá 35% thì để nguyên."""
+    """Đưa bản đọc lại về đúng độ dài cũ -> mốc giờ cả bài không đổi. 1/11: ngắn hơn thì thêm lặng cuối (trước đây kéo
+    giãn làm giọng lè nhè); dài hơn thì nén giữ cao độ tới NEN_TOI_DA. Trả False nếu dài quá, không nén được."""
     import subprocess
+    import wave
     from common import FFMPEG
     dai_moi = thoi_luong(wav)
     if not dai_moi or not dai_cu or abs(dai_moi - dai_cu) < 0.03:
-        return False
+        return True
+    if dai_moi < dai_cu:
+        with wave.open(wav, "rb") as w:
+            ts, du_lieu = w.getparams(), w.readframes(w.getnframes())
+        them = int(round(dai_cu * ts.framerate)) - ts.nframes
+        with wave.open(wav, "wb") as w:
+            w.setparams(ts)
+            w.writeframes(du_lieu + b"\0" * (max(0, them) * ts.nchannels * ts.sampwidth))
+        return True
     r = dai_moi / dai_cu
-    if not 0.65 <= r <= 1.35:
-        log(f"    ! {os.path.basename(wav)}: bản đọc lại dài {dai_moi:.2f}s, câu cũ {dai_cu:.2f}s — lệch quá nhiều, giữ nguyên")
+    if r > NEN_TOI_DA:
+        log(f"    ! {os.path.basename(wav)}: bản đọc lại dài {dai_moi:.2f}s, câu cũ {dai_cu:.2f}s — lệch quá nhiều, phải đổi mốc")
         return False
     tam = wav[:-4] + "._vua.wav"
     p = subprocess.run([FFMPEG, "-v", "error", "-y", "-i", wav, "-af", f"atempo={r:.5f}", "-c:a", "pcm_s16le", tam],
@@ -206,15 +227,59 @@ def _vua_do_dai(wav, dai_cu):
     return True
 
 
+def _xoa_moc_cu(cache, out, canh_doi):
+    """Mốc từng chữ của câu vừa đọc lại đã hết đúng: moc_tu.json khoá theo chữ + giờ cảnh nên câu giữ nguyên độ dài vẫn
+    trúng khoá cũ, phải xoá tay. Cả mốc Whisper theo id trong cache (can_giong)."""
+    import glob
+    import hashlib
+    from common import doc_json, ghi_json
+    p = os.path.join(out, "moc_tu.json")
+    da = doc_json(p, None)
+    if da:
+        for c in canh_doi:
+            da.pop(hashlib.md5(f"{c['text']}|{c['bat_dau']:.3f}|{c['dai']:.3f}".encode("utf-8")).hexdigest()[:16], None)
+        ghi_json(p, da)
+    for f in glob.glob(os.path.join(cache, "moc_tu*.json")):
+        da = doc_json(f, None)
+        if da:
+            for c in canh_doi:
+                da.pop(str(c["id"]), None)
+            ghi_json(f, da)
+
+
+def _cap_nhat_moc(du_an, out, tat_ca, doi, wav):
+    """Sau khi ghép lại giong_doc.wav: căn lại giờ từng chữ của các câu đã thay (moc_tu.json) rồi ghi lại kich_ban_cau.srt
+    bằng đúng hàm của bước ✨. Dự án chưa có các file này (chưa qua ✨) thì không tạo. lang.json tự đo lại theo mtime wav."""
+    import sys
+    if not os.path.isfile(os.path.join(out, "moc_tu.json")):
+        return
+    goc = os.path.dirname(os.path.abspath(__file__))
+    sys.path.insert(0, os.path.join(goc, "chinh_sua"))
+    import can_chu
+    ds = [dict(c) for c in tat_ca if c.get("text")]
+    can_chu.gan_moc(du_an, ds, wav)
+    p = os.path.join(out, "kich_ban_cau.srt")
+    if os.path.isfile(p):
+        import dung_hoan_chinh as D
+        for c in ds:
+            c["_t0"], c["_t1"] = int(round(c["bat_dau"] * D.SEC)), int(round((c["bat_dau"] + c["dai"]) * D.SEC))
+            c["giong_dai"] = c["dai"]
+        D.ghi_srt(D.tao_srt(ds), p)
+    log(f"    đã căn lại giờ từng chữ {len(doi)} câu, ghi lại kich_ban_cau.srt")
+
+
 def sua_cau_sai(du_an, bao=None):
-    """19/10 user: nút "Sửa câu đọc sai" — soát lại mọi câu đã đọc (soat_giong: nuốt / méo / sai âm / ngắt sai), câu sai
-    đọc lại (giữ bản ít lỗi nhất), GIỮ ĐÚNG ĐỘ DÀI câu cũ (atempo) rồi ghép lại ra/<dự án>/giong_doc.wav TẠI CHỖ ->
-    mốc giờ không đổi, các bản nháp đang dùng file giọng này nhận luôn (mở lại bản nháp). Trả {thay, con_loi, loi}."""
+    """19/10 user: nút "Sửa câu đọc sai" — soát lại mọi câu đã đọc (soat_giong: sai từ / nuốt / méo / ngắt sai), câu sai
+    đọc lại (giữ bản ít lỗi nhất), đưa về ĐÚNG ĐỘ DÀI câu cũ rồi ghép lại ra/<dự án>/giong_doc.wav TẠI CHỖ -> mốc câu
+    không đổi, các bản nháp đang dùng file giọng này nhận luôn (mở lại bản nháp). 1/11: cập nhật luôn moc_tu.json +
+    kich_ban_cau.srt của câu đã thay; bản đọc lại quá dài (> NEN_TOI_DA) thì dời mốc các câu sau, ghi lại tu_khoa.json +
+    kich_ban.srt và báo. Bản trước khi sửa giữ ở _truoc_sua/. Trả {thay, con_loi, loi, doc_lai, luot, phat_hien,
+    theo_loai, doi_moc, ke_hoach_lech}."""
     import json
     import shutil
     import ghep
     import soat_giong
-    from common import doc_json, thu_muc_du_an
+    from common import doc_json, ghi_json, thu_muc_du_an
     bao = bao or (lambda m: log(m))
     cache, out = thu_muc_du_an(du_an)
     lc = doc_json(os.path.join(out, "lan_chay.json"), {}) or {}
@@ -222,7 +287,8 @@ def sua_cau_sai(du_an, bao=None):
     toc_do, num_step = float(lc.get("toc_do") or 1.0), int(lc.get("num_step") or 32)
     nhan = nhan_giong(ref, toc_do, num_step)
     thu_muc = os.path.join(cache, "giong_omni", nhan) if nhan else os.path.join(cache, "giong_omni")
-    canh = [dict(c) for c in doc_json(os.path.join(out, "tu_khoa.json"), []) or [] if c.get("text")]
+    tat_ca = doc_json(os.path.join(out, "tu_khoa.json"), []) or []
+    canh = [c for c in tat_ca if c.get("text")]
     if not canh or not os.path.isdir(thu_muc):
         raise ValueError("dự án chưa có giọng đọc (chạy bước đọc giọng trước)")
     if not os.path.isfile(ref):
@@ -242,29 +308,111 @@ def sua_cau_sai(du_an, bao=None):
         return _chay_hien_log([OMNI_PY, tts_py, "--jobs-json", jobs_json, "--out-dir", out_dir, "--ref", ref,
                                "--batch", "16", "--num-step", str(num_step), "--rate", str(toc_do),
                                "--name-fmt", "{:04d}.wav", "--seed", str(seed)], n)[0]
-    soat_giong.soat_va_doc_lai(canh, thu_muc, doc_lai)
-    doi = []
+    bc = soat_giong.soat_va_doc_lai(canh, thu_muc, doc_lai)
+    doi, doi_moc = [], False
+    lech = 0.0                                               # giây dồn thêm cho các câu sau khi có bản đọc lại quá dài
+    canh_cu = [dict(c) for c in canh]                        # giờ trước khi dời: khoá moc_tu cũ
     for c in canh:
         f = os.path.join(thu_muc, f"{c['id']:04d}.wav")
+        c["bat_dau"] = round(c["bat_dau"] + lech, 2)
         if c["id"] in truoc and os.path.isfile(f):
             st = os.stat(f)
             if (st.st_size, st.st_mtime) != truoc[c["id"]][:2]:
-                _vua_do_dai(f, truoc[c["id"]][2])
+                if not _vua_do_dai(f, truoc[c["id"]][2]):
+                    them = thoi_luong(f) - truoc[c["id"]][2]
+                    c["dai"] = round(c["dai"] + them, 2)
+                    lech += them
+                    doi_moc = True
                 doi.append(c["id"])
         c["giong"] = f
-    da = doc_json(os.path.join(thu_muc, "_soat.json"), {}) or {}
-    loi = {int(k): v.get("loi") for k, v in da.items() if v.get("loi")}
+    if doi:
+        # bản đọc lại đã qua đổi độ dài -> soát lần cuối đúng file sẽ ghép, báo cáo phản ánh giọng thật trong bài
+        theo_id = {c["id"]: c for c in canh}
+        cuoi = soat_giong.soat_nhieu([(i, theo_id[i]["text"], theo_id[i]["giong"]) for i in doi])
+        for i, v in cuoi.items():
+            if v:
+                bc["con_loi"][i] = v
+            else:
+                bc["con_loi"].pop(i, None)
+    loi = bc["con_loi"]
+    ke_hoach_lech = False
     if doi:
         wav = os.path.join(out, "giong_doc.wav")
         bk = os.path.join(out, "giong_doc.truoc_sua.wav")
         if os.path.isfile(wav) and not os.path.isfile(bk):
             shutil.copyfile(wav, bk)
+        cu = os.path.join(out, "_truoc_sua")
+        os.makedirs(cu, exist_ok=True)
+        for t in ("tu_khoa.json", "moc_tu.json", "kich_ban_cau.srt", "kich_ban.srt"):
+            if os.path.isfile(os.path.join(out, t)) and not os.path.isfile(os.path.join(cu, t)):
+                shutil.copyfile(os.path.join(out, t), os.path.join(cu, t))
         ghep.noi_giong(canh, wav)
         _ghi_dau(canh, thu_muc)
-        bao(f"Đã thay {len(doi)} câu và ghép lại giong_doc.wav (giữ nguyên mốc giờ)")
+        _xoa_moc_cu(cache, out, [c for c in canh_cu if c["id"] in doi])
+        if doi_moc:
+            for c in canh:
+                c.pop("giong", None)
+            ghi_json(os.path.join(out, "tu_khoa.json"), tat_ca)
+            ghep.xuat_srt(canh, os.path.join(out, "kich_ban.srt"))
+            ke_hoach_lech = any(os.path.isfile(os.path.join(out, t)) for t in ("ban_dung.json", "dung.json"))
+        _cap_nhat_moc(du_an, out, tat_ca, doi, wav)
+        bao(f"Đã thay {len(doi)} câu ({', '.join(map(str, doi[:20]))}) và ghép lại giong_doc.wav, "
+            + (f"MỐC CÁC CÂU SAU ĐÃ DỜI {lech:+.2f}s" if doi_moc else "giữ nguyên mốc câu"))
+        if ke_hoach_lech:
+            bao("! Mốc giờ đã đổi: kế hoạch băm (ban_dung.json / dung.json) lệch giọng, cần băm lại trước khi xuất")
+        elif os.path.isfile(os.path.join(out, "ban_dung.json")):
+            bao("Mốc câu giữ nguyên; riêng các câu đã thay, chỗ ngắt trong câu có thể đổi — nên băm lại đúng các câu đó")
     else:
         bao("Không câu nào được thay")
-    return {"thay": doi, "con_loi": sorted(loi), "loi": {k: [x[1] for x in v][:3] for k, v in loi.items()}}
+    bao(f"Soát {bc['so_cau']} câu: phát hiện {bc['phat_hien']} câu lỗi {bc['theo_loai']}, đọc lại {bc['luot']} lượt, "
+        f"thay {len(doi)} câu, còn {len(loi)} câu lỗi")
+    for k, v in loi.items():
+        bao(f"! CÒN LỖI câu {k}: " + "; ".join(x[1] for x in v[:3]))
+    kq = {"thay": doi, "con_loi": sorted(loi), "loi": {k: [x[1] for x in v][:3] for k, v in loi.items()},
+          "doc_lai": bc["doc_lai"], "luot": bc["luot"], "phat_hien": bc["phat_hien"], "theo_loai": bc["theo_loai"],
+          "doi_moc": doi_moc, "ke_hoach_lech": ke_hoach_lech}
+    ghi_json(os.path.join(out, "soat_giong.json"), kq)
+    return kq
+
+
+def rut_ngat_cau(du_an, ids, bao=None):
+    """2/11 user: các câu `ids` chỉ ngắt sai chỗ -> cắt ngắn đoạn lặng sai (soat_giong.rut_ngat, không đọc lại), ghép lại
+    giong_doc.wav, căn lại mốc chữ. Mốc câu không đổi. File trước khi cắt giữ ở ra/<dự án>/_truoc_rut/. Trả {id: [chỗ đã cắt]}."""
+    import shutil
+    import time
+    import ghep
+    import soat_giong
+    from common import doc_json, thu_muc_du_an
+    bao = bao or (lambda m: log(m))
+    cache, out = thu_muc_du_an(du_an)
+    lc = doc_json(os.path.join(out, "lan_chay.json"), {}) or {}
+    nhan = nhan_giong(lc.get("giong") or OMNI_REF, float(lc.get("toc_do") or 1.0), int(lc.get("num_step") or 32))
+    thu_muc = os.path.join(cache, "giong_omni", nhan) if nhan else os.path.join(cache, "giong_omni")
+    tat_ca = doc_json(os.path.join(out, "tu_khoa.json"), []) or []
+    canh = [c for c in tat_ca if c.get("text")]
+    wav = os.path.join(out, "giong_doc.wav")
+    bk = os.path.join(out, "_truoc_rut", time.strftime("%Y%m%d_%H%M%S"))
+    os.makedirs(bk, exist_ok=True)
+    for t in ("giong_doc.wav", "moc_tu.json", "kich_ban_cau.srt"):
+        if os.path.isfile(os.path.join(out, t)):
+            shutil.copyfile(os.path.join(out, t), os.path.join(bk, t))
+    kq = {}
+    for c in canh:
+        c["giong"] = os.path.join(thu_muc, f"{c['id']:04d}.wav")
+        if c["id"] in ids:
+            shutil.copyfile(c["giong"], os.path.join(bk, f"{c['id']:04d}.wav"))
+            cat = soat_giong.rut_ngat(c["text"], c["giong"])
+            if cat:
+                kq[c["id"]] = cat
+                bao(f"Câu {c['id']}: " + "; ".join(cat))
+    if kq:
+        ghep.noi_giong(canh, wav)
+        _xoa_moc_cu(cache, out, [c for c in canh if c["id"] in kq])
+        _cap_nhat_moc(du_an, out, tat_ca, list(kq), wav)
+        bao(f"Đã cắt ngắn chỗ ngắt ở {len(kq)} câu, ghép lại giong_doc.wav, giữ nguyên mốc câu")
+    else:
+        bao("Không có chỗ ngắt nào cần cắt")
+    return kq
 
 
 def doc_tat_ca(canh, giong=GIONG, resource_id=RESOURCE_ID, toc_do="1.0", luong=5):

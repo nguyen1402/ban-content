@@ -377,6 +377,38 @@ def giay_phep_youtube(vid):
     return kq
 
 
+BO_VIDEO_AI = True          # 29/10 user: video YouTube gắn nhãn "do AI tạo / đã chỉnh sửa" (mục How this was made) -> không lấy
+
+
+def la_video_ai(vid):
+    """29/10 user ("chỗ nào đánh dấu do AI tạo thì không lấy video đấy"): YouTube gắn nhãn nội dung tổng hợp ở mục
+    "How this was made" trên trang xem (howThisWasMadeSectionViewModel: "Sounds or visuals were altered or fully
+    generated"); yt-dlp không đọc mục này -> đọc trang xem (hl=en), cache vĩnh viễn ở cache/video_ai_yt.json.
+    -> True (có nhãn AI) / False / None (đọc lỗi)."""
+    cache = os.path.join(CACHE_CHUNG, "video_ai_yt.json")
+    da = doc_json(cache, {}) or {}
+    if vid in da:
+        return da[vid]
+    try:
+        rq = urllib.request.Request(f"https://www.youtube.com/watch?v={vid}&hl=en&persist_hl=1",
+                                    headers=dict(UA, **{"Accept-Language": "en-US,en;q=0.9"}))
+        with urllib.request.urlopen(rq, timeout=30) as r:
+            h = r.read().decode("utf-8", "ignore")
+    except Exception:                                        # noqa: BLE001
+        return None
+    if '"videoDetails"' not in h:                            # trang lạ (đồng ý cookie / chặn) -> không kết luận
+        return None
+    # 01/11 user: mục này còn có nhãn lồng tiếng "Audio tracks ... automatically generated" (KHÔNG phải video AI) và một
+    # video có thể có nhiều mục -> đọc bodyText của mọi mục, bỏ chữ "generated" đứng riêng.
+    ban = re.findall(r'"howThisWasMadeSectionViewModel":\{.{0,300}?"bodyText":\{"content":"([^"]*)', h)
+    ai = any(re.search(r"altered|fully generated|synthetic", x, re.I) for x in ban)
+    with _KHOA:
+        da = doc_json(cache, {}) or {}
+        da[vid] = ai
+        ghi_json(cache, da)
+    return ai
+
+
 def nguon_an_toan(vid, kenh=""):
     """(được dùng?, giấy phép ghi nguồn) — Creative Commons thật hoặc kênh cơ quan chính phủ Mỹ, không thuộc nguồn chặn."""
     gp = giay_phep_youtube(vid)
@@ -1426,22 +1458,37 @@ def _sua_nhap(thu, files):
     ghi_json(pm, m)
 
 
-def tao_nhap(du_an, ten, drafts_dir, dung=None):
+def ten_nhap_moi(drafts_dir, ten):
+    """01/11 user (không ghi đè bản nháp đã sửa tay): tên đã có -> thêm _HHMM (rồi _2, _3...) để luôn ra bản nháp mới."""
+    if not os.path.exists(os.path.join(drafts_dir, ten)):
+        return ten
+    goc = f"{ten}_{time.strftime('%H%M')}"
+    moi, i = goc, 1
+    while os.path.exists(os.path.join(drafts_dir, moi)):
+        i += 1
+        moi = f"{goc}_{i}"
+    return moi
+
+
+def tao_nhap(du_an, ten, drafts_dir, dung=None, cho_ghi_de=False):
     """Bản nháp CapCut: track giọng (giong_doc.wav nguyên bài) + đoạn hình của mọi cảnh ĐÃ CÓ kế hoạch (người dùng
     dựng hoặc gợi ý). Đoạn video trỏ vào VIDEO GỐC đầy đủ trong kho, chỉ đặt điểm vào/ra (source_timerange) —
-    trong CapCut kéo mép đoạn hoặc trượt sang chỗ khác của chính video đó được. Tiếng gốc tắt (âm lượng 0)."""
+    trong CapCut kéo mép đoạn hoặc trượt sang chỗ khác của chính video đó được. Tiếng gốc tắt (âm lượng 0).
+    01/11 user: tên đã có -> báo lỗi, không ghi đè (muốn tên mới tự động: gọi ten_nhap_moi trước)."""
     import pycapcut as draft
     from pycapcut import trange
+    if not cho_ghi_de and os.path.exists(os.path.join(drafts_dir, ten)):
+        raise FileExistsError(f"bản nháp '{ten}' đã có — chọn tên khác (không ghi đè)")
     out = _ra(du_an)
     canh = {int(x["id"]): x for x in (doc_json(os.path.join(out, "tu_khoa.json"), []) or [])}
     dung = doc_dung(du_an) if dung is None else dung       # dung: kế hoạch truyền vào (so sánh), mặc định dung.json
     kho = doc_kho(du_an)
     wav = os.path.join(out, "giong_doc.wav")
     folder = draft.DraftFolder(drafts_dir)
-    script = folder.create_draft(ten, 1920, 1080, allow_replace=True)
+    script = folder.create_draft(ten, 1920, 1080, allow_replace=cho_ghi_de)
     script.add_track(draft.TrackType.video, track_name="hinh")
     script.add_track(draft.TrackType.audio, track_name="giong")
-    vat_lieu = {}                                            # mỗi file gốc là MỘT vật liệu dùng chung cho mọi đoạn
+    vat_lieu = {}                                          # mỗi file gốc là MỘT vật liệu dùng chung cho mọi đoạn
     n = 0
     het = -1
     for cid in sorted(int(k) for k in dung):

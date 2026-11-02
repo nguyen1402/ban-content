@@ -850,7 +850,7 @@ def flow_ds():
 def flow_tao():
     import flow_ve
     try:
-        flow_ve.tao_ho_so((request.json or {}).get("ten"))
+        flow_ve.tao_ho_so((request.json or {}).get("ten"), (request.json or {}).get("dich_vu") or "flow")
     except ValueError as e:
         raise HTTPError(400, str(e))
     return json_ok({"ok": True})
@@ -861,6 +861,83 @@ def flow_mo():
     import flow_ve
     flow_ve.mo_dang_nhap(str((request.json or {}).get("ten") or ""))
     return json_ok({"ok": True})
+
+
+@app.post("/api/flow/mo_chatgpt")
+def flow_mo_chatgpt():
+    import flow_ve
+    flow_ve.mo_chatgpt(str((request.json or {}).get("ten") or ""))
+    return json_ok({"ok": True})
+
+
+@app.post("/api/flow/mo_gemini")
+def flow_mo_gemini():
+    import flow_ve
+    flow_ve.mo_gemini(str((request.json or {}).get("ten") or ""))
+    return json_ok({"ok": True})
+
+
+@app.post("/api/flow/kiem_tra_ai")
+def flow_kiem_tra_ai():
+    """30/10 user: kiểm tra trạng thái hoạt động của Gemini và ChatGPT trên hồ sơ."""
+    import flow_ve
+    import gemini_chrome
+    import chatgpt_chrome
+    ten = str((request.json or {}).get("ten") or "").strip()
+    dv = str((request.json or {}).get("dich_vu") or "all").strip().lower()
+    ds = [h for h in flow_ve.ds_ho_so() if not ten or h["ten"] == ten]
+    kq = {}
+    for h in ds:
+        t = h["ten"]
+        cong = flow_ve.CONG_DAU + list(flow_ve._doc_so()).index(t) % 40
+        kq[t] = {}
+        if dv in ("all", "gemini"):
+            # 02/11: kiểm tra RIÊNG một hồ sơ thì thử cả hồ sơ đã khoá (được thì tự mở khoá); kiểm tra tất cả thì bỏ qua
+            ok_g, msg_g = gemini_chrome.kiem_tai_khoan(t, cong, lam_moi=True, ca_khoa=bool(ten))
+            kq[t]["gemini"] = {"ok": ok_g, "msg": msg_g}
+        if dv in ("all", "chatgpt"):
+            ok_c, msg_c = chatgpt_chrome.kiem_tai_khoan(t, cong, lam_moi=True)
+            kq[t]["chatgpt"] = {"ok": ok_c, "msg": msg_c}
+    return json_ok({"ok": True, "kq": kq})
+
+
+@app.post("/api/gemini/khoa")
+def gemini_khoa():
+    """02/11 user: khoá / mở khoá Gemini của một hồ sơ (khoá = mọi phiên không mở thử hồ sơ đó)."""
+    import gemini_chrome
+    d = request.json or {}
+    ten = str(d.get("ten") or "").strip()
+    if not ten:
+        raise HTTPError(400, "thiếu hồ sơ")
+    gemini_chrome.dat_khoa(ten, bool(d.get("khoa")))
+    return json_ok({"ok": True})
+
+
+@app.post("/api/flow/hoi_thu")
+def flow_hoi_thu():
+    """30/10 user: thử hỏi nhanh ChatGPT hoặc Gemini trên một hồ sơ ngay từ giao diện."""
+    import flow_ve
+    ten = str((request.json or {}).get("ten") or "").strip()
+    dv = str((request.json or {}).get("dich_vu") or "chatgpt").strip().lower()
+    prompt = str((request.json or {}).get("prompt") or "Xin chào, trả lời ngắn gọn trong 1 câu: 1+1 bằng mấy?").strip()
+    if not ten:
+        raise HTTPError(400, "thiếu tên hồ sơ")
+    cong = flow_ve.CONG_DAU + list(flow_ve._doc_so()).index(ten) % 40
+    t0 = time.time()
+    try:
+        if dv == "gemini":
+            import gemini_chrome
+            if not gemini_chrome._mo_chrome(ten, cong):
+                raise HTTPError(500, "không mở được Chrome của hồ sơ")
+            txt = gemini_chrome._hoi_tab(ten, cong, prompt, 60)
+        else:
+            import chatgpt_chrome
+            if not chatgpt_chrome._mo_chrome(ten, cong):
+                raise HTTPError(500, "không mở được Chrome của hồ sơ")
+            txt = chatgpt_chrome._hoi_tab(ten, cong, prompt, 60)
+        return json_ok({"ok": True, "tra_loi": txt, "giay": round(time.time() - t0, 1)})
+    except Exception as e:
+        raise HTTPError(500, str(e))
 
 
 @app.post("/api/flow/xoa")
@@ -1098,8 +1175,27 @@ def chon_tay_tim():
     try:
         return json_ok(chon_tay.tim(slug(d.get("du_an", "")), d.get("q"), d.get("trang") or 1, d.get("sap") or "lien_quan",
                                     d.get("ngay") or "", d.get("dai") or "", bool(d.get("hd")), bool(d.get("cc")),
-                                    loai_tru=d.get("loai_tru", True) is not False))
+                                    loai_tru=d.get("loai_tru", True) is not False,
+                                    so_luong=int(d.get("so_luong") or 20)))
     except ValueError as e:
+        raise HTTPError(400, str(e))
+
+
+@app.post("/api/chon_tay/sua_tu_khoa")
+def chon_tay_sua_tu_khoa():
+    import chon_tay
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    cd_id = d.get("cd_id")
+    tk = d.get("tk", "")
+    loai = d.get("loai", "trang_thai")
+    idx = d.get("idx", 1)
+    if not t or cd_id is None:
+        raise HTTPError(400, "thiếu thông tin")
+    try:
+        chon_tay.sua_tu_khoa(t, cd_id, tk, loai=loai, idx=idx)
+        return json_ok({"ok": True})
+    except Exception as e:
         raise HTTPError(400, str(e))
 
 
@@ -1248,10 +1344,12 @@ def cach_hoi_js():
     return r"""(() => {
   const h = document.querySelector('header'); if (!h || document.getElementById('cach_hoi_ai')) return;
   const nhan = document.createElement('label');
-  nhan.title = 'Cách MỌI chỗ trong app hỏi AI (kịch bản, storyboard, tình báo đối thủ…). Trình duyệt: mở Gemini trên Chrome ' +
-    'của các hồ sơ Flow (không cần cookie). Cookie: gọi Gemini / ChatGPT bằng cookie đã nạp như trước.';
+  nhan.title = 'Cách MỌI chỗ trong app hỏi AI (kịch bản, storyboard, đối thủ…). Tự động: ưu tiên Gemini, nếu tài khoản bị hạn chế tự đổi ChatGPT Chrome. Hoặc chọn đích danh ChatGPT / Gemini Chrome / Cookie.';
   nhan.style.cssText = 'display:inline-flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap';
-  nhan.innerHTML = '🤖 Hỏi AI bằng <select id="cach_hoi_ai" style="font-weight:600"><option value="trinh_duyet">🌐 Trình duyệt (Chrome)</option>' +
+  nhan.innerHTML = '🤖 Hỏi AI bằng <select id="cach_hoi_ai" style="font-weight:600">' +
+    '<option value="trinh_duyet">🌐 Tự động (Gemini ➔ ChatGPT Chrome)</option>' +
+    '<option value="trinh_duyet_chatgpt">💬 ChatGPT (Trình duyệt Chrome)</option>' +
+    '<option value="trinh_duyet_gemini">💎 Gemini (Trình duyệt Chrome)</option>' +
     '<option value="cookie">🍪 Cookie</option></select>';
   h.appendChild(nhan);
   const s = nhan.querySelector('select');
@@ -1261,8 +1359,13 @@ def cach_hoi_js():
       const r = await fetch('/api/cai_dat_ai', {method: 'POST', headers: {'Content-Type': 'application/json'},
                                                 body: JSON.stringify({cach_hoi: s.value})});
       if (!r.ok) throw new Error('mã ' + r.status);
-      const t = s.value === 'cookie' ? 'Mọi chỗ hỏi AI bằng cookie' : 'Mọi chỗ hỏi AI bằng trình duyệt (Chrome hồ sơ Flow)';
-      if (typeof tb === 'function') tb(t); else alert(t);
+      const tenCach = {
+        'trinh_duyet': 'Tự động: Gemini ➔ ChatGPT trình duyệt',
+        'trinh_duyet_chatgpt': 'Mọi chỗ hỏi AI bằng ChatGPT trình duyệt Chrome',
+        'trinh_duyet_gemini': 'Mọi chỗ hỏi AI bằng Gemini trình duyệt Chrome',
+        'cookie': 'Mọi chỗ hỏi AI bằng Cookie (Gemini / ChatGPT)'
+      }[s.value] || s.value;
+      if (typeof tb === 'function') tb(tenCach); else alert(tenCach);
     } catch (e) { alert('Không lưu được: ' + e.message) }
   };
 })();"""
@@ -1324,7 +1427,10 @@ def sb_tao():
 def sb_sua():
     import storyboard
     d = request.json or {}
-    storyboard.sua(str(d.get("id") or ""), d)
+    try:
+        storyboard.sua(str(d.get("id") or ""), d)
+    except ValueError as e:                                  # 28/10: storyboard đã xoá (trang còn nhớ id cũ) -> 404 rõ ràng
+        raise HTTPError(404, str(e))
     return json_ok({"ok": True})
 
 
@@ -1689,12 +1795,325 @@ def mo_video():
 
 
 TRANG_DUNG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dung.html")
+TRANG_BAN_DUNG = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ban_dung.html")
 
 
 @app.get("/dung")
 def trang_dung():
     response.content_type = "text/html; charset=utf-8"
     return doc_text(TRANG_DUNG)
+
+
+@app.get("/ban_dung")
+@app.get("/ban-dung")
+def trang_ban_dung():
+    response.content_type = "text/html; charset=utf-8"
+    return doc_text(TRANG_BAN_DUNG)
+
+
+# --------------------------------------------------------------------------- 🎞 Bàn dựng theo câu (30/10 user)
+@app.get("/api/ban_dung/trang_thai")
+def ban_dung_trang_thai():
+    import ban_dung, dung_tay
+    t = slug(tham_so_q("du_an"))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    cache, out = common.thu_muc_du_an(t)
+    canhs = common.doc_json(os.path.join(out, "tu_khoa.json"), []) or []
+    bd_data = ban_dung.doc(t)
+    if not bd_data.get("cau"):
+        ban_dung.lap_danh_sach_canh(t)
+        bd_data = ban_dung.doc(t)
+    dung_data = dung_tay.doc_dung(t)
+    wav = os.path.join(out, "giong_doc.wav")
+    return json_ok({
+        "du_an": t,
+        "ban_dung": bd_data,
+        "canh": canhs,
+        "dung": dung_data,
+        "kho": _kho_ra(t),
+        "giong_url": url_tep(wav) if os.path.isfile(wav) else None
+    })
+
+
+@app.post("/api/ban_dung/lap_canh")
+def ban_dung_lap_canh():
+    import ban_dung
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    lam_moi = bool(d.get("lam_moi"))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    cau = ban_dung.lap_danh_sach_canh(t, lam_moi=lam_moi)
+    return json_ok({"ok": True, "cau": cau})
+
+
+@app.post("/api/ban_dung/luu_canh")
+def ban_dung_luu_canh():
+    import ban_dung
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    cau_update = d.get("cau") or {}
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    bd_data = ban_dung.doc(t)
+    for cid, info in cau_update.items():
+        if cid in bd_data["cau"]:
+            bd_data["cau"][cid].update(info)
+        else:
+            bd_data["cau"][cid] = info
+    ban_dung.ghi(t, bd_data)
+    return json_ok({"ok": True})
+
+
+@app.get("/api/ban_dung/chu_the")
+def ban_dung_chu_the():
+    import ban_dung
+    t = slug(tham_so_q("du_an"))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    ds = ban_dung.lay_chu_the(t)
+    return json_ok({"chu_the": ds})
+
+
+@app.post("/api/ban_dung/tim")
+def ban_dung_tim():
+    import ban_dung
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    cid = d.get("canh_id")
+    q = d.get("q")
+    nguon = d.get("nguon", "youtube")
+    trang = int(d.get("trang") or 1)
+    sap = str(d.get("sap") or "lien_quan")
+    dai = str(d.get("dai") or "")
+    ngay = str(d.get("ngay") or "")
+    hd = bool(d.get("hd"))
+    cc = bool(d.get("cc"))
+    loai_tru = bool(d.get("loai_tru", True))
+    so_luong = int(d.get("so_luong") or 20)
+    res = ban_dung.tim_cho_cau(
+        t, cid, q=q, nguon=nguon, trang=trang,
+        sap=sap, dai=dai, ngay=ngay, hd=hd, cc=cc, loai_tru=loai_tru, so_luong=so_luong
+    )
+    return json_ok(res)
+
+
+@app.post("/api/ban_dung/uom_nhip")
+def ban_dung_uom_nhip():
+    import ban_dung
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    cid = d.get("canh_id")
+    nhip = int(d.get("nhip", 0))
+    nguon = d.get("nguon") or {}
+    if not t or cid is None or not nguon:
+        raise HTTPError(400, "thiếu thông tin")
+    ban_dung.uom_nhip(t, cid, nhip, nguon)
+    return json_ok({"ok": True})
+
+
+@app.post("/api/ban_dung/cap_nhat_nhip")
+def ban_dung_cap_nhat_nhip():
+    import ban_dung
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    cid = d.get("canh_id")
+    nhip_moi = d.get("nhip") or []
+    if not t or cid is None:
+        raise HTTPError(400, "thiếu thông tin")
+    ds = ban_dung.cap_nhat_nhip(t, cid, nhip_moi)
+    return json_ok({"ok": True, "nhip": ds})
+
+
+@app.post("/api/ban_dung/tai_tat_ca_nhip")
+def ban_dung_tai_tat_ca_nhip():
+    import ban_dung
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    cid = d.get("canh_id")
+    if not t or cid is None:
+        raise HTTPError(400, "thiếu thông tin")
+    def _do_tai(bao):
+        ban_dung.tai_tat_ca_nhip_cau(t, cid, bao_fn=bao)
+        return {"ok": True}
+    return json_ok({"job": _job_doi_thu(_do_tai)})
+
+
+@app.post("/api/ban_dung/tu_dong_bam")
+def ban_dung_tu_dong_bam():
+    import ban_dung
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    giu = bool(d.get("giu_da_dung", True))
+    return json_ok({"job": _job_doi_thu(lambda bao: ban_dung.tu_dong_bam_chu_the(t, giu_da_dung=giu, bao=bao))})
+
+
+@app.post("/api/ban_dung/de_xuat_ai")
+def ban_dung_de_xuat_ai():
+    """01/11 user: AI đề xuất chỗ đáng dùng Ảnh AI / Veo (không tốn điểm Flow, chưa đổi danh sách 📝)."""
+    import de_xuat_hinh
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    # 02/11 user: không còn số cố định — Veo theo điểm Flow còn, ảnh chỉ ở chỗ thật cần
+    return json_ok({"job": _job_doi_thu(lambda bao: de_xuat_hinh.lap(t, bao=bao))})
+
+
+@app.get("/api/ban_dung/de_xuat_ai")
+def ban_dung_doc_de_xuat_ai():
+    import de_xuat_hinh
+    return json_ok(de_xuat_hinh.doc(slug(tham_so_q("du_an"))))
+
+
+@app.post("/api/ban_dung/duyet_ai")
+def ban_dung_duyet_ai():
+    import de_xuat_hinh
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t or not isinstance(d.get("ds"), list):
+        raise HTTPError(400, "thiếu dữ liệu")
+    return json_ok({"ok": True, "them": de_xuat_hinh.duyet(t, d["ds"])})
+
+
+@app.post("/api/ban_dung/tai_link_chu_the")
+def ban_dung_tai_link_chu_the():
+    import ban_dung
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    cd_id = d.get("cd_id")
+    url = d.get("url") or d.get("vid")
+    if not t or cd_id is None or not url:
+        raise HTTPError(400, "thiếu dự án / chủ thể / link")
+    try:
+        so = ban_dung.tai_link_chu_the(t, cd_id, url)
+        return json_ok({"ok": True, "so": so})
+    except Exception as e:
+        raise HTTPError(400, str(e))
+
+
+@app.get("/api/ban_dung/ung_vien")
+def ban_dung_ung_vien():
+    import ban_dung
+    t = slug(tham_so_q("du_an"))
+    cid = str(tham_so_q("canh_id"))
+    bd_data = ban_dung.doc(t)
+    uv_map = bd_data.get("ung_vien", {}).get(cid, {})
+    return json_ok({"ds": list(uv_map.values()) if isinstance(uv_map, dict) else []})
+
+
+@app.get("/api/ban_dung/storyboard")
+def ban_dung_storyboard():
+    import ban_dung
+    vid = tham_so_q("vid")
+    if not vid:
+        raise HTTPError(400, "thiếu vid")
+    res = ban_dung.lay_storyboard_anh(vid)
+    anh_urls = [url_tep(p) for p in res.get("anh", [])]
+    return json_ok({"vid": vid, "anh": anh_urls, "giay": res.get("giay", []), "tong": res.get("tong", 0.0)})
+
+
+@app.post("/api/ban_dung/dung_khoang")
+def ban_dung_dung_khoang():
+    import ban_dung, dung_tay
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    cid = d.get("canh_id")
+    nhip = int(d.get("nhip", 0))
+    vid = str(d.get("vid", "")).strip()
+    vao = float(d.get("vao", 0.0))
+    ra = float(d.get("ra", 0.0))
+    cho_phep_ai = bool(d.get("cho_phep_ai"))
+    if not t or not vid or ra <= vao:
+        raise HTTPError(400, "tham số không hợp lệ")
+
+    def _do_tai(bao):
+        bao(f"Đang tải khoảng {vao:.1f}s - {ra:.1f}s từ video {vid}...")
+        kid = ban_dung.tai_khoang(t, vid, vao, ra, cho_phep_ai=cho_phep_ai)
+        bao("Đã tải xong, đang gán vào nhịp...")
+        ban_dung.dat_nhip(t, cid, nhip, kid, vao_trong_manh=0.0, nguon_info={"kieu": "youtube", "vid": vid, "vao": vao, "ra": ra})
+        kho = dung_tay.doc_kho(t, quet=False)
+        f = kho.get(kid, {}).get("file", "")
+        return {"kid": kid, "url": url_tep(f) if f else None}
+
+    return json_ok({"job": _job_doi_thu(_do_tai)})
+
+
+@app.post("/api/ban_dung/dung_kho")
+def ban_dung_dung_kho():
+    import ban_dung
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    cid = d.get("canh_id")
+    nhip = int(d.get("nhip", 0))
+    kid = d.get("kid")
+    vao = float(d.get("vao", 0.0))
+    if not t or not kid:
+        raise HTTPError(400, "thiếu thông tin")
+    ban_dung.dat_nhip(t, cid, nhip, kid, vao_trong_manh=vao)
+    return json_ok({"ok": True})
+
+
+@app.post("/api/ban_dung/cach")
+def ban_dung_cach():
+    import ban_dung
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    cid = str(d.get("canh_id", ""))
+    cach = str(d.get("cach", "chua"))
+    if not t or not cid:
+        raise HTTPError(400, "thiếu thông tin")
+    bd_data = ban_dung.doc(t)
+    if cid in bd_data["cau"]:
+        bd_data["cau"][cid]["cach"] = cach
+        bd_data["cau"][cid]["tin_cay"] = "xanh" if cach in ("anh_ai", "veo") else bd_data["cau"][cid]["tin_cay"]
+        ban_dung.ghi(t, bd_data)
+    return json_ok({"ok": True})
+
+
+@app.post("/api/ban_dung/xuat")
+def ban_dung_xuat():
+    import ghep_sau_moc
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    goc = str(d.get("goc", "")).strip()
+    ten = str(d.get("ten", "")).strip()
+    khoang = d.get("khoang") or []
+    if not t or not goc or not ten or not khoang:
+        raise HTTPError(400, "thiếu thông tin xuất nháp")
+
+    from common import thu_muc_nhap_capcut
+    drafts_dir = thu_muc_nhap_capcut()
+    p_goc = os.path.join(drafts_dir, goc)
+    p_ra = os.path.join(drafts_dir, ten)
+    if not os.path.isdir(p_goc):
+        raise HTTPError(400, f"bản nháp gốc '{goc}' không tồn tại")
+    if os.path.exists(p_ra):
+        raise HTTPError(400, f"bản nháp '{ten}' đã có sẵn (chọn tên khác để tránh ghi đè)")
+
+    def _do_xuat(bao):
+        bao(f"Đang dựng bản tạm cho {t}...")
+        tam_ten = f"{t}_tam_ban_dung"
+        cmd = [sys.executable, "-X", "utf8", "chinh_sua/dung_hoan_chinh.py", "--du-an", t, "--ten", tam_ten]
+        subprocess.run(cmd, creationflags=0x08000000 if os.name == "nt" else 0, check=True)
+        bao(f"Đang ghép không ghi đè vào '{ten}'...")
+        goc_data = ghep_sau_moc._doc(os.path.join(p_goc, "draft_content.json"))
+        moi_data = ghep_sau_moc._doc(os.path.join(drafts_dir, tam_ten, "draft_content.json"))
+        ra_data, them = ghep_sau_moc.ghep_khoang(goc_data, moi_data, khoang)
+        shutil.copytree(p_goc, p_ra)
+        for f in [os.path.join(p_ra, "draft_content.json")] + glob.glob(os.path.join(p_ra, "Timelines", "*", "draft_content.json")):
+            ghep_sau_moc._ghi(f, ra_data)
+        pm = os.path.join(p_ra, "draft_meta_info.json")
+        m = ghep_sau_moc._doc(pm)
+        import uuid
+        m.update(draft_name=ten, draft_id=str(uuid.uuid4()).upper(), draft_fold_path=p_ra.replace(os.sep, "/"))
+        ghep_sau_moc._ghi(pm, m)
+        return {"ok": True, "ten": ten, "them": them}
+
+    return json_ok({"job": _job_doi_thu(_do_xuat)})
 
 
 def _kho_ra(t):
@@ -2043,6 +2462,9 @@ def _chay_hoan_thien(t, ten, co_nhac=False, co_sfx=False, co_hook=False, chi_hin
     p = procs_ht.get(t)
     if p and p.poll() is None:
         raise RuntimeError("đang hoàn thiện — chờ xong")
+    if ten and not chi_hinh_ai:                              # 01/11 user: ✨ không dựng đè bản nháp đã sửa tay -> tên mới
+        import dung_tay
+        ten = dung_tay.ten_nhap_moi(common.thu_muc_nhap_capcut() or "", ten)
     log_f = open(_log_ht(t), "w", encoding="utf-8")
     # BC_DU_AN của máy chủ (dự án mặc định) thắng --du-an trong common.py -> phải đặt đúng dự án cho tiến trình con
     env = dict(os.environ, PYTHONIOENCODING="utf-8", BC_DU_AN=t)
@@ -2260,11 +2682,11 @@ def anh_ai_ke_hoach():
         import cho_phu
         import flow_video
         clip_con = flow_video.clip_con_hom_nay(flow_video.uoc_diem("Omni 1.1 Flash", "720p"))
-        het_hook = max((b for _, b in cho_phu.khoang_hook(out)), default=0.0)
+        het_hook = max((b for _, b in cho_phu.khoang_hook_co_clip(out)), default=0.0)
     except Exception:                                        # noqa: BLE001
         pass
     try:                                                     # 27/10 user: tích 🎬 mà chưa có câu lệnh hook -> ước đoạn hook
-        het_hook_dk = het_hook or cho_phu.het_hook_du_kien(out)
+        het_hook_dk = het_hook                       # 02/11 user: không tự tạo hook -> không ước đoạn hook
     except Exception:                                        # noqa: BLE001
         het_hook_dk = het_hook
     if da.get("duyet") is False:                             # 27/10 user: danh sách AI tự đề xuất (chưa lưu) không tính
@@ -2285,7 +2707,7 @@ def anh_ai_ke_hoach():
         import veo_canh
         diem_clip = flow_video.uoc_diem("Omni 1.1 Flash", "720p")
         diem_con = sum(int(h["diem_con"]) for h in flow_ve.ds_ho_so() if not h["dang_nghi"])
-        hook_can, _, hook_dk = hook_video.so_clip_can(t)
+        hook_can, hook_dk = 0, False                 # 02/11 user: không tự tạo hook nữa
         veo_co_clip = [int(y["cau"]) for y in da.get("ds") or [] if isinstance(y, dict) and y.get("loai") == "veo"
                        and str(y.get("veo_en") or "").strip() and os.path.isfile(os.path.join(out, "veo", veo_canh._ten(
                            str(y["veo_en"]).strip()) + ".mp4"))]                                  # noqa: SLF001
@@ -2316,8 +2738,8 @@ def veo_con():
     if t:
         out = common.thu_muc_du_an(t)[1]
         try:
-            hook_can, hook_tong, hook_dk = hook_video.so_clip_can(t)
-            het = max((b for _, b in cho_phu.khoang_hook(out)), default=0.0) or cho_phu.het_hook_du_kien(out)
+            hook_tong = len(cho_phu.khoang_hook_co_clip(out))   # 02/11 user: không tự tạo hook -> không còn clip hook phải tạo
+            het = max((b for _, b in cho_phu.khoang_hook_co_clip(out)), default=0.0)
             than_can = veo_canh.so_clip_can(out, cho_phu.doc_cau(out), het)
         except Exception as e:                               # noqa: BLE001
             common.log(f"! đếm clip Veo cần tạo: {str(e)[:120]}")
@@ -3196,6 +3618,29 @@ def doi_thu_viet_theo_dan_bai():
     return json_ok({"job": _job_doi_thu(lambda bao: doi_thu.viet_kich_ban_tung_phan(tieu_de, dan_bai, plugin, so_tu_muc_tieu=so_tu, bao=bao))})
 
 
+@app.post("/api/doi_thu/plugin/cau_lenh_phan")
+def doi_thu_cau_lenh_phan():
+    """28/10 user: tự dán câu lệnh hỏi AI lần lượt từng phần (thay vì chạy Bước 2) — câu lệnh của phần `phan`, nối liền
+    mạch từ `doan_truoc` (bài phần trước người dùng dán về)."""
+    import doi_thu
+    d = request.json or {}
+    if not d.get("dan_bai"):
+        raise HTTPError(400, "thiếu dàn bài")
+    try:
+        return json_ok(doi_thu.cau_lenh_tung_phan(str(d.get("tieu_de") or "").strip(), d["dan_bai"], d.get("plugin") or {},
+                                                  so_tu_muc_tieu=int(d.get("so_tu") or 0) or None,
+                                                  idx=int(d.get("phan") or 1), doan_truoc=str(d.get("doan_truoc") or "")))
+    except ValueError as e:
+        raise HTTPError(400, str(e))
+
+
+@app.post("/api/doi_thu/plugin/ghep_phan")
+def doi_thu_ghep_phan():
+    """Ghép bài các phần người dùng dán về -> bài thuần đọc (làm sạch như khi chạy tự động)."""
+    import doi_thu
+    return json_ok({"bai": doi_thu.ghep_cac_phan((request.json or {}).get("cac_phan") or [])})
+
+
 @app.post("/api/doi_thu/plugin/viet_moi")
 def doi_thu_viet_moi():
     """Viết mới hoàn toàn kịch bản: Tự lên dàn bài theo cấu trúc kênh đối thủ và viết chuẩn số từ."""
@@ -3564,7 +4009,7 @@ def dung_nhap():
     dd = common.thu_muc_nhap_capcut()
     if not dd:
         raise HTTPError(400, "không dò được thư mục CapCut Drafts")
-    ten = (d.get("ten") or t).strip()
+    ten = dung_tay.ten_nhap_moi(dd, (d.get("ten") or t).strip())
     n = dung_tay.tao_nhap(t, ten, dd)
     return json_ok({"ok": True, "so": n, "ten": ten})
 
@@ -3884,6 +4329,42 @@ class _Im(WSGIRequestHandler):
         pass
 
 
+def _viec_dang_chay():
+    """Các việc đang làm dở trong máy chủ — tắt máy chủ lúc này là mất việc."""
+    ra = []
+    ct = sys.modules.get("chon_tay")
+    if ct:
+        ra += [f"tải & băm {k}" for k, v in list(ct.TT.items()) if isinstance(v, dict) and v.get("dang")]
+    ra += [f"sửa giọng {k}" for k, v in list(TT_SUA_GIONG.items()) if v.get("dang")]
+    for ten, ds in (("chạy", procs), ("tải link", procs_tai), ("hoàn thiện", procs_ht), ("lập chỗ ảnh", procs_dx)):
+        ra += [f"{ten} {k}" for k, p in list(ds.items()) if p and p.poll() is None]
+    n = sum(1 for v in list(TT_DOI_THU.values()) if v.get("dang"))
+    return ra + ([f"{n} việc nền"] if n else [])
+
+
+def _giu_cua_so():
+    """02/11 user: đang làm dở thì không cho tắt nhầm cửa sổ máy chủ. Làm mờ nút X (cả Alt+F4, đóng từ thanh tác vụ)
+    và ghi lý do lên tiêu đề; rảnh thì mở lại. Muốn tắt hẳn khi đang chạy: Ctrl+C rồi xác nhận (xem main)."""
+    import ctypes
+    k32, u32 = ctypes.windll.kernel32, ctypes.windll.user32
+    hwnd = k32.GetConsoleWindow()
+    if not hwnd:
+        return
+    tieu_de = None
+    while True:
+        try:
+            viec = _viec_dang_chay()
+            u32.EnableMenuItem(u32.GetSystemMenu(hwnd, False), 0xF060, 1 if viec else 0)   # SC_CLOSE, MF_GRAYED / MF_ENABLED
+            moi = (f"⏳ ĐANG CHẠY: {', '.join(viec)} — nút X đã khoá, muốn tắt hẳn bấm Ctrl+C" if viec
+                   else "Máy chủ bán-content — rảnh")
+            if moi != tieu_de:
+                k32.SetConsoleTitleW(moi)
+                tieu_de = moi
+        except Exception:                                    # noqa: BLE001
+            pass
+        time.sleep(2)
+
+
 def main():
     srv, cong = None, PORT
     for cong in range(PORT, PORT + 20):                 # cổng bận (app khác/bản chạy trước) thì lấy cổng kế
@@ -3898,6 +4379,28 @@ def main():
     print("Giao diện:", url, flush=True)
     bat_nhan_cookie()
 
+    # Nếu đang chạy ở cổng 8777, mở một luồng chuyển hướng cổng phụ 8778 sang 8777
+    if cong == PORT:
+        def _chuyen_huong_8778():
+            from http.server import HTTPServer, BaseHTTPRequestHandler
+            class _Ch(BaseHTTPRequestHandler):
+                def do_GET(self):
+                    self.send_response(302)
+                    self.send_header('Location', f'http://127.0.0.1:{PORT}' + self.path)
+                    self.end_headers()
+                def do_POST(self):
+                    self.send_response(307)
+                    self.send_header('Location', f'http://127.0.0.1:{PORT}' + self.path)
+                    self.end_headers()
+                def log_message(self, *a):
+                    pass
+            try:
+                h = HTTPServer(('127.0.0.1', 8778), _Ch)
+                h.serve_forever()
+            except Exception:
+                pass
+        threading.Thread(target=_chuyen_huong_8778, daemon=True).start()
+
     def don_chrome():
         # 27/10 user: Chrome do Gemini tự mở (kể cả ở tiến trình con chạy dự án / bản hoàn chỉnh) xong việc thì tự đóng
         import gemini_chrome
@@ -3910,7 +4413,24 @@ def main():
     threading.Thread(target=don_chrome, daemon=True).start()
     if "--khong-mo" not in sys.argv:
         threading.Timer(1.0, lambda: webbrowser.open(url)).start()
-    srv.serve_forever()
+    if os.name == "nt":
+        threading.Thread(target=_giu_cua_so, daemon=True).start()
+    while True:
+        try:
+            srv.serve_forever()
+            break
+        except KeyboardInterrupt:
+            viec = _viec_dang_chay()
+            if not viec:
+                break
+            print(f"\n⚠ Đang làm dở: {', '.join(viec)}. Tắt máy chủ bây giờ là mất việc này.", flush=True)
+            try:
+                tl = input('Gõ "co" rồi Enter để tắt hẳn, chỉ Enter để chạy tiếp: ')
+            except (EOFError, KeyboardInterrupt):
+                tl = ""
+            if tl.strip().lower() in ("co", "có"):
+                break
+            print("→ Chạy tiếp.", flush=True)
 
 
 if __name__ == "__main__":

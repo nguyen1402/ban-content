@@ -1110,16 +1110,8 @@ CHỈ TRẢ VỀ DANH SÁCH CÁC PHẦN TRÊN, KHÔNG CÓ LỜI CHÀO HAY DẪN 
     return prompt, so_phan, so_tu_chuan, kenh_ten
 
 
-def viet_kich_ban_tung_phan(tieu_de, dan_bai_input, plugin_data, so_tu_muc_tieu=None, bao=None):
-    """Bước 2: Chấp bút kịch bản theo từng phần của dàn bài để vượt qua giới hạn từ của AI,
-    sau đó ghép nối thành 1 bài viết hoàn chỉnh thuần để đọc, không chia từng phần, không dùng icon.
-    """
-    from common import hoi_llm
-    tieu_de_raw = str(tieu_de or "").strip()
-    kenh_ten = plugin_data.get("kenh_ten", "Kênh đối thủ")
-    phong_cach = _phong_cach_viet(plugin_data)
-
-    # Phân tích dàn bài
+def _chuan_bi_phan(tieu_de, dan_bai_input, plugin_data, so_tu_muc_tieu=None):
+    """Dàn bài -> (danh sách phần, tổng số từ, dàn bài tóm tắt)."""
     if isinstance(dan_bai_input, dict) and dan_bai_input.get("danh_sach_phan"):
         ds_phan = dan_bai_input["danh_sach_phan"]
         so_tu_tong = dan_bai_input.get("so_tu_tong") or so_tu_muc_tieu or 500
@@ -1128,24 +1120,25 @@ def viet_kich_ban_tung_phan(tieu_de, dan_bai_input, plugin_data, so_tu_muc_tieu=
         ds_phan = phan_tich_dan_bai_text(dan_bai_input, so_tu_tong)
     else:
         raise ValueError("Dàn bài không hợp lệ")
-
     if not ds_phan:
         raise ValueError("Không tìm thấy các phần trong dàn bài để viết")
-
-    tong_phan = len(ds_phan)
-    cac_doan_viet = []
     dan_bai_tom = "\n".join(f"  Phần {k}: {p.get('tieu_de') or ''} — {str(p.get('muc_tieu') or '')[:160]}"
                              for k, p in enumerate(ds_phan, 1))
+    return ds_phan, so_tu_tong, dan_bai_tom
 
-    for idx, p in enumerate(ds_phan, 1):
-        p_title = p.get("tieu_de") or f"Phần {idx}"
-        p_words = int(p.get("so_tu") or int(so_tu_tong / tong_phan))
-        p_goal = p.get("muc_tieu") or ""
 
-        if bao:
-            bao(f"Đang viết phần {idx}/{tong_phan}: «{p_title}» (Mục tiêu ~{p_words} từ)…", idx, tong_phan)
+def cau_lenh_phan(tieu_de, plugin_data, ds_phan, so_tu_tong, dan_bai_tom, idx, doan_truoc=""):
+    """Câu lệnh viết PHẦN idx (1..n) — doan_truoc: bài của phần trước (lấy ~150 từ cuối để nối liền mạch)."""
+    tieu_de_raw = str(tieu_de or "").strip()
+    kenh_ten = plugin_data.get("kenh_ten", "Kênh đối thủ")
+    phong_cach = _phong_cach_viet(plugin_data)
+    tong_phan = len(ds_phan)
+    p = ds_phan[idx - 1]
+    p_title = p.get("tieu_de") or f"Phần {idx}"
+    p_words = int(p.get("so_tu") or int(so_tu_tong / tong_phan))
+    p_goal = p.get("muc_tieu") or ""
 
-        prompt_part = f"""Bạn là bậc thầy biên kịch video voiceover triệu view trên YouTube, đang chấp bút kịch bản nói (lời bình / narration) thuần để đọc.
+    prompt_part = f"""Bạn là bậc thầy biên kịch video voiceover triệu view trên YouTube, đang chấp bút kịch bản nói (lời bình / narration) thuần để đọc.
 
 ADN GIỌNG VĂN KÊNH «{kenh_ten}» (BẮT BUỘC TUÂN THỦ TRIỆT ĐỂ):
 {phong_cach}
@@ -1163,10 +1156,10 @@ THÔNG TIN BÀI VIẾT:
 - ĐỘ DÀI LỜI ĐỌC CỦA PHẦN NÀY: BẮT BUỘC XẤP XỈ ~{p_words} TỪ (tối thiểu {int(p_words * 0.85)} từ, tối đa {int(p_words * 1.15)} từ). Viết thật kỹ lưỡng, sâu sắc, lôi cuốn, không viết lướt qua hay tóm tắt ngắn ngủn.
 """
 
-        if idx > 1 and cac_doan_viet:
-            # Lấy khoảng 150 từ cuối của phần trước để đảm bảo tính liên tục tuyệt đối
-            doan_truoc = " ".join(cac_doan_viet[-1].split()[-150:])
-            prompt_part += f"""
+    if idx > 1 and doan_truoc:
+        # Lấy khoảng 150 từ cuối của phần trước để đảm bảo tính liên tục tuyệt đối
+        doan_truoc = " ".join(str(doan_truoc).split()[-150:])
+        prompt_part += f"""
 ---
 ĐOẠN TRƯỚC VỪA KẾT THÚC TẠI ĐÂY:
 «...{doan_truoc}»
@@ -1177,15 +1170,15 @@ YÊU CẦU NỐI TIẾP LIỀN MẠCH:
 - TUYỆT ĐỐI KHÔNG có lời chào hỏi hay câu chuyển ý vụng về.
 """
 
-        if idx == tong_phan:
-            prompt_part += """
+    if idx == tong_phan:
+        prompt_part += """
 ---
 ĐÂY LÀ PHẦN KẾT THÚC CỦA TOÀN BỘ KỊCH BẢN:
 - Đẩy cao trào nhận thức lên đỉnh điểm.
 - Đúc kết bài học sâu sắc, để lại một câu chốt hạ đanh thép găm thẳng vào tâm trí người nghe trước khi dừng lại.
 """
 
-        prompt_part += """
+    prompt_part += """
 ---
 YÊU CẦU ĐỊNH DẠNG ĐẦU RA (NGHIÊM NGẶT):
 1. CHỈ VIẾT ĐOẠN VĂN XUÔI LỜI BÌNH (VOICEOVER NARRATION) THUẦN ĐỂ ĐỌC.
@@ -1194,6 +1187,41 @@ YÊU CẦU ĐỊNH DẠNG ĐẦU RA (NGHIÊM NGẶT):
 4. TUYỆT ĐỐI KHÔNG có mô tả phân cảnh, hình ảnh, góc máy, âm thanh (KHÔNG CẢNH, KHÔNG HÌNH, KHÔNG BGM, KHÔNG SFX).
 5. CHỈ TRẢ VỀ NỘI DUNG VĂN XUÔI THUẦN ĐỂ ĐỌC.
 """
+    return prompt_part
+
+
+def cau_lenh_tung_phan(tieu_de, dan_bai_input, plugin_data, so_tu_muc_tieu=None, idx=1, doan_truoc=""):
+    """28/10 user ("làm cho tôi chỗ để tự tôi copy câu lệnh tôi dán hỏi AI lần lượt"): câu lệnh của MỘT phần cho người
+    dùng tự dán vào AI -> {"cau_lenh", "phan", "tong_phan", "tieu_de_phan", "so_tu"}."""
+    ds_phan, so_tu_tong, dan_bai_tom = _chuan_bi_phan(tieu_de, dan_bai_input, plugin_data, so_tu_muc_tieu)
+    idx = max(1, min(int(idx or 1), len(ds_phan)))
+    p = ds_phan[idx - 1]
+    return {"cau_lenh": cau_lenh_phan(tieu_de, plugin_data, ds_phan, so_tu_tong, dan_bai_tom, idx, doan_truoc),
+            "phan": idx, "tong_phan": len(ds_phan), "tieu_de_phan": p.get("tieu_de") or f"Phần {idx}",
+            "so_tu": int(p.get("so_tu") or int(so_tu_tong / len(ds_phan)))}
+
+
+def ghep_cac_phan(cac_phan):
+    """Ghép bài các phần người dùng dán về (làm sạch từng phần như khi chạy tự động) -> bài thuần đọc."""
+    return lam_sach_van_doc("\n\n".join(lam_sach_van_doc(str(x).strip()) for x in cac_phan if str(x or "").strip()))
+
+
+def viet_kich_ban_tung_phan(tieu_de, dan_bai_input, plugin_data, so_tu_muc_tieu=None, bao=None):
+    """Bước 2: Chấp bút kịch bản theo từng phần của dàn bài để vượt qua giới hạn từ của AI,
+    sau đó ghép nối thành 1 bài viết hoàn chỉnh thuần để đọc, không chia từng phần, không dùng icon.
+    """
+    from common import hoi_llm
+    ds_phan, so_tu_tong, dan_bai_tom = _chuan_bi_phan(tieu_de, dan_bai_input, plugin_data, so_tu_muc_tieu)
+    tong_phan = len(ds_phan)
+    cac_doan_viet = []
+
+    for idx, p in enumerate(ds_phan, 1):
+        p_title = p.get("tieu_de") or f"Phần {idx}"
+        p_words = int(p.get("so_tu") or int(so_tu_tong / tong_phan))
+        if bao:
+            bao(f"Đang viết phần {idx}/{tong_phan}: «{p_title}» (Mục tiêu ~{p_words} từ)…", idx, tong_phan)
+        prompt_part = cau_lenh_phan(tieu_de, plugin_data, ds_phan, so_tu_tong, dan_bai_tom, idx,
+                                    cac_doan_viet[-1] if cac_doan_viet else "")
         kq_part = hoi_llm(prompt_part, timeout=180)
         if not kq_part or len(kq_part.strip()) < 30:
             raise ValueError(f"AI không phản hồi phần {idx}. Vui lòng thử lại.")
