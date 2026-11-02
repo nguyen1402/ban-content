@@ -971,25 +971,6 @@ def _loi_trang(ph, prompt, cu=0):
     return ds[0] if len(ds) > cu else ""
 
 
-def _dau_rieng(ph, prompt):
-    """Đoạn chữ ĐẶC TRƯNG của câu lệnh để nhận ra ảnh của nó trong phản hồi: chỉ chữ / số / cách (dấu ' " ( … Flow trả về
-    dạng thoát \\u0027…), dài nhất và KHÔNG có trong câu lệnh của lượt khác đang chờ cùng tab (25/10: câu lệnh storyboard
-    nào cũng mở bằng cùng dòng phong cách -> lấy đoạn ở dòng hành động riêng của ảnh)."""
-    return _dau_khac(prompt, [c["prompt"] for c in ph.dang_cho] + list(getattr(ph, "da_gui", [])))
-
-
-def _dau_khac(prompt, khac):
-    return _dau_ds(prompt, khac)[0]
-
-
-def _dau_ds(prompt, khac, n=3):
-    """Tới n đoạn chữ riêng của câu lệnh (không có trong câu lệnh nào của `khac`), dài trước. 25/10 (thử 20 câu, lượt 3:
-    lượt NV2 vẫn nhận ảnh của lượt BC5) -> phản hồi phải chứa ĐỦ các đoạn này mới là của lượt, không chỉ một đoạn."""
-    doan = sorted({x.strip()[-60:] for x in re.findall(r"[A-Za-z0-9 ]{12,}", prompt)}, key=len, reverse=True)
-    rieng = [d for d in doan if len(d) >= 12 and not any(d in k for k in khac)][:n]
-    return rieng or (doan[:1] if doan else [prompt[-40:]])
-
-
 def _gui(ph, prompt, ti_le, tham_chieu=None):
     """Gõ câu lệnh (kèm ảnh tham chiếu nếu có) và bấm tạo — KHÔNG chờ ảnh. Trả 'lượt' để _cho() chờ; gọi trong khoá hồ sơ.
     25/10 (thử 20 ảnh, nhiều lượt cùng tab): gắn tham chiếu đôi khi hỏng ("nút tạo không bật", "không mở được bảng ảnh
@@ -1034,20 +1015,12 @@ def _gui_mot(ph, prompt, ti_le, tham_chieu=None):
     if ph.js(_LA_VIDEO):                                         # chốt chặn: không bao giờ bấm tạo khi đang ở Video (tốn điểm)
         ph.cai_dat = None
         raise RuntimeError("ô câu lệnh đang ở chế độ Video — không bấm tạo")
-    ds_dau = _dau_ds(prompt, [c["prompt"] for c in ph.dang_cho] + list(getattr(ph, "da_gui", [])))
     try:
         loi_cu = len(_cac_loi(ph, prompt))
     except Exception:                                            # noqa: BLE001
         loi_cu = 0
-    luot = {"prompt": prompt, "truoc": int(truoc), "the_he": ph.the_he, "dau": ds_dau[0], "dau_ds": ds_dau, "loi_cu": loi_cu,
-            "da_co": {i for i, _ in _link(ph.js("(window.__bc_kq || [])") or [], None)}}   # ảnh CŨ của dự án
-    # 25/10 (thử 20 ảnh: scene 6 nhận ảnh của scene 15): đoạn đặc trưng của lượt ĐANG CHỜ có thể nằm trong câu lệnh MỚI
-    # (đoạn đó chọn lúc lượt cũ gửi, khi chưa có câu lệnh mới để so — thường rơi vào mô tả nhân vật dùng chung) -> lượt cũ
-    # nhận luôn ảnh của lượt mới. Chọn lại đoạn cho lượt cũ, khác hẳn câu lệnh mới.
-    for c in ph.dang_cho:
-        con = [d for d in c.get("dau_ds") or [c["dau"]] if d not in prompt]
-        c["dau_ds"] = con or _dau_ds(c["prompt"], [prompt] + [x["prompt"] for x in ph.dang_cho if x is not c])
-        c["dau"] = c["dau_ds"][0]
+    luot = {"prompt": prompt, "lenh": _chuan(prompt), "truoc": int(truoc), "the_he": ph.the_he, "loi_cu": loi_cu,
+            "da_co": {i for i, _ in _anh_cua(ph.js("(window.__bc_kq || [])") or [], None)}}   # ảnh CŨ của dự án
     ph.dang_cho.append(luot)
     # 25/10 (đo: lượt "hết giờ chờ" = 55 phản hồi sau khi bấm, KHÔNG phản hồi nào có câu lệnh của lượt -> lần bấm không ăn,
     # trước đây chờ đủ 4 phút): bấm rồi đợi lệnh tạo thật sự đi khỏi trang; 8 s chưa đi thì bấm lại, vẫn không thì báo lỗi
@@ -1072,7 +1045,7 @@ _LOI_CHUNG = re.compile(r"verify|captcha|limit|quota|later", re.I)   # lỗi c�
 
 def _cho(ph, luot):
     """Chờ ảnh của MỘT lượt đã gửi (không giữ khoá hồ sơ — các lượt khác vẫn gửi tiếp) -> [link] ([] nếu lỗi: ph.loi)."""
-    prompt, dau, t0 = luot["prompt"], luot["dau"], luot["t0"]
+    prompt, t0 = luot["prompt"], luot["t0"]
     han = t0 + CHO_ANH
     link, mot, loi_tu = [], 0, 0
     try:
@@ -1085,9 +1058,7 @@ def _cho(ph, luot):
                 kq = ph.js(f"(window.__bc_kq || []).slice({luot['truoc']})") or []
             except Exception:                                    # noqa: BLE001
                 kq = []
-            khac = [c["dau"] for c in ph.dang_cho if c is not luot]
-            link = [x for x in _link(kq, luot["dau"], len(prompt) + 3000, khac, luot.get("dau_ds"))
-                    if x[0] not in luot["da_co"] and x[0] not in ph.da_nhan]
+            link = [x for x in _anh_cua(kq, luot["lenh"]) if x[0] not in luot["da_co"] and x[0] not in ph.da_nhan]
             if len(link) >= 2:
                 break
             if link:                                             # Flow chỉ trả 1 ảnh (ảnh kia bị lọc): chờ thêm 20 s rồi dùng
@@ -1122,9 +1093,7 @@ def _cho(ph, luot):
         else:
             luot["loi"] = "hết giờ chờ"
             if not link:
-                link = _vot_lai(ph, luot)
-                if link:
-                    luot["loi"] = ""
+                _ghi_het_gio(ph, luot)
         link = link[:2]                                         # một lượt Flow ra 2 ảnh: không nhận quá (ảnh lượt khác)
         ph.da_nhan.update(i for i, _ in link)
         return [u for _, u in link]
@@ -1133,58 +1102,73 @@ def _cho(ph, luot):
             ph.dang_cho.remove(luot)
 
 
-def _vot_lai(ph, luot):
-    """25/10 (thử 20 ảnh: 4-6 lượt "hết giờ chờ" mỗi lần chạy, mỗi lượt mất 4 phút rồi vẽ lại): trước khi bỏ lượt, dò lại
-    MỌI phản hồi từ lúc gửi với luật nới (có ÍT NHẤT một đoạn riêng, không có đoạn của lượt khác đang chờ). Không thấy thì
-    ghi các phản hồi + đoạn đặc trưng ra cache/flow_het_gio.txt để tìm nguyên nhân."""
+def _ghi_het_gio(ph, luot):
+    """Lượt hết giờ mà không có ảnh nào trùng câu lệnh: ghi các phản hồi từ lúc gửi ra cache/flow_het_gio.txt để xem."""
     try:
         kq = ph.js(f"(window.__bc_kq || []).slice({luot['truoc']})") or []
-    except Exception:                                            # noqa: BLE001
-        return []
-    khac = [d for c in ph.dang_cho if c is not luot for d in c.get("dau_ds") or [c["dau"]]]
-    for t in kq:
-        if any(d in t for d in luot.get("dau_ds") or [luot["dau"]]) and not any(k in t for k in khac):
-            link = [x for x in _link([t], None) if x[0] not in luot["da_co"] and x[0] not in ph.da_nhan]
-            if link:
-                log(f"    Flow '{ph.ten}': hết giờ nhưng dò lại thấy {len(link)} ảnh của lượt")
-                return link
-    try:
         from common import CACHE_CHUNG
         with open(os.path.join(CACHE_CHUNG, "flow_het_gio.txt"), "a", encoding="utf-8") as f:
-            f.write(f"\n\n===== {time.strftime('%d/%m %H:%M:%S')} hồ sơ {ph.ten} | đoạn {luot.get('dau_ds')} | "
-                    f"{len(kq)} phản hồi | đang chờ {len(ph.dang_cho)}\n--- câu lệnh:\n{luot['prompt'][:4000]}\n")
+            f.write(f"\n\n===== {time.strftime('%d/%m %H:%M:%S')} hồ sơ {ph.ten} | {len(kq)} phản hồi | "
+                    f"đang chờ {len(ph.dang_cho)}\n--- câu lệnh:\n{luot['prompt'][:4000]}\n")
             for t in kq:
-                f.write(f"--- phản hồi ({len(t)} ký tự, {len(_URL.findall(t))} link, có đoạn: "
-                        f"{[d in t for d in luot.get('dau_ds') or []]}):\n{t[:3000]}\n")
-    except OSError:
+                f.write(f"--- phản hồi ({len(t)} ký tự):\n{t[:3000]}\n")
+    except Exception:                                            # noqa: BLE001
         pass
-    return []
 
 
-# link ảnh trong phản hồi: "...image/<id>?Expires\\u003d…\\u0026KeyName…" (dấu = và & bị thoát 1-2 lớp)
-_URL = re.compile(r'https://flow-content\.google/image/([0-9a-f-]+)\?(?:[^"\\]|\\+u00[0-9a-fA-F]{2})*')
+# 02/11 (ghi mạng một lượt tạo thật trên acc1): lệnh tạo ảnh ogiZ0b trả về NGAY các ảnh của chính lượt đó, mỗi ảnh một
+# mục [mã ảnh, …, [[…, "câu lệnh nguyên văn", …, link ký flow-content.google/image/<mã>?Expires…, …]], …]. Nhận ảnh theo
+# MÃ + câu lệnh trùng NGUYÊN VĂN — trước đây dò "đoạn chữ đặc trưng gần link" trong mọi phản hồi, từng lẫn ảnh giữa các
+# lượt cùng chờ (25/10: scene 6 nhận ảnh của scene 15).
+def _chuan(t):
+    return " ".join(str(t or "").split()).lower()
 
 
-def _link(kq, dau, tam=2500, khac=(), du=()):
-    """[(id, url)] ảnh trong các phản hồi; dau: đoạn câu lệnh phải đứng trước link (None = mọi ảnh); khac: đoạn đặc trưng
-    của các lượt khác đang chờ — link gần đoạn của lượt khác hơn thì là ảnh của lượt đó."""
-    ra, thay = [], set()
-    for t in kq:
-        if du and not all(d in t for d in du):                   # phản hồi không chứa đủ các đoạn riêng: không phải của lượt
-            continue
-        for m in _URL.finditer(t):
-            if m.group(1) in thay:
+def _rpc(ds):
+    """[(tên rpc, dữ liệu)] trong các phản hồi batchexecute đã ghi."""
+    for t in ds or []:
+        for dong in str(t).split("\n"):
+            if not dong.startswith("[["):
                 continue
-            if dau is not None:
-                # 23/10: câu lệnh storyboard dài ~3000 ký tự -> cửa sổ dò phải dài hơn câu lệnh (trước cố định 2500)
-                lo = max(0, m.start() - tam)
-                vt = t.rfind(dau, lo, m.start())
-                if vt < 0 or any(t.rfind(k, lo, m.start()) > vt for k in khac if k and k != dau):
-                    continue
-            thay.add(m.group(1))
-            u = re.sub(r"\\+u003d", "=", m.group(0))
-            u = re.sub(r"\\+u0026", "&", u)
-            ra.append((m.group(1), u))
+            try:
+                khoi = json.loads(dong)
+            except ValueError:
+                continue
+            for it in khoi:
+                if isinstance(it, list) and len(it) > 2 and it[0] == "wrb.fr" and isinstance(it[2], str):
+                    try:
+                        yield it[1], json.loads(it[2])
+                    except ValueError:
+                        pass
+
+
+def _chuoi(x):
+    """Mọi chuỗi lồng trong x."""
+    if isinstance(x, str):
+        yield x
+    elif isinstance(x, list):
+        for y in x:
+            yield from _chuoi(y)
+
+
+def _anh_cua(kq, lenh):
+    """[(mã ảnh, link)] trong phản hồi lệnh tạo ảnh (ogiZ0b); lenh: câu lệnh đã chuẩn hoá, ảnh phải mang câu lệnh trùng
+    nguyên văn (None = mọi ảnh)."""
+    ra, thay = [], set()
+    for ten, d in _rpc(kq):
+        if ten != "ogiZ0b" or not isinstance(d, list) or not d or not isinstance(d[0], list):
+            continue
+        for e in d[0]:
+            if not isinstance(e, list) or not e or not isinstance(e[0], str) or e[0] in thay:
+                continue
+            ma, ds = e[0], list(_chuoi(e[1:]))
+            u = next((x for x in ds if x.startswith(f"https://flow-content.google/image/{ma}?")), None)
+            if not u:
+                continue
+            if lenh is not None and lenh not in map(_chuan, ds):   # trùng TOÀN BỘ: câu lệnh storyboard chung dòng mở đầu
+                continue
+            thay.add(ma)
+            ra.append((ma, u))
     return ra
 
 

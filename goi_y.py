@@ -1066,8 +1066,8 @@ def goi_y_nen(du_an, ids=None, chi_canh_trong=True, ten_nhap=None, sau=None, tru
                     raise ValueError("không dò được thư mục CapCut Drafts")
                 with _KHOA:
                     TT[du_an].update(buoc="nhap")
-                ten_nhap = dung_tay.ten_nhap_moi(dd, ten_nhap)
-                nhap = {"ten": ten_nhap, "so": dung_tay.tao_nhap(du_an, ten_nhap, dd)}
+                ten = dung_tay.ten_nhap_moi(dd, ten_nhap)   # biến riêng: gán ten_nhap ở đây làm nó thành biến cục bộ (lỗi)
+                nhap = {"ten": ten, "so": dung_tay.tao_nhap(du_an, ten, dd)}
             ht = ""
             if sau:
                 try:
