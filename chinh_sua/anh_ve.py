@@ -159,8 +159,9 @@ XOA_LOGO = True             # 19/10 user: xoá logo ✦ Gemini bằng GeminiWate
 PHONG_ANH_AI = 1.0 if XOA_LOGO and os.path.isfile(GWT) else 1.20   # đã xoá được logo -> không cần phóng 120% giấu dấu
 
 
-def xoa_logo(f):
-    """Xoá logo ✦ Gemini tại chỗ (tự dò; ảnh không có logo thì để nguyên). True = đã xoá."""
+def xoa_logo(f, moi=False):
+    """Xoá logo ✦ Gemini tại chỗ (tự dò; ảnh không có logo thì để nguyên). True = đã xoá.
+    moi=True: ảnh VỪA vào (kéo thả / vừa vẽ, chưa xoá lần nào) -> dò dấu Flow nới ngưỡng (xem do_logo_flow)."""
     if not (XOA_LOGO and os.path.isfile(GWT) and f and os.path.isfile(f)):
         return False
     tam = os.path.splitext(f)[0] + "._gwt" + os.path.splitext(f)[1]
@@ -175,7 +176,7 @@ def xoa_logo(f):
         return True
     if os.path.isfile(tam):
         os.remove(tam)
-    return xoa_dau_flow(f)                                   # gwt không tự dò ra: ảnh Google Flow -> khuôn riêng của Flow
+    return xoa_dau_flow(f, moi)                              # gwt không tự dò ra: ảnh Google Flow -> khuôn riêng của Flow
 
 
 _KHUON = []                                                  # khuôn alpha logo ✦ 96x96 của gwt (lấy một lần)
@@ -245,7 +246,10 @@ KHUON_FLOW = os.path.join(os.path.dirname(GWT), "khuon_flow.npy")
 FLOW_CACH_MEP = 97          # tâm dấu cách mép phải / dưới (ảnh cạnh ngắn 768)
 
 
-def do_logo_flow(f, a=None):
+_TI_LE_FLOW = (1376 / 768, 768 / 1376, 1.0, 1200 / 896, 896 / 1200)   # tỉ lệ khung ảnh Flow (16:9 của Flow là 1376x768)
+
+
+def do_logo_flow(f, a=None, moi=False):
     """Tìm dấu ✦ Flow quanh vị trí quen thuộc -> (tâm x, tâm y, hệ số cỡ, khuôn alpha đã co giãn) | None."""
     import cv2
     import numpy as np
@@ -286,19 +290,24 @@ def do_logo_flow(f, a=None):
     (khop, duc), x, y = tot
     # 26/10 đo: 8 ảnh có dấu khớp 0,58-0,99 (7/8 >= 0,76), độ đục 1,05-1,56; 120 ảnh storyboard cũ (đã tô lấp) + ảnh
     # nền phẳng: cao nhất 0,56 (vết tô lấp) — riêng một ảnh cũ 0,79 là ảnh VẪN CÒN dấu (tô lấp cũ bỏ sót)
-    if khop < 0.6 or not 0.7 <= duc <= 1.7:
+    # 03/11 user ("kéo ảnh vào tự xoá logo"): đo lại — ✦ thật trên nền vân gỗ / đá chỉ khớp 0,58-0,59 (độ đục 0,70-0,97)
+    # nên bị bỏ sót; còn 150 khung footage quay thật thì 5 khung khớp 0,70-0,73 (độ đục 0,86-1,15) -> tô ngược in thêm sao
+    # tối. Nên: ảnh ĐÚNG tỉ lệ khung Flow và vừa vào (moi) thì nới tới 0,45; ảnh khác tỉ lệ Flow đòi khớp 0,85
+    co_flow = any(abs(w / h - r) < 0.003 * r for r in _TI_LE_FLOW)
+    nguong = 0.45 if (moi and co_flow) else 0.6 if co_flow else 0.85
+    if khop < nguong or not (0.6 if moi and co_flow else 0.7) <= duc <= 1.7:
         log(f"    Dò dấu Flow: không thấy (khớp {khop:.2f}, độ đục {duc:.2f})")
         return None
     return x, y, n, al
 
 
-def xoa_dau_flow(f):
+def xoa_dau_flow(f, moi=False):
     """Xoá dấu ✦ của ảnh Google Flow bằng tính ngược alpha (không làm mờ, không vẽ bù). True = đã xoá."""
     import cv2
     import numpy as np
     try:
         a = cv2.imdecode(np.fromfile(f, np.uint8), cv2.IMREAD_COLOR)
-        vt = do_logo_flow(f, a)
+        vt = do_logo_flow(f, a, moi)
         if not vt:
             return False
         x, y, n, al = vt

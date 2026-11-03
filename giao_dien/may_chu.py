@@ -2582,12 +2582,18 @@ def anh_ai_ve_thu():
 
     f = None
     nguon = "flow"
+    ca_hai = bool(d.get("ca_hai"))                           # 03/11 user: hộp 🎨 chèn ảnh nhận CẢ 2 ảnh của một lượt Flow
+    ds_f = []
 
     # Mặc định vẽ trên Google Flow (0 điểm)
     if cong_cu == "flow":
         if flow_ve.co_ho_so():
             try:
-                f = flow_ve.ve(p, thu, ten, ti_le=ti_le, tham_chieu=tep)
+                if ca_hai:
+                    ds_f = [x for x in flow_ve.ve_nhieu(p, thu, ten[:-4], ti_le=ti_le, tham_chieu=tep) if os.path.isfile(x)]
+                    f = ds_f[0] if ds_f else None
+                else:
+                    f = flow_ve.ve(p, thu, ten, ti_le=ti_le, tham_chieu=tep)
             except Exception as e:
                 common.log(f"    ! Flow lỗi khi vẽ thử: {e}")
         # Nếu Flow lỗi hoặc chưa có hồ sơ, tự động fallback sang Gemini cookie
@@ -2606,7 +2612,12 @@ def anh_ai_ve_thu():
         loi_flow = next((v.get("loi") for v in flow_ve._doc_so().values() if v.get("loi")), "")
         msg = f"Flow lỗi: {loi_flow}" if loi_flow else "Không tạo được ảnh (hãy thử lại hoặc kiểm tra hồ sơ Flow)"
         raise HTTPError(502, msg)
-    return json_ok({"thu": f, "url": url_tep(f), "nguon": nguon})
+    ds_f = ds_f or [f]
+    if nguon == "flow":                                      # 03/11 user: ảnh Flow vừa vẽ còn dấu ✦ -> xoá ngay, thẻ xem đã sạch
+        for x in ds_f:
+            anh_ve.xoa_logo(x, moi=True)
+    return json_ok({"thu": f, "url": url_tep(f), "nguon": nguon,
+                    "ds": [{"thu": x, "url": url_tep(x)} for x in ds_f]})
 
 
 @app.post("/api/anh_ai/luu")
@@ -2931,7 +2942,7 @@ def chen_anh_tai_len():
     up.save(f, overwrite=True)
     sys.path.insert(0, os.path.join(ROOT, "chinh_sua"))
     import anh_ve
-    anh_ve.xoa_logo(f)                                       # 19/10: ảnh gốc còn logo -> Gemini vẽ lại cả logo cũ vào ảnh
+    anh_ve.xoa_logo(f, moi=True)                             # 19/10: ảnh gốc còn logo -> Gemini vẽ lại cả logo cũ vào ảnh
     return json_ok({"file": f, "url": url_tep(f) + f"&v={int(time.time())}"})
 
 

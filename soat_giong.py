@@ -84,7 +84,16 @@ def _am_bac(s):
 def _ngoai(tok):
     """Từ không phải âm tiết tiếng Việt (Murray, Darling, feet…) -> bộ nghe tiếng Việt không ghi đúng được."""
     c = _chuan(tok)
-    return bool(c) and (not _AM.match(c) or any(ch in c for ch in "fjwz"))
+    if not c:
+        return False
+    v = "".join(ch for ch in unicodedata.normalize("NFD", tok.lower()) if ch not in "̣̀́̃̉")
+    v = unicodedata.normalize("NFC", v)                      # bỏ dấu thanh, giữ mũ / móc: "hươu" không thành "ou"
+    if not _AM.match(c) or any(ch in c for ch in "fjwz") or any(x in v for x in ("ea", "ee", "ei", "ou")):
+        return True
+    # 3/11 user ("đừng check những từ tiếng anh"): "chip", "chat", "top" lọt vì viết giống âm tiết Việt (câu 126 chosoi báo
+    # nhầm) — âm tiết Việt tận cùng p/t/c/ch luôn mang dấu sắc hoặc nặng, không dấu thì là từ nước ngoài
+    d = unicodedata.normalize("NFD", tok.lower())
+    return bool(re.search(r"(p|t|c|ch)$", c)) and "́" not in d and "̣" not in d
 
 
 def _may():
