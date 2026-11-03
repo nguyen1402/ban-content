@@ -2828,6 +2828,113 @@ def gop_y_anh_ai_ke_hoach():
     return json_ok({"job": _job_doi_thu(lambda bao: gop_y.ke_hoach(t, d["y_kien"], d.get("ds")))})
 
 
+# --------------------------------------------------------------------------- 🎞 cảnh Remotion AI tự viết code (nhan_y_ai)
+# 03/11 user: thêm loại 🎞 Remotion vào 📝 (AI tự suy luận chỗ, không gợi ý trước; user tích / bỏ / tự thêm), dựng xong xem
+# và sửa trong 🖼 (sửa nhanh thông số, góp ý cho AI sửa code, mở Remotion Studio kéo thả), ✅ Lưu ghi đè bản nháp _hoan_chinh.
+def _nhan_y_ai():
+    if os.path.join(ROOT, "chinh_sua") not in sys.path:
+        sys.path.insert(0, os.path.join(ROOT, "chinh_sua"))
+    import nhan_y_ai
+    return nhan_y_ai
+
+
+STUDIO = {"p": None}
+STUDIO_CONG = 3123
+
+
+@app.get("/api/nhan_y/ke_hoach")
+def nhan_y_ke_hoach():
+    return json_ok({"ds": _nhan_y_ai().doc_ke_hoach(slug(tham_so_q("du_an")))})
+
+
+@app.post("/api/nhan_y/ke_hoach/luu")
+def nhan_y_ke_hoach_luu():
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t or not isinstance(d.get("ds"), list):
+        raise HTTPError(400, "thiếu dữ liệu")
+    return json_ok({"ok": True, "so": _nhan_y_ai().luu_ke_hoach(t, d["ds"])})
+
+
+@app.post("/api/nhan_y/de_xuat")
+def nhan_y_de_xuat():
+    t = slug((request.json or {}).get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    m = _nhan_y_ai()
+    return json_ok({"job": _job_doi_thu(lambda bao: {"ds": m.de_xuat(t, bao)})})
+
+
+@app.post("/api/nhan_y/dung")
+def nhan_y_dung():
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    m = _nhan_y_ai()
+    chi = [int(x) for x in d.get("cau") or []] or None
+    return json_ok({"job": _job_doi_thu(lambda bao: m.dung(t, chi, bao, bool(d.get("lam_lai"))))})
+
+
+@app.get("/api/nhan_y/canh")
+def nhan_y_canh():
+    t = slug(tham_so_q("du_an"))
+    m = _nhan_y_ai()
+    ds = m.ds_canh(t)
+    for x in ds:
+        x["url"] = url_tep(x["mp4"]) + f"&v={int(os.path.getmtime(x['mp4']))}" if x.get("mp4") and os.path.isfile(x["mp4"]) else ""
+    p = m.ban_nhap_dich(t)
+    return json_ok({"ds": ds, "nhap": os.path.basename(p) if p else "", "studio": bool(STUDIO["p"] and STUDIO["p"].poll() is None)})
+
+
+@app.post("/api/nhan_y/luu")
+def nhan_y_luu():
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    m = _nhan_y_ai()
+    return json_ok({"job": _job_doi_thu(lambda bao: m.luu_lai(t, int(d["cau"]), d.get("props") or None, bao))})
+
+
+@app.post("/api/nhan_y/gop_y")
+def nhan_y_gop_y():
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t or not str(d.get("y_kien") or "").strip():
+        raise HTTPError(400, "thiếu dự án hoặc góp ý")
+    m = _nhan_y_ai()
+    return json_ok({"job": _job_doi_thu(lambda bao: m.gop_y(t, int(d["cau"]), d["y_kien"], bao))})
+
+
+@app.post("/api/nhan_y/studio")
+def nhan_y_studio():
+    """Mở Remotion Studio (một tiến trình dùng chung, cổng 3123) -> URL tới đúng cảnh."""
+    d = request.json or {}
+    if not (STUDIO["p"] and STUDIO["p"].poll() is None):
+        STUDIO["p"] = subprocess.Popen(["npx", "remotion", "studio", "src/index.jsx", "--port", str(STUDIO_CONG), "--no-open"],
+                                       cwd=os.path.join(ROOT, "remotion"), shell=True, stdout=subprocess.DEVNULL,
+                                       stderr=subprocess.DEVNULL, creationflags=0x08000000 if os.name == "nt" else 0)
+    return json_ok({"url": f"http://localhost:{STUDIO_CONG}/{d.get('id') or ''}"})
+
+
+# 03/11 user: Antigravity sửa cảnh mà muốn làm việc ngoài luật -> hiện [Cho phép] [Không] để user tự bấm (việc nguy hiểm
+# agy.py đã tự từ chối, không tới đây)
+@app.get("/api/nhan_y/xin_quyen")
+def nhan_y_xin_quyen():
+    _nhan_y_ai()
+    import agy
+    return json_ok({"ds": agy.ds_xin_quyen(), "luon": agy.luat_luon()})
+
+
+@app.post("/api/nhan_y/xin_quyen/tra_loi")
+def nhan_y_xin_quyen_tra_loi():
+    d = request.json or {}
+    _nhan_y_ai()
+    import agy
+    return json_ok({"ok": agy.tra_loi_xin_quyen(d.get("id"), bool(d.get("co")), bool(d.get("luon")))})
+
+
 # --------------------------------------------------------------------------- 🎨 tạo ảnh rồi chèn thẳng vào bản nháp
 def _chen_ds(t):
     return os.path.join(common.thu_muc_du_an(t)[1], "anh_chen.json")

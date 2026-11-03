@@ -4,14 +4,19 @@
   "version": "0.1.0",
   "type": "module",
   "dependencies": {
+    "@react-three/fiber": "^9.8.2",
     "@remotion/bundler": "^4.0.533",
     "@remotion/cli": "^4.0.533",
     "@remotion/renderer": "^4.0.533",
+    "@remotion/three": "4.0.534",
+    "@remotion/zod-types": "4.0.534",
     "d3-geo": "^3.1.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "remotion": "^4.0.533",
+    "three": "^0.180.0",
     "topojson-client": "^3.1.0",
-    "world-atlas": "^2.0.2"
+    "world-atlas": "^2.0.2",
+    "zod": "4.5.4"
   }
 }

@@ -6,6 +6,12 @@
       "runtimeExecutable": "cmd",
       "runtimeArgs": ["/c", "set BC_PORT=8790&& python giao_dien/may_chu.py --khong-mo"],
       "port": 8790
+    },
+    {
+      "name": "remotion-studio",
+      "runtimeExecutable": "cmd",
+      "runtimeArgs": ["/c", "cd remotion && npx remotion studio src/index.jsx --port 3123 --no-open"],
+      "port": 3123
     }
   ]
 }

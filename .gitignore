@@ -33,3 +33,9 @@ cookies.txt
 scratch/
 remotion/test_data_hud.json
 kho_am_thanh/**/*.mp3
+
+# nhấn ý Remotion AI: bản lỗi / bản sao lưu khi dựng lại
+remotion/src/ai/*.loi
+remotion/src/ai/*.cu
+remotion/src/ai/*.truoc*
+remotion/src/ai/_*.jsx

@@ -1212,6 +1212,13 @@ def main():
     except Exception as e:                                  # noqa: BLE001
         log(f"    ! gắn chữ mẫu lỗi: {e}")
     log(f"[3] dự án CapCut: {thu_muc}  (chuyển cảnh gắn được: {n}/{len(kh['chuyen_canh'])})")
+    try:                                                     # 03/11 user: cảnh 🎞 Remotion đã dựng -> ghép lại vào bản mới
+        import nhan_y_ai
+        from common import DU_AN as _da
+        if any(v.get("trang_thai") == "xong" for v in (doc_json(nhan_y_ai._ds(_da), {}) or {}).values()):   # noqa: SLF001
+            nhan_y_ai.ghep(_da)
+    except Exception as e:                                   # noqa: BLE001
+        log(f"    ! ghép cảnh 🎞 Remotion: {str(e)[:160]}")
 
 
 if __name__ == "__main__":

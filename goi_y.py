@@ -56,6 +56,13 @@ MUON_CHO_HANH_DONG = True
 DUNG_LAI_TRUOC_AI = True
 CACH_DUNG_LAI = 60.0
 MAT_DO_AI = 20.0
+# 03/11 user (caloc: AI gán 32 cảnh liền 87-118 cùng bối cảnh D "bờ sông", kho chỉ 61 mảnh D, 39 clip lươn + 11 clip
+# chương cuối khác bối cảnh bị loại hết -> phút 12+ gần như toàn ảnh AI): footage ĐÚNG bối cảnh hết thì lấy footage MỚI
+# của chính chủ thể (kho đoạn, chủ thể đi cùng) ở bối cảnh khác TRƯỚC khi lặp lại / ảnh AI. Tắt: False
+BOI_CANH_MEM = True
+# 03/11 user: ảnh AI đã vẽ sẵn cũng giữ MAT_DO_AI — chỗ quá dày mà không lặp được footage cách >= CACH_DUNG_LAI thì thử
+# lặp lại footage cách >= CACH_DUNG_LAI_DAY rồi mới đặt ảnh AI. Tắt: None
+CACH_DUNG_LAI_DAY = 30.0
 GOP_CUNG_LOAI = True        # 27/10 user: mảnh 🎯 dùng chung cho mọi chủ thể CÙNG LOÀI (chon_tay.loai_chung), không chỉ cùng tên
 GAN_NHAT_CO_MANH = 2        # 27/10 user ("quy tắc cảnh gần dùng cá thể gần"): kho chủ thể cảnh + chủ thể đi cùng CẠN (không có
 #                             mảnh / đã dùng hết) -> mượn kho của chủ thể GẦN NHẤT (theo thời gian) có mảnh, mỗi phía bấy nhiêu
@@ -663,6 +670,15 @@ def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=N
                 chon = thu([it for it in S if cd_k in kid_to_cd.get(it[0], ())], True)
                 if chon is not None:
                     break
+        # 2d. 03/11 user: hết footage đúng bối cảnh -> bỏ lọc bối cảnh cho khúc này (chủ thể vẫn phải đúng), làm lại 2 + 2c
+        if chon is None and BOI_CANH_MEM and bc_can:
+            bc_can = None
+            chon = thu(P_, True)
+            if chon is None and LAP_MO_RONG and (MUON_CHO_HANH_DONG or not hanh_dong):
+                for cd_k in cd_phu:
+                    chon = thu([it for it in S if cd_k in kid_to_cd.get(it[0], ())], True)
+                    if chon is not None:
+                        break
         # 3. kho của đoạn: dùng lại đoạn cũ (vẫn <= 2 lần, cách >= 15 s) — TẮT khi KHONG_DUNG_LAI
         if chon is None and not KHONG_DUNG_LAI:
             chon = thu(P_, False)
@@ -672,13 +688,13 @@ def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=N
 
         ai_t = truoc.setdefault("ai_t", [])                  # 28/10: giây tuyệt đối các ảnh AI đã / sẽ đặt
 
-        def lap_lai():
+        def lap_lai(cach_dl=CACH_DUNG_LAI):
             """28/10 user: lặp lại footage của chủ thể (kho đoạn, rồi kho chủ thể đi cùng) — mảnh cách lần trước >= 60 s.
             Kho chủ thể thường chỉ có MỘT video gốc (casauthabien 108/141 mảnh) -> bỏ luật không liền / giãn cách theo
             video gốc, chỉ cần khác mảnh ngay trước."""
             if not DUNG_LAI_TRUOC_AI:
                 return None
-            xa = lambda it: all(abs(t0 + pos - x) >= CACH_DUNG_LAI for x in lan.get(it[0], []))   # noqa: E731
+            xa = lambda it: all(abs(t0 + pos - x) >= cach_dl for x in lan.get(it[0], []))   # noqa: E731
             for pool in [P_] + [[it for it in S if cd_k in kid_to_cd.get(it[0], ())] for cd_k in cd_phu]:
                 r_ = thu([it for it in pool if xa(it)], False, cach=0, cap=False, cung_goc_ok=True)
                 if r_ is not None:
@@ -688,6 +704,8 @@ def goi_y_canh(canh, vids, anhs, da_dung, mo_hinh=None, gan=(), sach=(), truoc=N
         # 5a. câu chung chung (không phải vế nhắc đối tượng khác): lặp lại footage TRƯỚC ảnh AI
         if chon is None and ((v_ve is None and not hanh_dong) or day_ai):   # ảnh AI quá dày: câu cụ thể cũng lặp lại
             chon = lap_lai()
+        if chon is None and day_ai and CACH_DUNG_LAI_DAY is not None:   # 03/11: dày ảnh AI -> lặp footage gần hơn
+            chon = lap_lai(CACH_DUNG_LAI_DAY)
         # 5. Ảnh: ảnh AI vẽ riêng cho cảnh này / ảnh thật CÙNG kho đoạn
         dai_anh = rem if rem <= (DOAN_MAX_NGHI if NGHI_GIONG_DOC else (CUM_TOI_DA if cd else SHOT_MAX)) else min(3.5, rem - SHOT_MIN)
         tot_anh = None
