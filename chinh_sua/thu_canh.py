@@ -36,7 +36,7 @@ def chay(ma):
         return f"LOI: không đọc được tệp làm việc: {e}"
     if "export const Canh" not in code or "export const schema" not in code:
         return "LOI: canh.jsx must contain `export const schema` and `export const Canh`"
-    loi = m._chu_dai(pr) or m._chu_dai_code(code)
+    loi = m._chu_dai(pr) or m._chu_dai_code(code) or m._kiem_lop(code, giay) or m._kiem_chu_lop(code, pr, giay)   # 05/11: cùng luật với bộ đo
     if loi:
         return "LOI: " + loi
     for f in os.listdir(d):

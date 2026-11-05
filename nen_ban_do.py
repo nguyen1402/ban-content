@@ -402,7 +402,7 @@ def dung_clip_duong(viec):
     return {k: (v if v and os.path.isfile(v) and os.path.getsize(v) > 5000 else None) for k, v in ra.items()}
 
 
-def _render(jobs, thu, ten="clip bản đồ"):
+def _render(jobs, thu, ten="clip bản đồ", pub=None):
     if not jobs:
         return
     import subprocess
@@ -415,6 +415,8 @@ def _render(jobs, thu, ten="clip bản đồ"):
     ch = do_hoa._chrome()                                           # noqa: SLF001
     if ch:
         env["BROWSER_EXE"] = ch
+    if pub:                                                         # 04/11: public nhỏ (chỉ tệp các clip dùng) -> đóng gói nhanh
+        env["PUBLIC_DIR"] = pub
     r = subprocess.run(["node", "render.mjs", p], cwd=do_hoa.REMOTION, env=env, capture_output=True,
                        timeout=3600, creationflags=0x08000000 if os.name == "nt" else 0)
     log("    " + "\n    ".join(r.stdout.decode("utf-8", "ignore").strip().splitlines()[-3:]))

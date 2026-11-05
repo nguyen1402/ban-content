@@ -24,6 +24,7 @@ from common import doc_json, ghi_json, log, rut_json, thu_muc_du_an  # noqa: E40
 
 AGY = os.path.join(os.path.expanduser("~"), ".gemini", "bin", "agy.exe")
 MO_HINH = "gemini-3.8-flash-high"
+MO_HINH_SUA = "gemini-3.8-flash-medium"   # 05/11 (đo 4 cảnh lopxe: tự sửa bằng High 7-12 phút / cảnh) — tác nhân sửa dùng Medium
 MOT_LUOT_ANH = 6                       # số ảnh chấm trong một lượt hỏi
 DAT = 7                                # điểm >= bấy nhiêu là đạt
 
@@ -38,7 +39,7 @@ def hoi(prompt, thu_muc=(), timeout=420, cho_phep=None, cwd=None):
     return hoi_tho(prompt, thu_muc, timeout, cho_phep, cwd)["response"]
 
 
-def hoi_tho(prompt, thu_muc=(), timeout=420, cho_phep=None, cwd=None, cuoc=None):
+def hoi_tho(prompt, thu_muc=(), timeout=420, cho_phep=None, cwd=None, cuoc=None, mo_hinh=None):
     """Như hoi() nhưng trả {response, cuoc (mã cuộc trò chuyện), bi_chan (có việc bị từ chối)}. cuoc: chạy TIẾP cuộc cũ."""
     rong = {"response": "", "cuoc": cuoc, "bi_chan": False}
     if not co():
@@ -55,7 +56,7 @@ def hoi_tho(prompt, thu_muc=(), timeout=420, cho_phep=None, cwd=None, cuoc=None)
         thu_muc.append(thu)
         prompt = (f"Read the task file {f} completely and do exactly what it asks. Your final answer must be only the "
                   "output format that the task file requests.")
-    lenh = [AGY, "-p", prompt, "--model", MO_HINH, "--output-format", "json", "--print-timeout", f"{timeout}s"]
+    lenh = [AGY, "-p", prompt, "--model", mo_hinh or MO_HINH, "--output-format", "json", "--print-timeout", f"{timeout}s"]
     lenh += ["--settings", json.dumps({"permissions": {"allow": list(cho_phep)}})] if cho_phep is not None else ["--sandbox"]
     for d in thu_muc:
         lenh += ["--add-dir", d]
@@ -149,7 +150,11 @@ Open and LOOK at these rendered frames (in time order): {khung}
 Fail the scene if any is clearly wrong: (1) it does not visibly show what the sentence says (subject, action,
 comparison, number); (2) large empty or flat dark areas, no real background; (3) main subject or texts too small,
 unreadable, cut off or overlapping; (4) a subtitle / caption of the narration; (5) ugly artifacts (stray glows, broken
-images, black frames, elements piled in a corner).
+images, black frames, elements piled in a corner); (6) a real thing (plant, water, soil, crack, building, animal...)
+drawn with crude vector strokes / shapes instead of a photo; (7) no visible motion: frames look the same (04/11 user:
+"hiệu ứng thị giác" matters); (8) BORING (05/11 user: "nhiều cảnh trông chán"): a slideshow of full-frame photos that only
+zoom, the same picture for most of the shot, nothing for the eye to follow — a good shot builds layers (cut-outs over a
+background, a map with a ring, a counter, before / after) that change on the key words.
 Only open and look at the image files; do NOT run any command and do NOT edit any file.
 Return ONLY JSON: {{"diem": <1-10>, "dat": true|false, "loi": ["<short concrete Vietnamese problem + how to fix>", ...]}}"""
 
@@ -188,6 +193,9 @@ def sua_code(cau, loi, mo_ta, anh, code, props):
 # việc NGUY HIỂM tự từ chối luôn (không hỏi) -> việc còn lại ghi phiếu xin quyền, giao diện hiện [Cho phép] [Không] ->
 # cho phép thì thêm đúng việc đó vào luật rồi chạy TIẾP cuộc trò chuyện cũ (--conversation).
 CHO_DUYET = 600                        # giây chờ user bấm; quá thì coi như không
+TU_CHO_PHEP = True                     # 05/11 user ("làm chức năng tự cho phép đồng ý — hiện thông báo thì bấm đồng ý"): việc đã
+#                                        qua _nguy_hiem (không xoá / dời / lên mạng / cài / chạy script lạ / ghi ngoài vùng
+#                                        được ghi) thì tự đồng ý ngay, không chờ người bấm; việc nguy hiểm vẫn tự từ chối
 LUOT_XIN = 5                           # số lần xin quyền tối đa trong một lượt tác nhân
 _CUOC_DB = os.path.join(os.path.expanduser("~"), ".gemini", "antigravity-cli", "conversations")
 _KB_THU = os.path.normcase(os.path.abspath(os.path.join(AQ, "thu_canh.py")))
@@ -297,6 +305,11 @@ def xin_quyen(ma, cau, v, bao=None):
     bao = bao or (lambda m: log("  " + m))
     i = uuid.uuid4().hex[:10]
     f = os.path.join(_thu_xin(), f"{i}.json")
+    if TU_CHO_PHEP:                                                      # bên gọi đã lọc _nguy_hiem trước khi xin
+        ghi_json(f, {"id": i, "ma": ma, "cau": cau, "loai": v["loai"], "gia_tri": v["gia_tri"], "luc": time.time(),
+                     "trang_thai": "co", "tu_dong": True})
+        bao(f"Antigravity xin quyền {v['loai']}: {v['gia_tri'][:120]} — tự đồng ý (việc an toàn)")
+        return "co"
     ghi_json(f, {"id": i, "ma": ma, "cau": cau, "loai": v["loai"], "gia_tri": v["gia_tri"], "luc": time.time(),
                  "trang_thai": "cho"})
     bao(f"Antigravity xin quyền {v['loai']}: {v['gia_tri'][:120]} — chờ bạn bấm trên giao diện…")
@@ -333,11 +346,11 @@ def tra_loi_xin_quyen(i, co_khong, luon=False):
     return True
 
 
-def chay_co_xin(prompt, thu_muc, timeout, cho_phep, cwd, ma, cau, bao=None):
+def chay_co_xin(prompt, thu_muc, timeout, cho_phep, cwd, ma, cau, bao=None, mo_hinh=None):
     """hoi_tho + vòng xin quyền: bị chặn -> (nguy hiểm: tự từ chối) | hỏi user -> chạy tiếp cuộc cũ. -> chữ trả lời."""
     bao = bao or (lambda m: log("  " + m))
     cho = list(cho_phep) + [x for x in luat_luon() if x not in cho_phep]
-    r = hoi_tho(prompt, thu_muc, timeout, cho, cwd)
+    r = hoi_tho(prompt, thu_muc, timeout, cho, cwd, mo_hinh=mo_hinh)
     for _ in range(LUOT_XIN):
         if not r["bi_chan"] or not r["cuoc"]:
             break
@@ -357,7 +370,7 @@ def chay_co_xin(prompt, thu_muc, timeout, cho_phep, cwd, ma, cau, bao=None):
         else:
             tiep = (f"The user REFUSED your action ({v['loai']}: {v['gia_tri']}). Do NOT try it or anything similar again. "
                     "Continue the task using only the allowed command and files, then give the final answer.")
-        r = hoi_tho(tiep, thu_muc, timeout, cho, cwd, cuoc=r["cuoc"])
+        r = hoi_tho(tiep, thu_muc, timeout, cho, cwd, cuoc=r["cuoc"], mo_hinh=mo_hinh)
     return r["response"]
 
 
@@ -384,7 +397,9 @@ Loop (at most {vong} times):
   3. OPEN and LOOK at the frames. Judge: the frames visibly show what the sentence says; full-frame background photo
      the whole time, no large empty / flat dark areas; main subject big (>= 40% of frame height); texts big (>= 56 px),
      readable, not cut off or overlapping; no narration caption; no stray glows, broken images, or elements piled in a
-     corner. Stop when it is good.
+     corner; no real thing drawn with crude vector strokes (use the images); the frames clearly differ (motion: push /
+     pan, parallax, punch-in or slide on key words); it is NOT boring (not just photos zooming — add layers, a cut-out
+     moving in, a ring / arrow on the exact thing, a counter, a before / after on the key words). Stop when it is good.
 Keep the contract: same imports (from 'remotion', 'zod', './thu_vien.jsx'), `export const schema`, `export const Canh`,
 every visible element an <Interactive.Div name=...> with literal numbers. Do NOT write any other file.
 Final answer ONLY JSON: {{"diem": <your honest 1-10 score of the final frames>, "da_sua": ["<short Vietnamese>", ...]}}"""
@@ -414,11 +429,11 @@ def tac_nhan_sua(ma, cau, y_chinh, mo_ta, anh, loi, code, props, giay, vong=4, t
     cho = [f"command({x})" for x in sorted(bien)] + [f"write_file({d_})", f"write_file({d})"]
     hoi_ = _HOI_TAC_NHAN.format(cau=cau, y_chinh=y_chinh or "", mo_ta=mo_ta or "", d=d_, anh=anh, pub=pub,
                                 loi="\n".join(f"- {str(x)[:800]}" for x in loi), vong=vong, lenh=lenh)
-    r = rut_json(chay_co_xin(hoi_, [d, pub], timeout, cho, d, ma, cau, bao)) or {}
+    r = rut_json(chay_co_xin(hoi_, [d, pub], timeout, cho, d, ma, cau, bao, mo_hinh=MO_HINH_SUA)) or {}
     if r.get("diem") is None:                                            # rớt mạng giữa chừng: chạy tiếp từ tệp đang có
         log("    (Antigravity: chạy tiếp lượt tác nhân)")
         r = rut_json(chay_co_xin(hoi_ + "\n(You were interrupted: canh.jsx may already contain some of your edits — "
-                                 "continue.)", [d, pub], timeout, cho, d, ma, cau, bao)) or {}
+                                 "continue.)", [d, pub], timeout, cho, d, ma, cau, bao, mo_hinh=MO_HINH_SUA)) or {}
     try:
         c2 = open(os.path.join(d, "canh.jsx"), encoding="utf-8").read().strip()
         p2 = doc_json(os.path.join(d, "props.json"), {}) or {}

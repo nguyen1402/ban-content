@@ -843,7 +843,7 @@ _FLOW_THU = {}                                          # tên hồ sơ -> {dang
 @app.get("/api/flow")
 def flow_ds():
     import flow_ve
-    return json_ok({"ho_so": flow_ve.ds_ho_so(), "thu": _FLOW_THU, "doc_diem": _FLOW_DOC_DIEM["dang"]})
+    return json_ok({"ho_so": flow_ve.ds_ho_so(), "thu": _FLOW_THU, "doc_diem": _FLOW_DOC_DIEM["dang"], "viec": flow_ve.VIEC})
 
 
 @app.post("/api/flow/tao")
@@ -877,6 +877,15 @@ def flow_mo_gemini():
     return json_ok({"ok": True})
 
 
+@app.post("/api/flow/viec")
+def flow_viec():
+    """05/11 user: đánh dấu hồ sơ làm việc gì (Flow ảnh / Veo / Gemini / DeepSeek / ChatGPT) hoặc khoá hẳn."""
+    import flow_ve
+    j = request.json or {}
+    m = flow_ve.dat_viec(str(j.get("ten") or ""), j.get("viec"), j.get("khoa"))
+    return json_ok({"ok": True, "viec": m.get("viec"), "khoa": bool(m.get("khoa"))})
+
+
 @app.post("/api/flow/kiem_tra_ai")
 def flow_kiem_tra_ai():
     """30/10 user: kiểm tra trạng thái hoạt động của Gemini và ChatGPT trên hồ sơ."""
@@ -891,11 +900,14 @@ def flow_kiem_tra_ai():
         t = h["ten"]
         cong = flow_ve.CONG_DAU + list(flow_ve._doc_so()).index(t) % 40
         kq[t] = {}
-        if dv in ("all", "gemini"):
+        if h.get("khoa"):                                    # 05/11 user: hồ sơ khoá -> không động vào
+            kq[t] = {"khoa": True}
+            continue
+        if dv in ("all", "gemini") and (ten or flow_ve.duoc_dung(t, "gemini", h)):
             # 02/11: kiểm tra RIÊNG một hồ sơ thì thử cả hồ sơ đã khoá (được thì tự mở khoá); kiểm tra tất cả thì bỏ qua
             ok_g, msg_g = gemini_chrome.kiem_tai_khoan(t, cong, lam_moi=True, ca_khoa=bool(ten))
             kq[t]["gemini"] = {"ok": ok_g, "msg": msg_g}
-        if dv in ("all", "chatgpt"):
+        if dv in ("all", "chatgpt") and (ten or flow_ve.duoc_dung(t, "chatgpt", h)):
             ok_c, msg_c = chatgpt_chrome.kiem_tai_khoan(t, cong, lam_moi=True)
             kq[t]["chatgpt"] = {"ok": ok_c, "msg": msg_c}
     return json_ok({"ok": True, "kq": kq})
@@ -959,7 +971,8 @@ def flow_doc_diem():
     ten = str((request.json or {}).get("ten") or "")
     if _FLOW_DOC_DIEM["dang"]:
         return json_ok({"ok": True, "dang": True})
-    ds = [h["ten"] for h in flow_ve.ds_ho_so() if not ten or h["ten"] == ten]
+    ds = [h["ten"] for h in flow_ve.ds_ho_so() if not h.get("khoa") and (h["ten"] == ten if ten else (
+          flow_ve.duoc_dung(h["ten"], "anh", h) or flow_ve.duoc_dung(h["ten"], "veo", h)))]   # 05/11: theo việc đánh dấu
 
     def lam():
         _FLOW_DOC_DIEM["dang"] = True
@@ -2838,6 +2851,252 @@ def _nhan_y_ai():
     return nhan_y_ai
 
 
+# --------------------------------------------------------------------------- 🎞 duyệt + sửa từng cảnh Remotion (sua_canh)
+TRANG_DUYET_RY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "duyet_ry.html")
+
+
+def _sua_canh():
+    _nhan_y_ai()
+    import sua_canh
+    return sua_canh
+
+
+@app.get("/so-sanh")
+def trang_so_sanh():
+    """05/11 user: so 5 cảnh Gemini thiết kế (sao lưu) với ChatGPT thiết kế."""
+    response.content_type = "text/html; charset=utf-8"
+    return doc_text(os.path.join(os.path.dirname(os.path.abspath(__file__)), "so_sanh.html"))
+
+
+@app.get("/api/so_sanh/ds")
+def so_sanh_ds():
+    return json_ok({"ds": _sua_canh().so_sanh_ds(slug(request.query.get("du_an", "")), request.query.get("sl") or None)})
+
+
+@app.get("/api/so_sanh/video")
+def so_sanh_video():
+    f = os.path.abspath(request.query.getunicode("f", "") or "")
+    goc = os.path.abspath(os.path.join(common.CACHE_CHUNG, "nhan_y", "ai"))
+    if not f.startswith(goc + os.sep) or not os.path.isfile(f):
+        raise HTTPError(404, "không thấy video")
+    return static_file(os.path.basename(f), root=goc)
+
+
+@app.post("/api/so_sanh/tra_gemini")
+def so_sanh_tra():
+    d = request.json or {}
+    m = _sua_canh()
+    return json_ok({"job": _job_doi_thu(lambda bao: m.tra_gemini(slug(d.get("du_an", "")), int(d["cau"]), bao, d.get("sl") or None))})
+
+
+@app.get("/duyet-remotion")
+def trang_duyet_ry():
+    response.content_type = "text/html; charset=utf-8"
+    return doc_text(TRANG_DUYET_RY)
+
+
+TRANG_SUA_LOP = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sua_lop.html")
+
+
+@app.get("/sua-lop")
+def trang_sua_lop():
+    response.content_type = "text/html; charset=utf-8"
+    return doc_text(TRANG_SUA_LOP)
+
+
+@app.get("/pub/<duong:path>")
+def tep_public_remotion(duong):
+    """Tệp trong remotion/public cho Remotion Player của trang 🎚 (staticFile -> /pub/...)."""
+    goc = os.path.join(ROOT, "remotion", "public")
+    f = os.path.realpath(os.path.join(goc, duong))
+    if not f.lower().startswith(os.path.realpath(goc).lower()) or not os.path.isfile(f):
+        raise HTTPError(404)
+    return static_file(os.path.relpath(f, goc).replace(os.sep, "/"), root=goc)
+
+
+@app.get("/api/sua_lop/goi.js")
+def sua_lop_goi():
+    """Cảnh đã đóng gói kèm Remotion Player (window.SuaLop)."""
+    try:
+        f = _sua_canh().goi_js(slug(tham_so_q("du_an")), int(tham_so_q("cau") or 0))
+    except (ValueError, OSError) as e:
+        raise HTTPError(400, str(e)[:500])
+    response.content_type = "application/javascript; charset=utf-8"
+    response.set_header("Cache-Control", "no-store")
+    return open(f, encoding="utf-8").read()
+
+
+@app.get("/api/sua_lop/thong_tin")
+def sua_lop_thong_tin():
+    t, cau = slug(tham_so_q("du_an")), int(tham_so_q("cau") or 0)
+    m = _sua_canh()
+    try:
+        v = m._ban_ghi(t, cau)                                            # noqa: SLF001
+        lop = m.lop_day_du(t, cau)                                         # 05/11: + chữ + hiệu ứng
+    except (ValueError, OSError) as e:
+        raise HTTPError(400, str(e))
+    return json_ok({"cau": cau, "den_cau": v.get("den_cau") or cau, "text": v.get("text", ""), "giay": v["giay"],
+                    "khung": round(v["giay"] * 30), "props": _nhan_y_ai()._props_hien(v) | {"giay": v["giay"]},   # noqa: SLF001
+                    "lop": lop, "tu": [[w, round(float(s_), 2)] for w, s_, *_ in v.get("tu") or []],
+                    "ds_cau": [int(k) for k, x in sorted((common.doc_json(_nhan_y_ai()._ds(t), {}) or {}).items(),   # noqa: SLF001
+                                                         key=lambda z: int(z[0])) if x.get("trang_thai") == "xong"]})
+
+
+@app.post("/api/sua_lop/luu")
+def sua_lop_luu():
+    """🎚 Lưu lớp -> code -> dựng lại -> thay đúng cảnh trong bản nháp (chạy nền)."""
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t or not isinstance(d.get("lop"), list):
+        raise HTTPError(400, "thiếu dữ liệu")
+    m = _sua_canh()
+    return json_ok({"job": _job_doi_thu(lambda bao: m.luu_lop(t, int(d["cau"]), d["lop"], bao))})
+
+
+@app.get("/api/flow/mot_anh")
+def flow_mot_anh_doc():
+    import flow_ve
+    return json_ok({"mot_anh": flow_ve.so_anh_luot() == 1})
+
+
+@app.post("/api/flow/mot_anh")
+def flow_mot_anh_dat():
+    """05/11 user: ô tích «Flow 1 ảnh / lượt» (x1 thay vì x2)."""
+    import flow_ve
+    return json_ok({"mot_anh": flow_ve.dat_mot_anh(bool((request.json or {}).get("mot_anh"))) == 1})
+
+
+@app.post("/api/remotion_ca_bai")
+def remotion_ca_bai():
+    """🎬 Một nút: bản nháp mới từ giọng đọc + 🎞 Remotion mọi câu (dựng nhanh) + SFX từng cảnh + nhạc nền (chạy nền)."""
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    _nhan_y_ai()
+    import ca_bai
+    return json_ok({"job": _job_doi_thu(lambda bao: ca_bai.chay(t, bool(d.get("lam_lai")), bao))})
+
+
+@app.get("/api/sua_canh/ds")
+def sua_canh_ds():
+    """Mọi chỗ 🎞 của dự án (theo kế hoạch) + video / đánh giá / trạng thái từng cảnh."""
+    t = slug(tham_so_q("du_an"))
+    m = _nhan_y_ai()
+    ds = common.doc_json(m._ds(t), {}) or {}                              # noqa: SLF001
+    ra = []
+    for y in m.doc_ke_hoach(t):
+        if y.get("bo"):
+            continue
+        v = ds.get(str(y["cau"])) or {}
+        mp4 = v.get("mp4") or ""
+        ra.append({"cau": y["cau"], "den_cau": y.get("den_cau") or y["cau"], "text": v.get("text") or "",
+                   "t0": v.get("t0"), "giay": v.get("giay"), "trang_thai": v.get("trang_thai") or "chua",
+                   "loi": str(v.get("loi") or "")[:300], "diem": v.get("diem"), "sua_tay": bool(v.get("sua_tay")),
+                   "danh_gia": v.get("danh_gia") or {},
+                   "url": url_tep(mp4) + f"&v={int(os.path.getmtime(mp4))}" if mp4 and os.path.isfile(mp4) else ""})
+    p = m.ban_nhap_dich(t)
+    return json_ok({"ds": ra, "nhap": os.path.basename(p) if p else "", "tien_do": m.doc_tien_do(t)})
+
+
+@app.get("/api/sua_canh/thong_tin")
+def sua_canh_thong_tin():
+    t, cau = slug(tham_so_q("du_an")), int(tham_so_q("cau") or 0)
+    try:
+        r = _sua_canh().thong_tin(t, cau)
+    except (ValueError, OSError) as e:
+        raise HTTPError(400, str(e))
+    pub = os.path.join(ROOT, "remotion", "public")
+    for a in r["anh"]:
+        f = os.path.join(pub, str(a.get("file") or ""))
+        a["url"] = url_tep(f) if os.path.isfile(f) else ""
+    return json_ok(r)
+
+
+@app.post("/api/sua_canh/danh_gia")
+def sua_canh_danh_gia():
+    d = request.json or {}
+    thich = d.get("thich")
+    try:
+        return json_ok(_sua_canh().danh_gia(slug(d.get("du_an", "")), int(d["cau"]), None if thich is None else bool(thich)))
+    except (ValueError, KeyError) as e:
+        raise HTTPError(400, str(e))
+
+
+@app.post("/api/sua_canh/gop_y")
+def sua_canh_gop_y():
+    d = request.json or {}
+    t, y = slug(d.get("du_an", "")), str(d.get("y_kien") or "").strip()
+    if not t or not y:
+        raise HTTPError(400, "thiếu dự án hoặc góp ý")
+    m = _sua_canh()
+    return json_ok({"job": _job_doi_thu(lambda bao: m.gop_y(t, int(d["cau"]), y, bao))})
+
+
+@app.post("/api/sua_canh/sua_so")
+def sua_canh_sua_so():
+    """05/11 user: số liệu trên cảnh Remotion sai so với lời kể -> đọc chữ thật trên khung, DeepSeek sửa, thay đúng cảnh."""
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    chi = [int(x) for x in d.get("chi") or []] or None
+    m = _sua_canh()
+    return json_ok({"job": _job_doi_thu(lambda bao: m.sua_so(t, chi, bao))})
+
+
+@app.get("/api/remotion/don")
+def remotion_don_xem():
+    """05/11 user: xem trước dung lượng sẽ dọn (het=1: xoá hết cảnh Remotion của dự án)."""
+    t = slug(request.query.get("du_an", "")) or None
+    return json_ok(_sua_canh().don_remotion(t, xoa_het=request.query.get("het") == "1", thu=True))
+
+
+@app.post("/api/remotion/don")
+def remotion_don():
+    d = request.json or {}
+    het = bool(d.get("het"))
+    t = slug(d.get("du_an", "")) or None
+    if het and d.get("xac_nhan") != t:
+        raise HTTPError(400, "gõ đúng tên dự án để xác nhận xoá hết")
+    return json_ok(_sua_canh().don_remotion(t, xoa_het=het, thu=False))
+
+
+@app.post("/api/sua_canh/lam_lai")
+def sua_canh_lam_lai():
+    """05/11 user: xoá cả cảnh Remotion, dựng lại từ đầu (chỉ thay cảnh đó trong bản nháp)."""
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    m = _sua_canh()
+    return json_ok({"job": _job_doi_thu(lambda bao: m.lam_lai(t, int(d["cau"]), bao))})
+
+
+@app.post("/api/sua_canh/xem")
+def sua_canh_xem():
+    """Dựng 1 khung với thông số đang sửa (chưa lưu) -> URL ảnh."""
+    d = request.json or {}
+    try:
+        f = _sua_canh().xem_khung(slug(d.get("du_an", "")), int(d["cau"]), float(d.get("giay") or 0),
+                                  d.get("props") or None, d.get("phan_tu") or None)
+    except (ValueError, KeyError) as e:
+        raise HTTPError(400, str(e))
+    return json_ok({"url": url_tep(f) + f"&v={int(time.time() * 1000)}"})
+
+
+@app.post("/api/sua_canh/luu")
+def sua_canh_luu():
+    """✏️ Lưu sửa tay -> dựng lại cảnh -> thay đúng cảnh đó trong bản nháp (chạy nền)."""
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    m = _sua_canh()
+    return json_ok({"job": _job_doi_thu(lambda bao: m.luu_tay(t, int(d["cau"]), d.get("props") or None,
+                                                              d.get("phan_tu") or None, bao))})
+
+
 STUDIO = {"p": None}
 STUDIO_CONG = 3123
 
@@ -2873,7 +3132,44 @@ def nhan_y_dung():
         raise HTTPError(400, "thiếu dự án")
     m = _nhan_y_ai()
     chi = [int(x) for x in d.get("cau") or []] or None
-    return json_ok({"job": _job_doi_thu(lambda bao: m.dung(t, chi, bao, bool(d.get("lam_lai"))))})
+    ss = int(d.get("song_song") or 0) or None
+    return json_ok({"job": _job_doi_thu(lambda bao: m.dung(t, chi, bao, bool(d.get("lam_lai")), song_song=ss,
+                                                           tu_sua=not d.get("nhanh")))})
+
+
+@app.get("/api/nhan_y/tien_do")
+def nhan_y_tien_do():
+    """Tiến độ lượt 🎞 dựng / 🔧 sửa gần nhất (ra/<dự án>/nhan_y_tien_do.json)."""
+    return json_ok(_nhan_y_ai().doc_tien_do(slug(tham_so_q("du_an"))))
+
+
+@app.get("/api/nhan_y/nhat_ky")
+def nhan_y_nhat_ky():
+    """20 dòng cuối nhật ký dựng 🎞 (ra/<dự án>/nhan_y_nhat_ky.txt)."""
+    f = os.path.join(common.thu_muc_du_an(slug(tham_so_q("du_an")))[1], "nhan_y_nhat_ky.txt")
+    if not os.path.isfile(f):
+        return json_ok({"dong": []})
+    with open(f, encoding="utf-8", errors="ignore") as g:
+        return json_ok({"dong": [x.rstrip() for x in g.readlines()[-20:]]})
+
+
+@app.get("/api/nhan_y/yeu")
+def nhan_y_yeu():
+    """Câu có cảnh 🎞 điểm Antigravity < 7 (chưa chỉnh tay)."""
+    return json_ok({"cau": _nhan_y_ai().ds_yeu(slug(tham_so_q("du_an")))})
+
+
+@app.post("/api/nhan_y/sua_yeu")
+def nhan_y_sua_yeu():
+    """🔧 Antigravity tự sửa các cảnh yếu từ code đang có, dựng lại + ghép bản nháp (chạy nền)."""
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    m = _nhan_y_ai()
+    chi = [int(x) for x in d.get("cau") or []] or None
+    ss = int(d.get("song_song") or 0) or None
+    return json_ok({"job": _job_doi_thu(lambda bao: m.sua_yeu(t, chi, bao, song_song=ss))})
 
 
 @app.get("/api/nhan_y/canh")
@@ -3924,6 +4220,68 @@ def lap_lai_chu_the():
     except Exception as e:
         raise HTTPError(400, str(e))
     return json_ok(_tom_chu_the(t))
+
+
+# --------------------------------------------------------------------------- 🏛 nhân vật / sự kiện lịch sử thật (lich_su)
+@app.get("/api/lich_su")
+def lay_lich_su():
+    import lich_su
+    return json_ok({"ds": lich_su.doc(slug(tham_so_q("du_an")))})
+
+
+@app.post("/api/lich_su/lap")
+def lap_lich_su():
+    """AI đọc kịch bản lập danh sách (chạy nền: kịch bản dài nhiều lô)."""
+    import lich_su
+    t = slug((request.json or {}).get("du_an", ""))
+    if not t:
+        raise HTTPError(400, "thiếu dự án")
+    return json_ok({"job": _job_doi_thu(lambda bao: lich_su.lap(t, bao=bao))})
+
+
+@app.post("/api/lich_su/luu")
+def luu_lich_su():
+    import lich_su
+    d = request.json or {}
+    t = slug(d.get("du_an", ""))
+    if not t or not isinstance(d.get("ds"), list):
+        raise HTTPError(400, "thiếu dữ liệu")
+    return json_ok({"ds": lich_su.luu(t, d["ds"])})
+
+
+@app.post("/api/lich_su/anh")
+def them_anh_lich_su():
+    """Ảnh người dùng thả / dán vào một mục -> kho ảnh chung cache/lich_su/<khoá>/."""
+    import lich_su
+    up = request.files.get("tep")
+    t, k = slug(request.forms.get("du_an", "")), str(request.forms.get("khoa", ""))
+    if not up or not t:
+        raise HTTPError(400, "thiếu tệp")
+    tam_dir = os.path.join(common.CACHE_CHUNG, "tep_tai_len")
+    os.makedirs(tam_dir, exist_ok=True)
+    tam = os.path.join(tam_dir, "lich_su_" + hashlib.md5(str(time.time()).encode()).hexdigest()[:8])
+    up.save(tam, overwrite=True)
+    try:
+        lich_su.them_anh(k, tam)
+    except ValueError as e:
+        raise HTTPError(400, str(e))
+    finally:
+        try:
+            os.remove(tam)
+        except OSError:
+            pass
+    return json_ok({"ds": lich_su.doc(t)})
+
+
+@app.post("/api/lich_su/xoa_anh")
+def xoa_anh_lich_su():
+    import lich_su
+    d = request.json or {}
+    try:
+        lich_su.xoa_anh(str(d.get("f") or ""))
+    except ValueError as e:
+        raise HTTPError(400, str(e))
+    return json_ok({"ds": lich_su.doc(slug(d.get("du_an", "")))})
 
 
 @app.get("/api/chu_de")

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>So Gemini / ChatGPT</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1c2230;--mut:#667085;--line:#e3e6ec;--ac:#2f6df6;--ac-ink:#fff;--ok:#1a9d5c;--er:#d33a3a;--gm:#1a73e8;--cg:#10a37f}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1218;--card:#171b24;--ink:#e8ecf3;--mut:#93a0b4;--line:#262c39;--ac:#5b8cff;--ac-ink:#0b0f18;--ok:#43c783;--er:#ff7070;--gm:#6ea8ff;--cg:#3fd1a5}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 "Segoe UI",system-ui,sans-serif}
+header{position:sticky;top:0;z-index:5;padding:12px 16px;background:var(--card);border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:baseline;flex-wrap:wrap}
+h1{font-size:17px;margin:0}
+.sub{color:var(--mut);font-size:12.5px}
+main{max-width:1500px;margin:0 auto;padding:16px;display:grid;gap:18px}
+.canh{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.canh h2{font-size:15px;margin:0 0 4px}
+.loi{color:var(--mut);margin:0 0 12px}
+.cap{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media (max-width:820px){.cap{grid-template-columns:1fr}}
+.ben{border:2px solid var(--line);border-radius:10px;overflow:hidden}
+.ben.gm{border-color:color-mix(in srgb,var(--gm) 45%,var(--line))}
+.ben.cg{border-color:color-mix(in srgb,var(--cg) 45%,var(--line))}
+.ten{padding:6px 10px;font-weight:700;font-size:13px}
+.gm .ten{color:var(--gm)} .cg .ten{color:var(--cg)}
+video{width:100%;display:block;background:#000;aspect-ratio:16/9}
+.tt{padding:8px 10px;font-size:13px}
+.nut{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap}
+button{font:inherit;border:0;border-radius:8px;padding:6px 12px;cursor:pointer;background:var(--ac);color:var(--ac-ink)}
+button.p{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button:disabled{opacity:.5;cursor:default}
+.dang{color:var(--ok);font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <h1 id="tieu_de">So thiết kế</h1>
+  <span class="sub">Code cả hai bản do DeepSeek viết. Bản nháp đang dùng bản bên <b>phải</b>; cảnh nào bạn thích bản bên trái hơn thì bấm «Trả lại bản cũ».</span>
+  <span class="sub" id="tt"></span>
+</header>
+<main id="ds"><p class="sub">Đang nạp…</p></main>
+<script>
+const Q=new URLSearchParams(location.search),DU=Q.get('du_an')||'lopxe',SL=Q.get('sl')||'',TR=Q.get('trai')||'Gemini thiết kế',PH=Q.get('phai')||'ChatGPT thiết kế';
+document.title='So '+TR+' / '+PH;
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function api(p,o){const r=await fetch(p,o);if(!r.ok)throw new Error((await r.text()).replace(/<[^>]*>/g,' ').trim().slice(0,200));return r.json()}
+const vid=f=>f?`<video controls preload="metadata" src="/api/so_sanh/video?f=${encodeURIComponent(f)}"></video>`:'<p class="tt">(không có video)</p>';
+const dem=a=>{const c={};(a||[]).forEach(x=>c[x]=(c[x]||0)+1);return Object.entries(c).map(([k,n])=>`${n} ${k}`).join(', ')};
+function ben(cls,ten,x,dang){return `<div class="ben ${cls}"><div class="ten">${ten}${dang?' <span class="dang">· đang trong bản nháp</span>':''}</div>${vid(x.mp4)}
+  <div class="tt"><b>Ý tưởng:</b> ${esc(x.y_tuong)||'—'}<br><span class="sub">${x.nhip} nhịp · ảnh: ${esc(dem(x.anh))}</span>
+  ${x.chon?`<details style="margin-top:6px"><summary class="sub">Giám khảo chọn phương án ${x.chon.k+1} (điểm ${esc((x.chon.diem||[]).join(' / '))})</summary>
+  <div class="sub">${esc(x.chon.ly_do)}</div>${(x.phuong_an||[]).map((p,i)=>`<div class="sub">${i===x.chon.k?'✔':'•'} ${i+1}. ${esc(p.y_tuong)}</div>`).join('')}</details>`:''}</div></div>`}
+async function nap(){
+  let r;try{r=await api(`/api/so_sanh/ds?du_an=${encodeURIComponent(DU)}&sl=${encodeURIComponent(SL)}`)}catch(e){$('#ds').innerHTML=`<p class="sub">✖ ${esc(e.message)}</p>`;return}
+  $('#ds').innerHTML=r.ds.map(x=>`<section class="canh" data-cau="${x.cau}"><h2>Câu ${x.cau}</h2><p class="loi">${esc(x.text)}</p>
+    <div class="cap">${ben('gm',TR,x.gemini,x.da_tra)}${ben('cg',PH,x.chatgpt,!x.da_tra)}</div>
+    <div class="nut"><button class="p" data-tra="${x.cau}" ${x.da_tra?'disabled':''}>↩ Trả lại bản cũ cho cảnh này</button><span class="sub" data-kq></span></div></section>`).join('')||'<p class="sub">Không có cảnh nào để so.</p>';
+  document.querySelectorAll('[data-tra]').forEach(b=>b.onclick=async()=>{
+    const cau=+b.dataset.tra,kq=b.parentElement.querySelector('[data-kq]');b.disabled=true;kq.textContent='⏳ Đang trả lại…';
+    try{const j=await api('/api/so_sanh/tra_gemini',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({du_an:DU,cau,sl:SL})});
+      for(;;){await new Promise(z=>setTimeout(z,1500));const t=await api('/api/doi_thu/tt?job='+j.job);if(t.dang)continue;if(t.loi)throw new Error(t.loi);break}
+      kq.textContent='✔ Đã trả lại bản cũ trong bản nháp';nap()}catch(e){kq.textContent='✖ '+e.message;b.disabled=false}});
+}
+$('#tieu_de').textContent='So: '+TR+' ↔ '+PH;
+nap();
+</script>
+</body>
+</html>

@@ -42,7 +42,9 @@ function donDepBundleCu() {
 // Dọn dẹp bundle cũ còn sót lại trước khi bắt đầu
 donDepBundleCu();
 
-const serveUrl = await bundle({entryPoint: path.join(here, 'src', 'index.jsx')});
+// 04/11: PUBLIC_DIR = thư mục public nhỏ (chỉ tệp các clip dùng) — public đầy đủ 4,1 GB bị chép vào mỗi bản đóng gói
+const serveUrl = await bundle({entryPoint: path.join(here, 'src', 'index.jsx'),
+  ...(process.env.PUBLIC_DIR ? {publicDir: path.resolve(process.env.PUBLIC_DIR)} : {})});
 
 // Đăng ký bắt sự kiện ngắt tiến trình để luôn dọn bundle nếu bị dừng đột ngột
 const cleanupOnExit = () => donDepBundle(serveUrl);

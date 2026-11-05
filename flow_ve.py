@@ -88,6 +88,39 @@ def _cap_nhat(ten, **kw):
         _ghi_so(d)
 
 
+# 05/11 user: "tự đánh dấu hồ sơ nào dùng cái gì … nếu tôi khoá thì mặc định không được động vào hồ sơ đó".
+# Sổ hồ sơ: "viec" = danh sách việc được làm (thiếu trường = làm mọi việc, như cũ), "khoa" = không việc nào được mở.
+VIEC = {"anh": "🎨 Ảnh Flow", "veo": "🎬 Veo", "gemini": "💎 Gemini", "deepseek": "🐳 DeepSeek", "chatgpt": "💬 ChatGPT"}
+
+
+def duoc_dung(ten, viec, m=None):
+    """Hồ sơ `ten` có được dùng cho việc `viec` (một khoá của VIEC) không."""
+    m = _doc_so().get(ten) if m is None else m
+    if m is None or m.get("khoa"):
+        return False
+    v = m.get("viec")
+    return v is None or viec in v
+
+
+def dat_viec(ten, viec=None, khoa=None):
+    """Đặt việc / khoá cho một hồ sơ (None = giữ nguyên) -> bản ghi mới."""
+    with _KHOA_SO:
+        d = _doc_so()
+        if ten not in d:
+            raise ValueError(f"không có hồ sơ '{ten}'")
+        if viec is not None:
+            d[ten]["viec"] = [v for v in VIEC if v in viec]
+        if khoa is not None:
+            d[ten]["khoa"] = bool(khoa)
+        _ghi_so(d)
+        return d[ten]
+
+
+def ho_so_cho(viec):
+    """[tên] các hồ sơ được làm việc `viec`, theo thứ tự sổ."""
+    return [t for t, m in _doc_so().items() if duoc_dung(t, viec, m)]
+
+
 def _cong_anh(ten, n):
     """Cộng số ảnh đã vẽ của hồ sơ (đọc + ghi trong cùng khoá: nhiều luồng xong cùng lúc không đếm thiếu)."""
     with _KHOA_SO:
@@ -200,7 +233,7 @@ def ds_ho_so():
 
 
 def co_ho_so():
-    return bool(_doc_so())
+    return bool(ho_so_cho("anh"))
 
 
 def _chrome():
@@ -750,18 +783,44 @@ _LA_VIDEO = ("(() => { const t = document.querySelector('button[aria-label=\"Set
              " return nut.includes('Start') && nut.includes('End'); })()")
 
 
+# 05/11 user ("cho tôi nút tích: tạo 1 ảnh 1 lần thay vì 2 — tạo 2 ảnh 1 lần cũng có khả năng tạo nhiều ảnh quá"):
+# số ảnh mỗi lượt tạo (x1 / x2) đọc từ cache/flow_cai_dat.json {"mot_anh": true} — ô tích trên trang Dựng
+def _f_cai_dat():
+    from common import CACHE_CHUNG
+    return os.path.join(CACHE_CHUNG, "flow_cai_dat.json")
+
+
+def so_anh_luot():
+    try:
+        return 1 if json.load(open(_f_cai_dat(), encoding="utf-8")).get("mot_anh") else 2
+    except (OSError, ValueError):
+        return 2
+
+
+def dat_mot_anh(co):
+    d = {}
+    try:
+        d = json.load(open(_f_cai_dat(), encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    d["mot_anh"] = bool(co)
+    json.dump(d, open(_f_cai_dat(), "w", encoding="utf-8"))
+    return so_anh_luot()
+
+
 def _thoat(ph):
     for t in ("keyDown", "keyUp"):
         ph.ws.goi("Input.dispatchKeyEvent", type=t, key="Escape", code="Escape", windowsVirtualKeyCode=27)
 
 
 def _chon_cai_dat(ph, ti_le):
-    if ph.cai_dat == ti_le and not ph.js(_LA_VIDEO):
+    n = so_anh_luot()
+    if ph.cai_dat == (ti_le, n) and not ph.js(_LA_VIDEO):
         return
     for lan in range(3):
         _bam_js(ph, "document.querySelector('button[aria-label=\"Settings trigger\"]')")   # bấm chuột thật
         time.sleep(0.8)
-        for chu in ("Image", ti_le, "x2"):
+        for chu in ("Image", ti_le, f"x{n}"):
             ph.js(_BAM_CHU + f"({json.dumps(chu)})")
             time.sleep(0.4)
         ton = ph.js("(() => { const t = document.body.innerText.match(/Generating will use ([\\d,.]+) credits?/); return t ? t[1] : '' })()")
@@ -775,7 +834,7 @@ def _chon_cai_dat(ph, ti_le):
         raise RuntimeError("tab Flow kẹt ở chế độ Video, không chuyển được sang Image")
     if ton and ton.replace(",", "").replace(".", "") != "0":
         raise RuntimeError(f"Flow báo tạo ảnh tốn {ton} điểm — dừng dùng Flow (lùi về Gemini)")
-    ph.cai_dat = ti_le
+    ph.cai_dat = (ti_le, n)
 
 
 def _bam(ph, chon):
@@ -1020,6 +1079,7 @@ def _gui_mot(ph, prompt, ti_le, tham_chieu=None):
     except Exception:                                            # noqa: BLE001
         loi_cu = 0
     luot = {"prompt": prompt, "lenh": _chuan(prompt), "truoc": int(truoc), "the_he": ph.the_he, "loi_cu": loi_cu,
+            "so": (ph.cai_dat or ("", 2))[1] if isinstance(ph.cai_dat, tuple) else 2,
             "da_co": {i for i, _ in _anh_cua(ph.js("(window.__bc_kq || [])") or [], None)}}   # ảnh CŨ của dự án
     ph.dang_cho.append(luot)
     # 25/10 (đo: lượt "hết giờ chờ" = 55 phản hồi sau khi bấm, KHÔNG phản hồi nào có câu lệnh của lượt -> lần bấm không ăn,
@@ -1059,7 +1119,7 @@ def _cho(ph, luot):
             except Exception:                                    # noqa: BLE001
                 kq = []
             link = [x for x in _anh_cua(kq, luot["lenh"]) if x[0] not in luot["da_co"] and x[0] not in ph.da_nhan]
-            if len(link) >= 2:
+            if len(link) >= luot.get("so", 2):
                 break
             if link:                                             # Flow chỉ trả 1 ảnh (ảnh kia bị lọc): chờ thêm 20 s rồi dùng
                 mot = mot or time.time()
@@ -1072,17 +1132,15 @@ def _cho(ph, luot):
             if loi and re.search(r"unusual", loi, re.I) and not luot.get("da_nghi"):
                 # chống spam của Flow: ngừng GỬI THÊM vào hồ sơ này ngay (lượt đang chờ vẫn chờ nốt theo luật bên dưới)
                 luot["da_nghi"] = True
-                # 28/10 user ("tạo nhiều quá sẽ có lỗi, và khi có lỗi thì dừng tạo 1 phút rồi reset lại tạo tiếp"): KHÔNG dừng
-                # hẳn chờ người sửa — nghỉ NGHI_SPAM giây (Flow không trừ điểm lượt lỗi), tải lại trang ở _ve_flow, tạo tiếp
-                # 28/10 user ("nếu 1' vẫn bị lỗi đấy cho nó nghỉ 1h nhé"): lại bị trong SPAM_LAP giây kể từ lần trước (tức
-                # ngay sau lượt nghỉ 1 phút) -> nghỉ NGHI_SPAM_LAU; vẽ được ảnh thì đếm lại từ đầu (_cong_anh)
+                # 04/11 user: hồ sơ dừng hẳn theo THANG_NGHI_SPAM (7 phút -> 20 phút -> 1 giờ, mỗi lần bị lại chưa vẽ được
+                # ảnh nào thì lên một bậc), tải lại trang ở _ve_flow rồi thử lại; vẽ được ảnh thì về bậc đầu (_cong_anh)
                 m_ = _doc_so().get(ph.ten, {})
-                lan = (int(m_.get("spam_lan") or 0) if time.time() - float(m_.get("spam_luc") or 0) < SPAM_LAP else 0) + 1
-                giay = NGHI_SPAM if lan < 2 else NGHI_SPAM_LAU
+                lan = int(m_.get("spam_lan") or 0) + 1
+                giay = THANG_NGHI_SPAM[min(lan, len(THANG_NGHI_SPAM)) - 1]
                 _cap_nhat(ph.ten, nghi_den=time.time() + giay, spam_lan=lan, spam_luc=time.time(),
-                          loi=f"Flow chống spam (tự nghỉ {giay // 60} phút): " + loi[:80])
-                log(f"    Flow '{ph.ten}': Flow báo 'unusual activity'" + (" LẦN NỮA sau khi nghỉ 1 phút" if lan >= 2 else "")
-                    + f" -> nghỉ {giay // 60} phút, tải lại trang rồi tạo tiếp")
+                          loi=f"Flow chống spam lần {lan} (nghỉ {giay // 60} phút): " + loi[:80])
+                log(f"    Flow '{ph.ten}': Flow báo 'unusual activity'" + (f" lần {lan} liền" if lan >= 2 else "")
+                    + f" -> hồ sơ DỪNG, nghỉ {giay // 60} phút rồi tải lại trang thử lại; câu lệnh xếp sang hồ sơ khác")
             if loi and not link:
                 # nhiều lượt cùng chờ: lỗi chung (xác minh / hết lượt) dừng ngay; lỗi riêng một ảnh ("couldn't generate"…)
                 # chưa biết của lượt nào -> lượt đứng một mình thì dừng, đang chờ cùng lượt khác thì chờ thêm 45 s
@@ -1094,7 +1152,7 @@ def _cho(ph, luot):
             luot["loi"] = "hết giờ chờ"
             if not link:
                 _ghi_het_gio(ph, luot)
-        link = link[:2]                                         # một lượt Flow ra 2 ảnh: không nhận quá (ảnh lượt khác)
+        link = link[:luot.get("so", 2)]                         # một lượt Flow ra x1 / x2 ảnh: không nhận quá (ảnh lượt khác)
         ph.da_nhan.update(i for i, _ in link)
         return [u for _, u in link]
     finally:
@@ -1185,9 +1243,11 @@ def _tao(ph, prompt, ti_le, tham_chieu=None):
 SONG_SONG = max(1, min(6, int(os.environ.get("BC_FLOW_SONG_SONG") or 3)))   # đo 25/10: 6 lượt chạy được nhưng dồn nhiều thì Flow báo "unusual activity"
 NGHI_DANG_NHAP = 600         # 28/10 user: Flow đòi đăng nhập lại -> nghỉ bấy nhiêu giây rồi tự thử (không dừng hẳn)
 DANG_NHAP_TOI_DA = 3         #   lặp lại bấy nhiêu lần liền mới DỪNG chờ người dùng kiểm tra
-NGHI_SPAM_LAU = 3600         # 28/10 user: nghỉ 1 phút xong vẫn "unusual activity" -> nghỉ bấy nhiêu giây
-SPAM_LAP = 600               #   "vẫn bị" = bị lại trong bấy nhiêu giây kể từ lần trước
-NGHI_SPAM = 60               # 28/10 user: Flow báo "unusual activity" -> hồ sơ nghỉ bấy nhiêu giây rồi tạo tiếp
+# 04/11 user (ảnh "Failed — We noticed some unusual activity"): "dừng hẳn cho nghỉ 5-10 phút rồi thử lại, thử lại vẫn bị thì
+# nghỉ 15-25', sau 15-25' vẫn không được thì nghỉ 1h" — thang nghỉ của HỒ SƠ bị báo (câu lệnh xếp sang hồ sơ khác);
+# vẽ được ảnh thì về bậc đầu (_cong_anh đặt spam_lan = 0)
+THANG_NGHI_SPAM = (7 * 60, 20 * 60, 60 * 60)
+NGHI_SPAM = THANG_NGHI_SPAM[0]   # bậc nghỉ đầu (chỗ khác dùng làm mốc "nghỉ ngắn")
 CHO_TAO_LAI = 20             # 28/10 user: "failed to generate" -> chờ bấy nhiêu giây rồi bấm tạo lại
 TAO_LAI_TOI_DA = 3           #   tối đa bấy nhiêu lần cho một ảnh
 NGHI_ANH_LOI = 60            # 29/10 user ("có mấy lỗi này thì load lại trang không tạo dồn dập nữa"): "failed to generate"
@@ -1198,13 +1258,21 @@ _GIU = {}                    # tên hồ sơ -> số luồng đang giữ (vẽ �
 _KHOA_GIU = threading.Lock()
 
 
+DAY = "<đầy>"                # _giu_ho_so: còn hồ sơ dùng được nhưng hồ sơ nào cũng đang đủ SONG_SONG lượt -> bên gọi chờ
+
+
 def _giu_ho_so(ten_ds, bo=()):
-    """Chọn và GIỮ một hồ sơ trong ten_ds (trừ bo): ít luồng giữ nhất trước (rảnh = 0). Trả tên | None."""
+    """Chọn và GIỮ một hồ sơ trong ten_ds (trừ bo): ít luồng giữ nhất trước (rảnh = 0). Trả tên | DAY | None.
+    05/11 user ("tại sao 1 flow tạo cùng lúc 5 lượt? tưởng cố định 3"): SONG_SONG là trần CỨNG mỗi hồ sơ — trước chỉ dùng để
+    tính số luồng, hồ sơ khác nghỉ chống spam thì mọi lượt dồn vào vài hồ sơ còn lại (5 lượt / hồ sơ)."""
     with _KHOA_GIU:
         ung = [t for t in ten_ds if t not in bo]
         if not ung:
             return None
-        t = min(ung, key=lambda x: _GIU.get(x, 0))
+        con = [t for t in ung if _GIU.get(t, 0) < SONG_SONG]
+        if not con:
+            return DAY
+        t = min(con, key=lambda x: _GIU.get(x, 0))
         _GIU[t] = _GIU.get(t, 0) + 1
         return t
 
@@ -1215,7 +1283,7 @@ def _tha_ho_so(ten):
 
 
 def so_ho_so_dung_duoc():
-    return sum(1 for h in ds_ho_so() if not h["dang_nghi"])
+    return sum(1 for h in ds_ho_so() if not h["dang_nghi"] and duoc_dung(h["ten"], "anh", h))
 
 
 def so_luong_ve():
@@ -1283,23 +1351,30 @@ def loi_cuoi():
 def _ve_flow(prompt, thu, ten_files, ti_le, tham_chieu):
     """Một lượt tạo trên hồ sơ ít việc nhất (xoay vòng khi lỗi) -> [file đã tải theo ten_files] | []."""
     _LOI_LUONG[threading.get_ident()] = ""
-    ds = [h for h in ds_ho_so() if not h["dang_nghi"]]
+    ds = [h for h in ds_ho_so() if not h["dang_nghi"] and duoc_dung(h["ten"], "anh", h)]
     # 22/10 user ("nhiều luồng"): mỗi luồng GIỮ CHỖ một hồ sơ (dưới khoá chung), ít luồng giữ nhất trước. 25/10: mỗi hồ sơ
     # nhận tới SONG_SONG lượt cùng lúc — khoá hồ sơ chỉ giữ lúc gõ + bấm tạo, chờ ảnh thì không giữ.
     da_thu = set()
     lai_tao = 0
     while True:
         ten = _giu_ho_so([h["ten"] for h in ds], da_thu)
+        if ten == DAY:                                           # hồ sơ nào cũng đang đủ SONG_SONG lượt: chờ chỗ trống
+            time.sleep(1.5)
+            continue
         if ten is None:
             # 28/10: hết hồ sơ rảnh mà còn hồ sơ chỉ NGHỈ NGẮN (chống spam 60 s) -> chờ hồ sơ nghỉ xong sớm nhất rồi vẽ tiếp
             # trên Flow, không trượt sang Gemini
             so_ = _doc_so()
-            con = [float(m.get("nghi_den") or 0) for m in so_.values()
-                   if not m.get("cho_sua") and 0 < float(m.get("nghi_den") or 0) - time.time() <= NGHI_SPAM + 5]
+            # 04/11 user: mọi hồ sơ đang nghỉ chống spam -> đứng chờ hồ sơ nghỉ xong sớm nhất (theo thang 7 / 20 / 60 phút)
+            # rồi thử lại, không bỏ ảnh; hồ sơ nghỉ vì lý do khác (đăng xuất, hết lượt) thì không chờ
+            con = [float(m.get("nghi_den") or 0) for t_, m in so_.items()
+                   if duoc_dung(t_, "anh", m) and not m.get("cho_sua") and 0 < float(m.get("nghi_den") or 0) - time.time() <= THANG_NGHI_SPAM[-1] + 5
+                   and (m.get("spam_lan") or float(m.get("nghi_den") or 0) - time.time() <= NGHI_ANH_LOI + 5)]
             if not con:
                 break
+            log(f"    Flow: mọi hồ sơ đang nghỉ — chờ {(min(con) - time.time()) / 60:.0f} phút rồi thử lại")
             time.sleep(max(1.0, min(con) - time.time() + 1))
-            ds = [h for h in ds_ho_so() if not h["dang_nghi"]]
+            ds = [h for h in ds_ho_so() if not h["dang_nghi"] and duoc_dung(h["ten"], "anh", h)]
             da_thu = {t for t in da_thu if t not in {h["ten"] for h in ds}}
             continue
         da_thu.add(ten)
@@ -1374,9 +1449,13 @@ def _ve_flow(prompt, thu, ten_files, ti_le, tham_chieu):
                         f"({lai_tao}/{TAO_LAI_TOI_DA})")
                     time.sleep(CHO_TAO_LAI)
                     da_thu.discard(ten)
-                elif re.search(r"unusual", loi, re.I):                # chống spam: đã cho nghỉ NGHI_SPAM s ở _cho
+                elif re.search(r"unusual", loi, re.I):                # chống spam: đã cho nghỉ theo thang ở _cho
                     if not (ph and ph.dang_cho):                       # 28/10 user: "reset lại" — tải lại dự án (không
                         cuu_phien(ten)                                 # khi lượt khác trên tab còn chờ ảnh)
+                    else:
+                        ph.can_tai_lai = True                          # lượt cuối trên tab xong thì tải lại
+                    # 04/11 user ("câu lệnh lỗi xếp hàng cho thằng khác tạo, profile lỗi để nó nghỉ"): hồ sơ này đã nằm trong
+                    # da_thu + đang nghỉ -> vòng sau tự chọn hồ sơ khác; hết hồ sơ thì chờ hồ sơ nghỉ xong sớm nhất
                 elif re.search(r"verify|captcha", loi, re.I):
                     ph.hien_cua_so()                           # để người dùng giải xác minh
                     _nghi(ten, NGHI_LOI, "cần xác minh: " + loi[:120])

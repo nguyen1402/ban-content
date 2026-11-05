@@ -1,5 +1,6 @@
 import React from 'react';
 import {AbsoluteFill, Audio, Easing, Img, interpolate, staticFile, useCurrentFrame, useVideoConfig} from 'remotion';
+import {tinhHieuUng, kieuBoc} from './hieu_ung_tinh.js';
 
 // 03/11 user: THƯ VIỆN DÙNG CHUNG cho các cảnh nhấn ý do AI tự viết code (remotion/src/ai/<dự án>_cau<n>.jsx). Mọi thành
 // phần chạy theo khung hình CỤC BỘ (đặt trong <Interactive.Div from=… durationInFrames=…>: khung 0 = lúc nó xuất hiện),
@@ -13,13 +14,34 @@ export const VANG = '#ffd23f';
 export const EM = Easing.bezier(0.45, 0, 0.2, 1);
 
 // ảnh phủ kín khung, đẩy chậm từ `tu` tới `den` lần phóng (Ken Burns, không lắc); goc = điểm phóng "50% 50%"
-export const AnhNen = ({anh, tu = 1.0, den = 1.08, goc = '50% 50%', toi = 0, style}) => {
+// 04/11 (lopxe 4/6 cảnh nền nhoè nâu): AI hay hiểu tu/den là SỐ KHUNG (tu=0 den=190 -> phóng 190 lần) và goc là số
+// -> giá trị vô lý thì về mặc định (phóng hợp lý chỉ trong 0.5..3)
+const _phong = (v, mac) => (typeof v === 'number' && v >= 0.5 && v <= 3 ? v : mac);
+export const AnhNen = ({anh, tu: tu0 = 1.0, den: den0 = 1.08, goc: goc0 = '50% 50%', toi = 0, style}) => {
   const f = useCurrentFrame();
   const {durationInFrames: D} = useVideoConfig();
+  const tu = _phong(tu0, 1.0), den = _phong(den0, tu * 1.08);
+  const goc = typeof goc0 === 'string' && goc0.trim() ? goc0 : '50% 50%';
   return (
     <AbsoluteFill style={{overflow: 'hidden', ...style}}>
       <Img src={src(anh)} style={{width: '100%', height: '100%', objectFit: 'cover', transformOrigin: goc,
         transform: `scale(${interpolate(f, [0, D], [tu, den], kep)})`, filter: toi ? `brightness(${1 - toi})` : undefined}} />
+    </AbsoluteFill>
+  );
+};
+
+// 04/11 user ("ảnh nền cứ phóng to dần, 1 màu"): ảnh phủ kín khung LIA chậm theo huong ('trai' | 'phai' | 'len' | 'xuong'),
+// quang = số px đi được trong cả khối; ảnh phóng sẵn `phong` lần để không lộ mép
+export const AnhLia = ({anh, huong = 'trai', quang = 160, phong = 1.15, toi = 0, style}) => {
+  const f = useCurrentFrame();
+  const {durationInFrames: D} = useVideoConfig();
+  const q = Math.min(Math.abs(quang), 1920 * (phong - 1) / 2 - 4);
+  const d = interpolate(f, [0, D], [-q, q], {...kep, easing: Easing.inOut(Easing.quad)});
+  const [x, y] = huong === 'phai' ? [-d, 0] : huong === 'len' ? [0, d] : huong === 'xuong' ? [0, -d] : [d, 0];
+  return (
+    <AbsoluteFill style={{overflow: 'hidden', ...style}}>
+      <Img src={src(anh)} style={{width: '100%', height: '100%', objectFit: 'cover',
+        transform: `translate(${x}px, ${y}px) scale(${phong})`, filter: toi ? `brightness(${1 - toi})` : undefined}} />
     </AbsoluteFill>
   );
 };
@@ -55,7 +77,7 @@ export const SoDem = ({so, don_vi = '', giay = 1.2, co = 200, tu = 0}) => {
   const le = Math.abs(Number(so)) < 100 && Number(so) % 1 !== 0 ? 1 : 0;
   const s = n.toFixed(le).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   return (
-    <div style={{textAlign: 'center', fontFamily: FONT}}>
+    <div data-so={so} data-dv={don_vi} style={{textAlign: 'center', fontFamily: FONT}}>
       <div style={{fontWeight: 900, fontSize: co, color: '#fff', lineHeight: 1, textShadow: '0 8px 30px rgba(0,0,0,0.85)',
         transform: `scale(${interpolate(f, [0, 8], [0.7, 1], {...kep, easing: Easing.out(Easing.back(1.6))})})`}}>{s}</div>
       {don_vi ? <div style={{marginTop: 8, fontWeight: 800, fontSize: co * 0.32, color: VANG, textShadow: '0 4px 16px rgba(0,0,0,0.85)',
@@ -133,6 +155,15 @@ export const HienDan = ({children, vao = 8, het = 0}) => {
 
 // 03/11 user ("lúc sửa tôi không nghe thấy nó đọc thế nào thì sao mà sửa"): bọc cảnh với ĐÚNG đoạn giọng đọc của câu —
 // nghe được trong Studio và trong video xem trước 🖼; clip trên bản nháp CapCut vẫn tắt tiếng (đã có track giọng riêng)
+// 05/11 user (sửa hiệu ứng trong 🎚 Sửa lớp): bọc NỘI DUNG một lớp Interactive.Div — hiệu ứng vào / ra / chuyển động liên
+// tục theo khung CỤC BỘ của lớp (công thức chung với trình sửa lớp: hieu_ung_tinh.js). kieu 'day' = phóng quanh tâm lớp,
+// 'goc' = lớp dời góc (chữ / thẻ nhỏ) — phóng quanh góc trên trái.
+export const HieuUng = ({vao = '', ra = '', khung = 12, lien = '', kieu = 'day', children}) => {
+  const f = useCurrentFrame();
+  const {durationInFrames} = useVideoConfig();
+  return <div style={{...kieuBoc(kieu), ...tinhHieuUng(f, durationInFrames, {vao, ra, khung, lien})}}>{children}</div>;
+};
+
 export const coGiong = (C, giong) => {
   const CoGiong = (p) => (<>{React.createElement(C, p)}{giong ? <Audio src={src(giong)} /> : null}</>);
   return CoGiong;

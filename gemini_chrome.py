@@ -76,10 +76,10 @@ def _ranh(cong):
 
 def _dong(cong, ly_do):
     import flow_ve
-    ten = next((t for t, c in _ho_so() if c == cong), cong)
+    ten = next((t for t, c in tat_ca() if c == cong), cong)
     _dat_tu_mo(cong, False)
     flow_ve.dong_em(cong)
-    log(f"    Gemini Chrome '{ten}': {ly_do} — đã đóng Chrome")
+    log(f"    Chrome hồ sơ '{ten}': {ly_do} — đã đóng Chrome")
 
 
 def don_chrome_ranh():
@@ -227,6 +227,12 @@ _DOC = """JSON.stringify({stop: !!document.querySelector('button[aria-label*="St
 def _ho_so():
     """[(tên, cổng)] các hồ sơ Chrome của Flow (cổng giống flow_ve)."""
     import flow_ve
+    return [(t, c) for t, c in tat_ca() if flow_ve.duoc_dung(t, "gemini")]   # 05/11: theo việc user đánh dấu
+
+
+def tat_ca():
+    """[(tên, cổng)] MỌI hồ sơ (cổng theo vị trí trong sổ — không đổi khi lọc theo việc)."""
+    import flow_ve
     return [(ten, flow_ve.CONG_DAU + i % 40) for i, ten in enumerate(flow_ve._doc_so())]   # noqa: SLF001
 
 
@@ -262,7 +268,7 @@ def _mo_chrome(ten, cong):
                 _json(cong)
             except OSError:
                 continue
-            log(f"    Gemini Chrome: mở hồ sơ '{ten}' (thu nhỏ — bấm trên thanh tác vụ để xem)")
+            log(f"    Chrome: mở hồ sơ '{ten}' (thu nhỏ — bấm trên thanh tác vụ để xem)")
             _dat_tu_mo(cong, True)
             _cua_so(cong, "minimized")
             return True
@@ -301,7 +307,7 @@ def _dong_neu_ranh(cong):
     with _KHOA:
         if cong not in _TU_MO:
             return
-        ten = next((t for t, c in _ho_so() if c == cong), None)
+        ten = next((t for t, c in tat_ca() if c == cong), None)
         if ten and _DANG.get(ten):
             return
         r = _ranh(cong)

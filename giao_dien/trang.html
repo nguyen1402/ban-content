@@ -263,7 +263,7 @@ async function veCookie(){let d;try{d=await api('/api/cookie')}catch(e){$('#ckds
   $('#ckds').innerHTML=cacDv+ytCard;
   clearTimeout(ckHen);if(dangKT&&$('#ck').style.display!=='none')ckHen=setTimeout(veCookie,2500)}
 // 🎨 Flow: hồ sơ Chrome riêng để vẽ ảnh
-let flowHen=null;
+let flowHen=null;const FL_MO=new Set();
 async function veFlow(){let d;try{d=await api('/api/flow')}catch(e){$('#flowds').textContent='Lỗi: '+e.message;return}
   const thu=d.thu||{};let dang=false;
   // Cập nhật danh sách hồ sơ cho ô thử hỏi
@@ -295,7 +295,27 @@ async function veFlow(){let d;try{d=await api('/api/flow')}catch(e){$('#flowds')
         : '');
 
     const kq=t.dang?'<span class="sub" style="margin:0">đang thử… (mở ẩn, tạo 1 ảnh, ~30-60 giây)</span>':(t.kq?'<a href="'+t.kq+'" target="_blank">✔ ảnh thử</a>':(t.loi?'<span style="color:#c62828">✖ '+escH(t.loi)+'</span>':''));
-    return '<div class="row" style="gap:8px;margin:5px 0;padding:6px 8px;background:var(--box);border-radius:6px;align-items:center;flex-wrap:wrap"><b>'+escH(h.ten)+'</b>'+tt+
+    // 05/11 user: đánh dấu hồ sơ làm việc gì; khoá = không việc nào được mở hồ sơ này
+    const VC=d.viec||{},co=h.viec==null?Object.keys(VC):h.viec;
+    const viecRow='<div class="row" style="gap:10px;width:100%;margin-top:4px;align-items:center;flex-wrap:wrap'+(h.khoa?';opacity:.55':'')+'">'
+      +'<span class="sub" style="margin:0">Dùng cho:</span>'
+      +Object.entries(VC).map(([k,nh])=>'<label style="font-size:13px;white-space:nowrap"><input type="checkbox" data-viec="'+escH(h.ten)+'|'+k+'"'+(co.includes(k)?' checked':'')+(h.khoa?' disabled':'')+'> '+escH(nh)+'</label>').join('')
+      +'<button data-khoa="'+escH(h.ten)+'" style="padding:2px 10px;border-radius:6px;font-size:12px;font-weight:600;'+(h.khoa?'background:#6d4c41;color:#fff;border:none':'')+'" title="'+(h.khoa?'Hồ sơ đang KHOÁ: Flow / Veo / Gemini / DeepSeek / ChatGPT và các nút kiểm tra hàng loạt đều không mở hồ sơ này. Bấm để mở khoá.':'Khoá hồ sơ: không việc tự động nào được mở hồ sơ này')+'">'+(h.khoa?'🔒 Đang khoá — bấm mở':'🔓 Khoá hồ sơ')+'</button></div>';
+    // 05/11 user: "giao diện rối quá … mỗi hồ sơ có 1 chỗ sổ ra" -> một dòng tóm tắt, bấm ▸ mới hiện chi tiết + nút
+    const nghiDen=Number(h.nghi_den||0)*1000;
+    const ngan=h.khoa?['#6d4c41','🔒 Khoá']:h.cho_sua?['#c62828','● Dừng — chờ kiểm tra']:h.dang_nghi?['#e65100','● Nghỉ'+(nghiDen>Date.now()?' tới '+new Date(nghiDen).toTimeString().slice(0,5):'')]
+      :h.loi?['#c62828','● Lỗi lần trước']:['#2e7d32','● Sẵn sàng'];
+    const bieu=h.khoa?'':Object.entries(VC).filter(([k])=>co.includes(k)).map(([k,nh])=>'<span title="'+escH(nh)+'">'+nh.split(' ')[0]+'</span>').join('');
+    const mo=FL_MO.has(h.ten);
+    return '<div style="margin:4px 0;background:var(--box);border-radius:8px;border:1px solid var(--line)">'+
+      '<div data-flmo="'+escH(h.ten)+'" style="display:flex;gap:10px;align-items:center;padding:7px 10px;cursor:pointer;user-select:none;flex-wrap:wrap">'+
+      '<span style="width:12px;color:var(--mut)">'+(mo?'▾':'▸')+'</span><b style="min-width:52px">'+escH(h.ten)+'</b>'+
+      '<span style="color:'+ngan[0]+';font-size:13px;font-weight:600;min-width:120px" title="'+escH(h.loi||'')+'">'+ngan[1]+'</span>'+
+      '<span style="letter-spacing:3px;min-width:96px" title="Việc hồ sơ này được làm">'+(bieu||'<span class="sub" style="margin:0;letter-spacing:0">không việc nào</span>')+'</span>'+
+      '<span class="sub" style="margin:0 0 0 auto">'+(h.so_anh||0)+' ảnh · 🎬 '+(h.diem_con??50)+'/50đ</span></div>'+
+      '<div style="display:'+(mo?'block':'none')+';padding:4px 12px 10px 32px;border-top:1px solid var(--line)">'+
+      (!h.khoa&&(h.cho_sua||h.dang_nghi||h.loi)?'<div class="row" style="gap:8px;margin:4px 0;flex-wrap:wrap">'+tt+'</div>':'')+
+      '<div class="row" style="gap:8px;margin:6px 0;align-items:center;flex-wrap:wrap">'+
       (gmBadge ? ' ' + gmBadge : '') + (cgBadge ? ' ' + cgBadge : '') +
       '<span class="sub" style="margin:0">'+(h.so_anh||0)+' ảnh</span>'+
       '<span class="sub" style="margin:0" title="Điểm video còn dùng trong ngày (hạn 50/ngày, Omni 720p 8 s = 12 điểm)">🎬 còn '+(h.diem_con??50)+'/50đ</span>'+
@@ -306,7 +326,7 @@ async function veFlow(){let d;try{d=await api('/api/flow')}catch(e){$('#flowds')
       '<button class="p" data-fl="kt_ai|'+escH(h.ten)+'" style="padding:3px 8px;border-radius:6px" title="Kiểm tra xem Gemini & ChatGPT trên hồ sơ này có dùng được không">🔍 Kiểm tra</button>'+
       '<button class="p" data-fl="doc_diem|'+escH(h.ten)+'" style="padding:3px 7px;border-radius:6px" title="Đọc điểm thật + giờ reset của hồ sơ này">🔄</button>'+
       '<button class="p" data-fl="thu|'+escH(h.ten)+'" style="padding:3px 8px;border-radius:6px" title="Vẽ thử 1 ảnh bằng Flow">Thử</button>'+
-      '<button class="p" data-fl="xoa|'+escH(h.ten)+'" style="padding:3px 8px;border-color:var(--er);color:var(--er);border-radius:6px">Xoá</button>'+kq+'</div>'}).join(''):'<div class="sub" style="margin:0">(chưa có hồ sơ Chrome nào — hãy bấm nút tạo ở trên)</div>';
+      '<button class="p" data-fl="xoa|'+escH(h.ten)+'" style="padding:3px 8px;border-color:var(--er);color:var(--er);border-radius:6px">Xoá</button>'+kq+'</div>'+viecRow+'</div></div>'}).join(''):'<div class="sub" style="margin:0">(chưa có hồ sơ Chrome nào — hãy bấm nút tạo ở trên)</div>';
   if(d.doc_diem)dang=true;$('#flow_btn_doc_diem').disabled=!!d.doc_diem;$('#flow_btn_doc_diem').textContent=d.doc_diem?'⏳ Đang đọc điểm…':'🔄 Đọc điểm Flow';
   clearTimeout(flowHen);if(dang&&$('#flowk').style.display!=='none')flowHen=setTimeout(veFlow,3000)}
 $('#flow_btn_doc_diem').onclick=async()=>{try{await post('/api/flow/doc_diem',{});tb('Đang đọc điểm từng hồ sơ (mỗi hồ sơ ~15-30 giây)…');veFlow()}catch(e){tb('Lỗi: '+e.message)}};
@@ -329,7 +349,14 @@ $('#flowtao_chatgpt').onclick=()=>taoHoSo('chatgpt');
 $('#flowtao_gemini').onclick=()=>taoHoSo('gemini');
 $('#flowtao').onclick=()=>taoHoSo('flow');
 
-$('#flowds').onclick=async e=>{const b=e.target.closest('[data-fl]');if(!b)return;const [vc,ten]=b.dataset.fl.split('|');
+$('#flowds').onchange=async e=>{const c=e.target.closest('[data-viec]');if(!c)return;const ten=c.dataset.viec.split('|')[0];
+  const viec=[...document.querySelectorAll('#flowds [data-viec]')].filter(x=>x.dataset.viec.split('|')[0]===ten&&x.checked).map(x=>x.dataset.viec.split('|')[1]);
+  try{await post('/api/flow/viec',{ten,viec});tb('Hồ sơ '+ten+': '+(viec.length?viec.join(', '):'không làm việc nào'))}catch(err){tb('Lỗi: '+err.message);veFlow()}};
+$('#flowds').onclick=async e=>{const tg=e.target.closest('[data-flmo]');if(tg){const n=tg.dataset.flmo;FL_MO.has(n)?FL_MO.delete(n):FL_MO.add(n);
+    const than=tg.nextElementSibling,m=FL_MO.has(n);than.style.display=m?'block':'none';tg.firstElementChild.textContent=m?'▾':'▸';return}
+  const kb=e.target.closest('[data-khoa]');if(kb){const ten=kb.dataset.khoa,khoa=!kb.textContent.includes('Đang khoá');
+    try{await post('/api/flow/viec',{ten,khoa});tb((khoa?'🔒 Đã khoá ':'🔓 Đã mở khoá ')+ten)}catch(err){tb('Lỗi: '+err.message)}return veFlow()}
+  const b=e.target.closest('[data-fl]');if(!b)return;const [vc,ten]=b.dataset.fl.split('|');
   if(vc==='xoa'&&!confirm('Xoá hồ sơ Chrome "'+ten+'" (cả phiên đăng nhập trong đó)?'))return;
   if(vc==='khoa_gm'||vc==='mo_khoa_gm'){
     try{await post('/api/gemini/khoa',{ten,khoa:vc==='khoa_gm'});tb(vc==='khoa_gm'?'🔒 Đã khoá Gemini hồ sơ "'+ten+'" — mọi phiên không mở thử':'Đã mở khoá Gemini hồ sơ "'+ten+'"');veFlow()}catch(er){tb('Lỗi: '+er.message)}

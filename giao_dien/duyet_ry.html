@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Duyệt cảnh Remotion</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--ink:#1c2230;--mut:#667085;--line:#e3e6ec;--ac:#2f6df6;--ac-ink:#fff;--ok:#1a9d5c;--wa:#c27803;--er:#d33a3a;--ry:#1565c0}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1218;--card:#171b24;--ink:#e8ecf3;--mut:#93a0b4;--line:#262c39;--ac:#5b8cff;--ac-ink:#0b0f18;--ok:#43c783;--wa:#e0a43a;--er:#ff7070;--ry:#5b9cf0}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 "Segoe UI",system-ui,sans-serif}
+header{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 16px;background:var(--card);border-bottom:1px solid var(--line)}
+h1{font-size:16px;margin:0}
+button,select,input,textarea{font:inherit;color:var(--ink)}
+button{background:var(--ac);color:var(--ac-ink);border:0;border-radius:8px;padding:6px 12px;cursor:pointer}
+button.p{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button:disabled{opacity:.45;cursor:not-allowed}
+input[type=text],input[type=number],textarea,select{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:5px 8px}
+textarea{width:100%;resize:vertical}
+.sub{color:var(--mut);font-size:12.5px}
+.loc{display:flex;gap:4px;flex-wrap:wrap}
+.loc button{padding:4px 10px;font-size:12.5px}
+.loc button.chon{background:var(--ac);color:var(--ac-ink);border-color:var(--ac)}
+main{padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:14px}
+.the{background:var(--card);border:2px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+.the.ung{border-color:var(--ok)}.the.chua_ung{border-color:var(--er)}
+.the video,.the .trong{width:100%;aspect-ratio:16/9;background:#000;display:block}
+.the .trong{display:flex;align-items:center;justify-content:center;color:#aaa;font-size:13px;text-align:center;padding:10px}
+.the .than{padding:8px 10px;display:grid;gap:6px}
+.dau{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.tag{font-size:11px;padding:1px 7px;border-radius:6px;background:var(--line);color:var(--mut)}
+.loi{color:var(--er)}
+.nut{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.nut button{padding:5px 10px;font-size:13px}
+.ung-btn.on{background:var(--ok);color:#fff;border-color:var(--ok)}
+.khong-btn.on{background:var(--er);color:#fff;border-color:var(--er)}
+.tt{font-size:12px;color:var(--mut);min-height:16px}
+dialog{border:0;border-radius:12px;padding:0;width:min(1280px,97vw);max-height:94vh;background:var(--card);color:var(--ink);box-shadow:0 12px 36px #0006}
+dialog::backdrop{background:#0008}
+.sua{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px;padding:14px 16px;max-height:calc(94vh - 110px);overflow:auto}
+@media (max-width:860px){.sua{grid-template-columns:1fr}main{grid-template-columns:1fr}}
+.xem img{width:100%;aspect-ratio:16/9;object-fit:contain;background:#000;border-radius:8px;display:block}
+.dong{display:grid;grid-template-columns:150px 1fr;gap:8px;align-items:center;margin:4px 0}
+.dong label{font-size:12.5px;color:var(--mut)}
+.pt{width:100%;border-collapse:collapse;font-size:12.5px}
+.pt th,.pt td{border-bottom:1px solid var(--line);padding:3px 4px;text-align:left}
+.pt input{width:70px;padding:2px 5px}
+.anh-chon{display:flex;gap:6px;flex-wrap:wrap}
+.anh-chon img{height:54px;border-radius:5px;border:3px solid transparent;cursor:pointer;background:#000}
+.anh-chon img.chon{border-color:var(--ac)}
+.chan{display:flex;gap:8px;justify-content:flex-end;align-items:center;padding:10px 16px;border-top:1px solid var(--line)}
+h3{font-size:14px;margin:10px 0 4px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎞 Duyệt cảnh Remotion</h1>
+  <span class="sub" id="ten_da"></span>
+  <a class="sub" id="ve_dung" href="/dung">← về trang Dựng</a>
+  <div class="loc" id="loc">
+    <button data-loc="tat">Tất cả</button>
+    <button data-loc="chua_duyet" class="chon">Chưa duyệt</button>
+    <button data-loc="chua_ung">👎 Chưa ưng</button>
+    <button data-loc="ung">👍 Ưng</button>
+    <button data-loc="loi">❌ Lỗi / chưa dựng</button>
+  </div>
+  <span class="sub" id="dem"></span>
+  <span class="sub" id="td" style="margin-left:auto"></span>
+  <button class="p" id="sua_so" title="Đọc chữ THẬT trên khung mọi cảnh; số / năm / số lượng nào hiện ra mà lời kể không nói thì DeepSeek sửa lại đúng số, rồi thay đúng các cảnh đó trong bản nháp">🔢 Kiểm &amp; sửa số liệu</button>
+  <button class="p" id="don_nhe" title="Xoá thứ KHÔNG bản nháp / cảnh nào dùng: khung dựng thử, ảnh chấm, video cảnh cũ đã bị thay, ảnh thừa. Bản nháp không bị ảnh hưởng.">🧹 Dọn file thừa</button>
+  <button class="p" id="don_het" style="border-color:var(--er);color:var(--er)" title="Sau khi ĐÃ XUẤT video: xoá toàn bộ cảnh Remotion của dự án này (video, code, ảnh, bản ghi). Bản nháp CapCut của dự án sẽ mất các đoạn Remotion.">🗑 Xoá hết Remotion dự án</button>
+</header>
+<main id="ds"><p class="sub">Đang nạp…</p></main>
+
+<dialog id="hop">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)">
+    <b id="hop_tieu_de">✏️ Sửa tay</b>
+    <button class="p" onclick="dong()" style="padding:2px 9px">✕</button>
+  </div>
+  <div class="sua">
+    <div class="xem">
+      <img id="xem_anh" alt="Khung xem thử">
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+        <span class="sub">Giây</span>
+        <input type="range" id="xem_giay" min="0" max="5" step="0.1" value="0" style="flex:1">
+        <span id="xem_giay_so" style="width:52px;text-align:right">0.0 s</span>
+        <button id="xem_nut">👁 Xem khung này</button>
+      </div>
+      <div class="sub" id="xem_tt" style="margin-top:4px">Sửa bên phải rồi bấm 👁 để xem khung hình với thông số mới (chưa lưu, mất vài giây).</div>
+      <p class="sub" id="hop_text" style="margin-top:8px"></p>
+      <video id="hop_video" controls style="width:100%;border-radius:8px;background:#000;margin-top:4px"></video>
+      <div class="sub">Video đang có trong bản nháp</div>
+    </div>
+    <div>
+      <h3>Chữ, số, màu, ảnh</h3>
+      <div id="f_props"></div>
+      <h3>Phần tử — giờ hiện &amp; vị trí <span class="sub">(giây tính từ đầu cảnh; trái / trên = điểm ảnh trên khung 1920×1080)</span></h3>
+      <table class="pt"><thead><tr><th>Phần tử</th><th>Hiện lúc</th><th>Dài</th><th>Trái</th><th>Trên</th><th></th></tr></thead><tbody id="f_pt"></tbody></table>
+      <p class="sub" id="f_pt_trong" style="display:none">Cảnh này không có phần tử chỉnh được giờ / vị trí.</p>
+    </div>
+  </div>
+  <div class="chan">
+    <span class="sub" id="hop_tt" style="flex:1"></span>
+    <button class="p" onclick="dong()">Huỷ</button>
+    <button id="hop_luu" style="background:var(--ok);color:#fff">💾 Lưu &amp; thay cảnh này trong bản nháp</button>
+  </div>
+</dialog>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function api(p,o){const r=await fetch(p,o);if(!r.ok){let t='';try{t=await r.text()}catch(e){}
+  const m=t.match(/<pre>([\s\S]*?)<\/pre>/i);const div=document.createElement('div');div.innerHTML=m?m[1]:'';
+  throw new Error(((m?div.textContent:t.replace(/<[^>]*>/g,' ')).replace(/\s+/g,' ').trim().slice(0,200))||('mã '+r.status))}return r.json()}
+const post=(p,d)=>api(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
+async function choJob(job,o,truoc){for(;;){await new Promise(z=>setTimeout(z,2000));const t=await api('/api/doi_thu/tt?job='+job);
+  if(t.dang){if(t.dong&&o)o.textContent=truoc+t.dong;continue}if(t.loi)throw new Error(t.loi);return t.kq||{}}}
+const mmss=s=>{s=Math.max(0,+s||0);return Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0')};
+const DU=new URLSearchParams(location.search).get('du_an')||'';
+$('#ten_da').textContent=DU?`dự án ${DU}`:'(thiếu ?du_an=)';$('#ve_dung').href='/dung?du_an='+encodeURIComponent(DU);
+
+let DS=[],LOC='chua_duyet';const VIEC={};          // cau -> đang chạy việc gì (giữ khi nạp lại)
+try{const v=localStorage.getItem('duyet_ry_loc');if(v)LOC=v}catch(e){}
+const loai=x=>x.trang_thai!=='xong'||!x.url?'loi':x.danh_gia.thich===true?'ung':x.danh_gia.thich===false?'chua_ung':'chua_duyet';
+function veLoc(){document.querySelectorAll('#loc button').forEach(b=>b.classList.toggle('chon',b.dataset.loc===LOC))}
+document.querySelectorAll('#loc button').forEach(b=>b.onclick=()=>{LOC=b.dataset.loc;try{localStorage.setItem('duyet_ry_loc',LOC)}catch(e){}veLoc();ve()});
+veLoc();
+
+function the(x){
+  const lo=loai(x),dg=x.danh_gia||{},ls=(dg.lich_su||[]).slice(-2);
+  const tt={chua:'chưa dựng',dang:'đang dựng dở',viet_xong:'có code, chờ dựng video',loi:'lỗi'}[x.trang_thai]||x.trang_thai;
+  return `<div class="the ${lo}" data-cau="${x.cau}">
+    ${x.url?`<video src="${x.url}" controls preload="metadata"></video>`:`<div class="trong">${esc(tt)}${x.loi?`<br><span class="loi">${esc(x.loi.slice(0,160))}</span>`:''}</div>`}
+    <div class="than">
+      <div class="dau"><b>Câu ${x.cau}${x.den_cau>x.cau?'–'+x.den_cau:''}</b>
+        ${x.t0!=null?`<span class="sub">${mmss(x.t0)} · ${(+x.giay||0).toFixed(1)} s</span>`:''}
+        ${x.sua_tay?'<span class="tag">đã sửa tay</span>':''}${x.diem!=null?`<span class="tag" title="Điểm Antigravity (đã tắt chấm)">AI ${x.diem}/10</span>`:''}</div>
+      <div class="sub">${esc(x.text||'')}</div>
+      ${ls.length?`<div class="sub">💬 ${ls.map(l=>esc(l.y_kien)).join(' · ')}</div>`:''}
+      <div class="nut">
+        <button class="p ung-btn ${dg.thich===true?'on':''}" data-dg="1" ${x.url?'':'disabled'}>👍 Ưng</button>
+        <button class="p khong-btn ${dg.thich===false?'on':''}" data-dg="0" ${x.url?'':'disabled'}>👎 Chưa ưng</button>
+        <button data-lop ${x.trang_thai==='xong'?'':'disabled'} title="Sửa kiểu CapCut: phát trực tiếp, timeline xếp lớp — dời giờ, kéo dài, đổi lớp trên / dưới, kéo vị trí, phóng to / thu nhỏ, ẩn / xoá">🎚 Sửa lớp</button>
+        <button class="p" data-sua ${x.trang_thai==='xong'?'':'disabled'} title="Sửa chữ, số, màu, chọn ảnh khác">✏️ Chữ &amp; ảnh</button>
+        <button class="p" data-lamlai ${x.trang_thai?'':'disabled'} style="border-color:var(--er);color:var(--er)" title="Bỏ hẳn cảnh này (thiết kế, ảnh, code, chỉnh tay) rồi AI thiết kế + vẽ ảnh + viết + dựng lại TỪ ĐẦU. Chỉ thay đúng cảnh này trong bản nháp; lượt mới hỏng thì giữ cảnh cũ. Mất vài phút.">🗑 Dựng lại từ đầu</button>
+      </div>
+      <textarea rows="2" data-gy placeholder="💬 Góp ý cho AI sửa cảnh này (vd «ảnh bò to hơn, chữ ít lại, cho bản đồ phóng vào Tucson đúng lúc đọc tên»)"></textarea>
+      <div class="nut"><button data-gyb ${x.trang_thai==='xong'?'':'disabled'}>🤖 Gửi AI sửa theo góp ý</button><span class="tt" data-tt>${esc(VIEC[x.cau]||'')}</span></div>
+    </div></div>`}
+
+function ve(){
+  const ds=DS.filter(x=>LOC==='tat'||loai(x)===LOC),dem={};DS.forEach(x=>{const l=loai(x);dem[l]=(dem[l]||0)+1});
+  $('#dem').textContent=`${DS.length} cảnh · 👍 ${dem.ung||0} · 👎 ${dem.chua_ung||0} · chưa duyệt ${dem.chua_duyet||0} · lỗi / chưa dựng ${dem.loi||0}`;
+  const m=$('#ds');
+  // giữ thẻ đang xem / đang gõ: chỉ vẽ lại thẻ đổi
+  const co={};m.querySelectorAll('.the').forEach(e=>co[e.dataset.cau]=e);
+  if(!ds.length){m.innerHTML='<p class="sub">Không có cảnh nào trong mục này.</p>';return}
+  const moi=document.createDocumentFragment();
+  ds.forEach(x=>{const k=JSON.stringify([x.url,x.trang_thai,x.danh_gia,x.sua_tay,x.loi]);const cu=co[x.cau];
+    if(cu&&cu.dataset.k===k){moi.appendChild(cu);return}
+    const tmp=document.createElement('div');tmp.innerHTML=the(x);const e=tmp.firstElementChild;e.dataset.k=k;
+    if(cu){const g=cu.querySelector('[data-gy]');if(g&&g.value)e.querySelector('[data-gy]').value=g.value}
+    gan(e,x);moi.appendChild(e)});
+  m.innerHTML='';m.appendChild(moi)}
+
+function gan(e,x0){
+  const tt=e.querySelector('[data-tt]');
+  const cur=()=>DS.find(z=>z.cau===x0.cau)||x0;                  // thẻ giữ lại qua lần nạp sau: luôn đọc bản ghi mới nhất
+  const x={get cau(){return x0.cau},get danh_gia(){return cur().danh_gia},set danh_gia(v){cur().danh_gia=v}};
+  e.querySelectorAll('[data-dg]').forEach(b=>b.onclick=async()=>{const v=b.dataset.dg==='1';
+    const thich=(x.danh_gia.thich===v)?null:v;try{x.danh_gia=await post('/api/sua_canh/danh_gia',{du_an:DU,cau:x.cau,thich});ve()}catch(err){tt.textContent='✖ '+err.message}});
+  e.querySelector('[data-sua]').onclick=()=>mo(cur());
+  e.querySelector('[data-lop]').onclick=()=>window.open(`/sua-lop?du_an=${encodeURIComponent(DU)}&cau=${x0.cau}`,'_blank');
+  e.querySelector('[data-lamlai]').onclick=async()=>{
+    if(!confirm(`Xoá cảnh câu ${x.cau} và dựng lại TỪ ĐẦU?
+
+AI thiết kế lại, vẽ ảnh mới, viết code mới (mọi chỉnh tay của cảnh này mất). Chỉ cảnh này được thay trong bản nháp; nếu lượt mới hỏng thì giữ cảnh cũ.`))return;
+    const sTT=v=>{VIEC[x.cau]=v;const t=document.querySelector(`.the[data-cau="${x.cau}"] [data-tt]`);if(t)t.textContent=v};
+    e.querySelector('[data-lamlai]').disabled=true;sTT('🗑 Đang dựng lại từ đầu…');
+    try{const r=await post('/api/sua_canh/lam_lai',{du_an:DU,cau:x.cau});
+      const k=await choJob(r.job,{set textContent(v){sTT(v)}},'🗑 ');
+      sTT(k.nhap?`✔ Đã dựng lại và thay cảnh trong bản nháp '${k.nhap}'`:'✔ Đã dựng lại (chưa có bản nháp _hoan_chinh để ghép)');await nap()}
+    catch(err){sTT('✖ '+err.message)}
+    finally{const bb=document.querySelector(`.the[data-cau="${x.cau}"] [data-lamlai]`);if(bb)bb.disabled=false}};
+  e.querySelector('[data-gyb]').onclick=async()=>{const y=e.querySelector('[data-gy]').value.trim();if(!y)return tt.textContent='Viết góp ý trước';
+    const b=e.querySelector('[data-gyb]');b.disabled=true;VIEC[x.cau]='🤖 AI đang sửa…';tt.textContent=VIEC[x.cau];
+    try{const r=await post('/api/sua_canh/gop_y',{du_an:DU,cau:x.cau,y_kien:y});
+      const k=await choJob(r.job,{set textContent(v){VIEC[x.cau]=v;const t=document.querySelector(`.the[data-cau="${x.cau}"] [data-tt]`);if(t)t.textContent=v}},'🤖 ');
+      VIEC[x.cau]=k.nhap?`✔ Đã sửa và thay cảnh trong bản nháp '${k.nhap}'`:'✔ Đã sửa (chưa có bản nháp _hoan_chinh để ghép)';
+      const g=document.querySelector(`.the[data-cau="${x.cau}"] [data-gy]`);if(g)g.value='';await nap()}
+    catch(err){VIEC[x.cau]='✖ '+err.message;const t=document.querySelector(`.the[data-cau="${x.cau}"] [data-tt]`);if(t)t.textContent=VIEC[x.cau]}
+    finally{const bb=document.querySelector(`.the[data-cau="${x.cau}"] [data-gyb]`);if(bb)bb.disabled=false}}}
+
+let henNap=null;
+async function nap(){clearTimeout(henNap);let r;
+  try{r=await api('/api/sua_canh/ds?du_an='+encodeURIComponent(DU))}catch(e){$('#ds').innerHTML=`<p class="loi">Lỗi: ${esc(e.message)}</p>`;henNap=setTimeout(nap,10000);return}
+  DS=r.ds||[];const t=r.tien_do||{};
+  $('#td').textContent=(r.nhap?`Bản nháp: ${r.nhap}`:'⚠ chưa có bản nháp _hoan_chinh')+
+    (t.dang_chay?` · ⏳ ${t.viec}: xong ${t.so_xong}/${Object.keys(t.cau||{}).length}`:t.bi_dung?' · ⛔ lượt dựng bị dừng':'');
+  ve();henNap=setTimeout(nap,t.dang_chay?8000:30000)}
+nap();
+// 05/11 user: "xoá toàn bộ các cảnh remotion … để đỡ nặng máy khi tôi làm xong"
+const tomDon=r=>Object.entries(r.muc).map(([k,[n,g]])=>`• ${k}: ${n} tệp, ${g} GB`).join('\n');
+async function don(het){
+  const b=$(het?'#don_het':'#don_nhe'),cu=b.textContent;b.disabled=true;b.textContent='⏳ Đang đếm…';
+  try{const r=await api(`/api/remotion/don?du_an=${encodeURIComponent(DU)}&het=${het?1:0}`);
+    if(!r.so){alert('Không có gì để dọn.');return}
+    let xn='';
+    if(het){xn=prompt(`🗑 XOÁ HẾT cảnh Remotion của dự án «${DU}» — ${r.so} tệp, ${r.gb} GB:\n${tomDon(r)}\n\n⚠ Chỉ làm khi ĐÃ XUẤT video xong: bản nháp CapCut của «${DU}» sẽ mất các đoạn Remotion, muốn có lại phải dựng lại từ đầu. Bản nháp dự án khác không bị ảnh hưởng.\n\nGõ đúng tên dự án «${DU}» để xoá:`);
+      if(xn===null)return;if(xn.trim()!==DU){alert('Tên không khớp — không xoá gì.');return}}
+    else if(!confirm(`🧹 Dọn ${r.so} tệp thừa, ${r.gb} GB:\n${tomDon(r)}\n\nChỉ xoá thứ không bản nháp / cảnh nào đang dùng (tệp sửa trong 2 giờ qua được giữ). Xoá?`))return;
+    b.textContent='⏳ Đang xoá…';
+    const k=await post('/api/remotion/don',{du_an:DU,het,xac_nhan:xn.trim()});
+    alert(`✔ Đã xoá ${k.so} tệp, giải phóng ${k.gb} GB`+(k.loi?` (${k.loi} tệp không xoá được — có thể đang mở)`:''));nap()}
+  catch(err){alert('✖ '+err.message)}
+  finally{b.disabled=false;b.textContent=cu}}
+$('#sua_so').onclick=async()=>{
+  if(!confirm('🔢 Đọc số trên khung của mọi cảnh (vài phút), cảnh nào hiện số mà lời kể không nói thì DeepSeek sửa đúng số rồi thay đúng cảnh đó trong bản nháp. Chạy?'))return;
+  const b=$('#sua_so'),cu=b.textContent;b.disabled=true;
+  try{const r=await post('/api/sua_canh/sua_so',{du_an:DU});
+    const k=await choJob(r.job,{set textContent(v){b.textContent='⏳ '+String(v).slice(0,40)}},'');
+    alert((k.sua&&k.sua.length?`✔ Đã sửa số ở câu ${k.sua.join(', ')}`+(k.nhap?` — thay trong bản nháp '${k.nhap}'`:''):'✔ Không cảnh nào cần thay')
+      +(k.hong&&Object.keys(k.hong).length?`\n✖ Chưa sửa được: câu ${Object.keys(k.hong).join(', ')}`:''));nap()}
+  catch(err){alert('✖ '+err.message)}finally{b.disabled=false;b.textContent=cu}};
+$('#don_nhe').onclick=()=>don(false);
+$('#don_het').onclick=()=>don(true);
+
+// ---------------- ✏️ sửa tay
+let SUA=null;
+function dong(){$('#hop').close();SUA=null}
+const laMau=v=>typeof v==='string'&&/^#[0-9a-f]{3,8}$/i.test(v.trim());
+const laAnh=(v,anh)=>typeof v==='string'&&(/\.(jpe?g|png|webp)$/i.test(v)||anh.some(a=>a.file===v));
+function oProps(k,v,nhan,anh){
+  const n=`<label title="${esc(k)}">${esc(nhan[k]||k)}</label>`;
+  if(typeof v==='boolean')return `<div class="dong">${n}<input type="checkbox" data-k="${esc(k)}" data-t="b"${v?' checked':''}></div>`;
+  if(typeof v==='number')return `<div class="dong">${n}<input type="number" step="any" data-k="${esc(k)}" data-t="n" value="${v}" style="width:130px"></div>`;
+  if(laMau(v))return `<div class="dong">${n}<span><input type="color" data-k="${esc(k)}" data-t="s" value="${esc(v.length===4?'#'+[...v.slice(1)].map(c=>c+c).join(''):v.slice(0,7))}"> <span class="sub">${esc(v)}</span></span></div>`;
+  if(laAnh(v,anh))return `<div class="dong">${n}<div class="anh-chon" data-k="${esc(k)}" data-t="a" data-v="${esc(v)}">${anh.filter(a=>a.url).map(a=>`<img src="${a.url}" title="${esc(a.ten)} (${esc(a.loai)})" data-f="${esc(a.file)}" class="${a.file===v?'chon':''}">`).join('')||`<span class="sub">${esc(v)}</span>`}</div></div>`;
+  if(typeof v==='string')return `<div class="dong">${n}${v.length>40?`<textarea rows="2" data-k="${esc(k)}" data-t="s">${esc(v)}</textarea>`:`<input type="text" data-k="${esc(k)}" data-t="s" value="${esc(v)}">`}</div>`;
+  return `<div class="dong">${n}<textarea rows="2" data-k="${esc(k)}" data-t="j" style="font-family:monospace;font-size:11px">${esc(JSON.stringify(v))}</textarea></div>`}
+function docSua(){const pr={};
+  $('#f_props').querySelectorAll('[data-k]').forEach(e=>{const k=e.dataset.k,t=e.dataset.t;
+    if(t==='b')pr[k]=e.checked;else if(t==='n')pr[k]=+e.value;else if(t==='a')pr[k]=e.dataset.v;
+    else if(t==='j'){try{pr[k]=JSON.parse(e.value)}catch(err){throw new Error(`«${k}» không phải JSON hợp lệ`)}}else pr[k]=e.value});
+  const pt=[...$('#f_pt').querySelectorAll('tr')].map(r=>{const o={i:+r.dataset.i};r.querySelectorAll('[data-p]').forEach(e=>{if(e.value!=='')o[e.dataset.p]=+e.value});return o});
+  return {props:pr,phan_tu:pt}}
+async function mo(x){
+  $('#hop_tieu_de').textContent=`✏️ Sửa tay — câu ${x.cau}${x.den_cau>x.cau?'–'+x.den_cau:''}`;$('#hop_tt').textContent='';$('#f_props').innerHTML='<p class="sub">Đang nạp…</p>';$('#f_pt').innerHTML='';
+  $('#hop').showModal();$('#hop_video').src=x.url||'';$('#hop_text').textContent=x.text||'';$('#xem_anh').removeAttribute('src');
+  let r;try{r=await api(`/api/sua_canh/thong_tin?du_an=${encodeURIComponent(DU)}&cau=${x.cau}`)}catch(e){$('#f_props').innerHTML=`<p class="loi">${esc(e.message)}</p>`;return}
+  SUA=r;const an=new Set(['giay']);
+  $('#f_props').innerHTML=Object.entries(r.props).filter(([k])=>!an.has(k)).map(([k,v])=>oProps(k,v,r.nhan||{},r.anh||[])).join('')||'<p class="sub">Không có thông số.</p>';
+  $('#f_props').querySelectorAll('.anh-chon img').forEach(i=>i.onclick=()=>{const o=i.parentElement;o.dataset.v=i.dataset.f;o.querySelectorAll('img').forEach(z=>z.classList.toggle('chon',z===i))});
+  $('#f_pt_trong').style.display=r.phan_tu.length?'none':'block';
+  $('#f_pt').innerHTML=r.phan_tu.map(p=>`<tr data-i="${p.i}"><td>${esc(p.ten)}</td>
+    <td><input type="number" step="0.1" data-p="tu" value="${p.tu??''}" ${p.tu==null?'disabled':''}></td>
+    <td><input type="number" step="0.1" data-p="dai" value="${p.dai??''}" ${p.dai==null?'disabled':''}></td>
+    <td><input type="number" step="10" data-p="trai" value="${p.trai??''}" ${p.trai==null?'disabled':''}></td>
+    <td><input type="number" step="10" data-p="tren" value="${p.tren??''}" ${p.tren==null?'disabled':''}></td>
+    <td><button class="p" data-toi="${p.tu??0}" style="padding:1px 7px" title="Xem khung lúc phần tử này vừa hiện">👁</button></td></tr>`).join('');
+  $('#f_pt').querySelectorAll('[data-toi]').forEach(b=>b.onclick=()=>{const r_=b.closest('tr'),tu=+r_.querySelector('[data-p=tu]').value||+b.dataset.toi;datGiay(tu+0.4);xem()});
+  const g=$('#xem_giay');g.max=Math.max(0.1,r.giay-0.1);datGiay(Math.min(r.giay/2,r.giay-0.1));xem()}
+function datGiay(s){const g=$('#xem_giay');g.value=Math.max(0,Math.min(+g.max,s));$('#xem_giay_so').textContent=(+g.value).toFixed(1)+' s'}
+$('#xem_giay').oninput=e=>datGiay(+e.target.value);
+let xemSo=0;
+async function xem(){if(!SUA)return;let d;try{d=docSua()}catch(e){return $('#xem_tt').textContent='✖ '+e.message}
+  const so=++xemSo;$('#xem_tt').textContent='⏳ Đang dựng khung…';$('#xem_nut').disabled=true;
+  try{const r=await post('/api/sua_canh/xem',{du_an:DU,cau:SUA.cau,giay:+$('#xem_giay').value,...d});if(so!==xemSo)return;
+    $('#xem_anh').src=r.url;$('#xem_tt').textContent=`Khung lúc ${(+$('#xem_giay').value).toFixed(1)} s với thông số đang sửa (chưa lưu).`}
+  catch(e){if(so===xemSo)$('#xem_tt').textContent='✖ '+e.message}finally{if(so===xemSo)$('#xem_nut').disabled=false}}
+$('#xem_nut').onclick=xem;
+$('#hop_luu').onclick=async()=>{if(!SUA)return;let d;try{d=docSua()}catch(e){return $('#hop_tt').textContent='✖ '+e.message}
+  const cau=SUA.cau,b=$('#hop_luu');b.disabled=true;$('#hop_tt').textContent='⏳ Đang lưu…';
+  try{const r=await post('/api/sua_canh/luu',{du_an:DU,cau,...d});
+    const k=await choJob(r.job,$('#hop_tt'),'⏳ ');
+    VIEC[cau]=k.nhap?`✔ Đã lưu sửa tay và thay cảnh trong bản nháp '${k.nhap}'`:'✔ Đã lưu sửa tay (chưa có bản nháp _hoan_chinh)';
+    dong();await nap()}
+  catch(e){$('#hop_tt').textContent='✖ '+e.message}finally{b.disabled=false}};
+</script>
+</body>
+</html>

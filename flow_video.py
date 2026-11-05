@@ -294,7 +294,7 @@ def uoc_diem(model, phan_giai="", do_dai="", so=1):
 
 def clip_con_hom_nay(can=12):
     """Số clip (mỗi clip `can` điểm) còn tạo được hôm nay trên mọi hồ sơ dùng được."""
-    return sum(flow_ve.diem_con(h["ten"], h) // can for h in flow_ve.ds_ho_so() if not h["dang_nghi"])
+    return sum(flow_ve.diem_con(h["ten"], h) // can for h in flow_ve.ds_ho_so() if not h["dang_nghi"] and flow_ve.duoc_dung(h["ten"], "veo", h))
 
 
 def _chon_theo_diem(ds, can):
@@ -337,7 +337,7 @@ def chay_theo_tai_khoan(viec, lam, can=12, song_song=SONG_SONG_VIDEO, moi_tk=MOI
 
     def nhan():
         with khoa:
-            ung = [h for h in flow_ve.ds_ho_so() if not h["dang_nghi"] and h["ten"] not in dang_dung
+            ung = [h for h in flow_ve.ds_ho_so() if not h["dang_nghi"] and flow_ve.duoc_dung(h["ten"], "veo", h) and h["ten"] not in dang_dung
                    and h["ten"] not in da_bo and flow_ve.diem_con(h["ten"], h) >= can]
             if not ung:
                 return None
@@ -443,7 +443,8 @@ def tao(prompt, thu, ten_goc, ti_le="16:9", model="Veo 3.1 - Fast", phan_giai=""
     from common import giu_dac_diem                          # 30/10: đặc điểm bắt buộc của nhân vật (gai nhím…)
     prompt = giu_dac_diem(prompt, thu)
     so = max(1, min(4, int(so or 1)))
-    ds = [h for h in flow_ve.ds_ho_so() if not h["dang_nghi"] and (not ho_so or h["ten"] == ho_so)]
+    ds = [h for h in flow_ve.ds_ho_so() if not h["dang_nghi"] and flow_ve.duoc_dung(h["ten"], "veo", h)
+          and (not ho_so or h["ten"] == ho_so)]
     if not ds:
         raise RuntimeError("chưa có hồ sơ Flow dùng được — tạo / đăng nhập ở «🎨 Hồ sơ Flow» trên trang chính")
     can = uoc_diem(model, phan_giai, do_dai, so)
@@ -451,10 +452,14 @@ def tao(prompt, thu, ten_goc, ti_le="16:9", model="Veo 3.1 - Fast", phan_giai=""
         ten = _chon_theo_diem(ds, can)
         if not ten:
             raise RuntimeError(f"hết điểm video hôm nay (mỗi hồ sơ {flow_ve.DIEM_NGAY} điểm/ngày, cần {can}) — mai tạo tiếp")
-        flow_ve._giu_ho_so([ten])                                # noqa: SLF001
+        while flow_ve._giu_ho_so([ten]) == flow_ve.DAY:        # noqa: SLF001  (05/11: hồ sơ đủ SONG_SONG lượt -> chờ)
+            time.sleep(1.5)
     else:
         # 22/10 user: nhiều video cùng lúc -> mỗi lượt GIỮ CHỖ một hồ sơ rảnh (flow_ve._giu_ho_so), không giành nhau
         ten = flow_ve._giu_ho_so([h["ten"] for h in ds])       # noqa: SLF001
+        while ten == flow_ve.DAY:                                # 05/11: mọi hồ sơ đủ SONG_SONG lượt -> chờ chỗ trống
+            time.sleep(1.5)
+            ten = flow_ve._giu_ho_so([h["ten"] for h in ds])   # noqa: SLF001
     try:
         return _tao_tren(ten, prompt, thu, ten_goc, ti_le, model, phan_giai, do_dai, so, anh_dau, anh_cuoi, bao,
                          can, gioi_han, khe)

@@ -68,7 +68,7 @@ def _dat_tu_mo(cong, co):
 def _ho_so():
     import flow_ve
     ds = list(flow_ve._doc_so())                               # noqa: SLF001
-    return [(t, flow_ve.CONG_DAU + i % 40) for i, t in enumerate(ds)]
+    return [(t, flow_ve.CONG_DAU + i % 40) for i, t in enumerate(ds) if flow_ve.duoc_dung(t, "chatgpt")]
 
 
 def co_ho_so():
@@ -175,7 +175,7 @@ def _cua_so(cong, dat=None):
         trang = [t for t in _json(cong) if t.get("type") == "page"]
         if not trang:
             return ""
-        w = _WS(_json(cong, "/version")["webSocketDebuggerUrl"])
+        w = _WS(_json(cong, "/json/version")["webSocketDebuggerUrl"])
         try:
             wid = w.goi("Browser.getWindowForTarget", targetId=trang[0]["id"])["windowId"]
             if dat:
@@ -225,8 +225,7 @@ def _cho(ws, bieu_thuc, giay, buoc=0.5):
 
 
 _JS_TIM_O_NHAP = """(() => {
-    const el = document.querySelector('#prompt-textarea') ||
-               document.querySelector('div[contenteditable=true]#prompt-textarea') ||
+    const el = document.querySelector('#prompt-textarea') || document.querySelector('div.ProseMirror[contenteditable=true]') || document.querySelector('[contenteditable=true][aria-label]') ||
                document.querySelector('textarea[data-id=root]') ||
                document.querySelector('form textarea');
     return !!el;
@@ -242,7 +241,7 @@ def _kiem_tra_trang_chatgpt(ws):
         body = str(ws.js("(document.body && document.body.innerText) || ''") or "")
         if "cf-turnstile" in body or "Checking your browser" in body or "challenge-running" in body:
             return "yêu cầu xác minh Cloudflare / Turnstile"
-        if ws.js("!!document.querySelector('button[data-testid=login-button], a[href*=\"/auth/login\"]') && !document.querySelector('#prompt-textarea')"):
+        if ws.js("!!document.querySelector('button[data-testid=login-button], a[href*=\"/auth/login\"]') && !document.querySelector('#prompt-textarea, div.ProseMirror[contenteditable=true]')"):
             return "chưa đăng nhập ChatGPT"
     except Exception:
         pass
@@ -278,11 +277,14 @@ def _cho_o_nhap(ten, ws):
 
 
 _JS_GUI = """((txt) => {
-    const el = document.querySelector('#prompt-textarea') ||
-               document.querySelector('div[contenteditable=true]#prompt-textarea') ||
+    const el = document.querySelector('#prompt-textarea') || document.querySelector('div.ProseMirror[contenteditable=true]') || document.querySelector('[contenteditable=true][aria-label]') ||
                document.querySelector('form textarea');
     if (!el) return false;
     el.focus();
+    if (txt === null) {                       // 05/11: ProseMirror mới — chỉ focus + xoá, chữ gõ bằng CDP insertText
+        document.execCommand('selectAll', false, null); document.execCommand('delete', false, null);
+        return true;
+    }
     if (el.tagName === 'TEXTAREA') {
         el.value = txt;
         el.dispatchEvent(new Event('input', {bubbles: true}));
@@ -297,9 +299,23 @@ _JS_GUI = """((txt) => {
 
 def _gui_cau(ws, prompt):
     """Gõ câu vào ô nhập ChatGPT và bấm nút gửi hoặc phím Enter."""
-    ws.js("document.querySelectorAll('[data-message-author-role=assistant]').forEach(e => e.dataset.bcCu = '1')")
-    ws.js(f"({_JS_GUI})({json.dumps(prompt)})")
-    time.sleep(0.4)
+    ws.js("document.querySelectorAll('[data-message-author-role=assistant], [data-markdown-text-style=assistant-message]')"
+          ".forEach(e => e.dataset.bcCu = '1')")
+    # 05/11: ChatGPT đổi ô nhập sang ProseMirror (không còn #prompt-textarea) — gán innerText không ăn; tab chạy nền nên
+    # focus() không đủ: BẤM CHUỘT vào ô rồi gõ bằng CDP insertText
+    ws.js(f"({_JS_GUI})(null)")
+    try:
+        r = json.loads(ws.js("(() => { const e = document.querySelector('div.ProseMirror[contenteditable=true], #prompt-textarea');"
+                             " if (!e) return 'null'; const b = e.getBoundingClientRect();"
+                             " return JSON.stringify([b.left + b.width / 2, b.top + b.height / 2]); })()") or "null")
+        if r:
+            for t in ("mousePressed", "mouseReleased"):
+                ws.goi("Input.dispatchMouseEvent", type=t, x=r[0], y=r[1], button="left", clickCount=1)
+    except Exception:                                        # noqa: BLE001
+        pass
+    time.sleep(0.3)
+    ws.goi("Input.insertText", text=prompt)
+    time.sleep(0.8)
 
     # Thử bấm nút gửi bằng chuột thật hoặc JS
     gui_duoc = ws.js("""(() => {
@@ -312,17 +328,18 @@ def _gui_cau(ws, prompt):
 
     if not gui_duoc:
         # Nhấn phím Enter qua CDP
-        ws.goi("Input.dispatchKeyEvent", type="rawKeyDown", windowsVirtualKeyCode=13, text="\r", unmodifiedText="\r")
-        ws.goi("Input.dispatchKeyEvent", type="keyUp", windowsVirtualKeyCode=13)
+        ws.goi("Input.dispatchKeyEvent", type="keyDown", key="Enter", code="Enter", windowsVirtualKeyCode=13, text="\r")
+        ws.goi("Input.dispatchKeyEvent", type="keyUp", key="Enter", code="Enter", windowsVirtualKeyCode=13)
         time.sleep(0.5)
 
 
 _JS_DOC_MOI = """(() => {
     const stop = !!(document.querySelector('button[data-testid="stop-button"]') ||
                     document.querySelector('button[aria-label*="Stop"]'));
-    const msgs = [...document.querySelectorAll('[data-message-author-role="assistant"]:not([data-bc-cu])')];
+    const TL = '[data-message-author-role="assistant"], [data-markdown-text-style="assistant-message"]';
+    const msgs = [...document.querySelectorAll(TL)].filter(e => !e.dataset.bcCu);
     if (!msgs.length) {
-        const allAss = [...document.querySelectorAll('[data-message-author-role="assistant"]')];
+        const allAss = [...document.querySelectorAll(TL)];
         if (allAss.length) {
             const last = allAss[allAss.length - 1];
             const p = last.querySelector('.markdown, .prose') || last;
@@ -366,7 +383,7 @@ def _cho_tra_loi(ws, han, cho_phan_hoi=CHO_PHAN_HOI, cho_dung=CHO_DUNG):
 def _hoi_tab(ten, cong, prompt, timeout):
     """Mở tab mới trên Chrome hồ sơ để hỏi ChatGPT một câu và đóng tab khi xong."""
     from anh_google import _WS
-    trinh = _WS(_json(cong, "/version")["webSocketDebuggerUrl"])
+    trinh = _WS(_json(cong, "/json/version")["webSocketDebuggerUrl"])
     try:
         tid = trinh.goi("Target.createTarget", url=TRANG, background=True)["targetId"]
     finally:
@@ -392,7 +409,7 @@ def _hoi_tab(ten, cong, prompt, timeout):
         if ws:
             ws.dong()
         try:
-            _json(cong, "/close/" + tab["id"])
+            _json(cong, "/json/close/" + tab["id"])
         except Exception:
             pass
         _hen_dong(cong)
